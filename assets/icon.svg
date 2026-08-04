@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Harlan's Legacy">
+  <rect width="32" height="32" rx="6" fill="#F7F2E9"/>
+  <path d="M16 6c-2 4-4 6-4 9a4 4 0 0 0 8 0c0-3-2-5-4-9z" fill="#B5502E"/>
+  <rect x="13" y="19" width="6" height="7" rx="1" fill="#4A5261"/>
+</svg>

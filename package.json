@@ -1,0 +1,19 @@
+{
+  "name": "harlans-legacy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Harlan's Legacy — a living archive of memory. Data-driven static site with a zero-dependency admin dashboard.",
+  "type": "commonjs",
+  "scripts": {
+    "photos": "node lib/photos.js",
+    "build": "node lib/photos.js && node build.js",
+    "serve": "node server.js",
+    "start": "node server.js"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.33.0",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow-models/blazeface": "^0.1.0"
+  },
+  "engines": { "node": ">=16" }
+}

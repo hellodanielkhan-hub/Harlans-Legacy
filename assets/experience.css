@@ -1,0 +1,495 @@
+/* =========================================================
+   Harlan's Legacy — Experience polish (Phase 3)
+   Craftsmanship only. Additive layer loaded by every page,
+   after each page's own styles. No layout / colour / spacing
+   redesign — only typographic finish, motion quality, ambient
+   light, cinematic page transitions, a physical scroll feel,
+   and a realistic 3D candle. Every motion is gated behind
+   prefers-reduced-motion, so accessibility is untouched.
+   ========================================================= */
+
+/* ---------- Premium typography ---------- */
+html{ text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body{ font-optical-sizing: auto; font-kerning: normal; font-feature-settings: "kern" 1, "liga" 1, "clig" 1, "calt" 1; }
+h1, h2, h3, .story-title, .book-parts li{ text-wrap: balance; font-feature-settings: "kern" 1, "liga" 1, "dlig" 1; }
+p, .lede, .archive-fragment, .intro, .footer-colophon{ text-wrap: pretty; }
+.story-body p, .bio p, .story-more p{ hyphens: auto; -webkit-hyphens: auto; hyphenate-limit-chars: 9 3 3; }
+:root{ hanging-punctuation: first last; }
+.hero h1, .profile-hero h1, .family-hero h1{ letter-spacing: -0.015em; }
+.quote-wrap blockquote{ hanging-punctuation: first; }
+::selection{ background: color-mix(in srgb, var(--ember-glow) 40%, transparent); color: var(--ink-primary); }
+
+/* ---------- Premium hover & motion ---------- */
+@media (prefers-reduced-motion: no-preference){
+  .card-catalogue, .related-card, .entity-chip, .btn, .chip, .person, .rel-link,
+  .story-toggle, .search-result, .book-parts li, .theme-toggle, .candle-indicator{
+    transition-timing-function: cubic-bezier(.2,.72,.24,1);
+  }
+  .btn-primary{ will-change: transform; }
+  .btn-primary:hover{ transform: translateY(-1px); box-shadow: 0 12px 26px -14px color-mix(in srgb, var(--ember-deep) 72%, transparent); }
+  .card-catalogue:hover, .related-card:hover{ transform: translateY(-4px); }
+  .entity-chip:hover{ transform: translateY(-2px); }
+  .brand svg{ transition: transform 420ms cubic-bezier(.2,.72,.24,1); }
+  .brand:hover svg{ transform: rotate(-5deg) scale(1.06); }
+  .theme-toggle:hover svg{ transform: rotate(12deg); transition: transform 420ms cubic-bezier(.2,.72,.24,1); }
+}
+
+/* ---------- Cinematic page transitions (View Transitions API) ---------- */
+@view-transition{ navigation: auto; }
+@keyframes hl-vt-out{ to{ opacity: 0; transform: translateY(-6px) scale(0.994); filter: blur(2px); } }
+@keyframes hl-vt-in{ from{ opacity: 0; transform: translateY(12px) scale(1.006); filter: blur(7px); } }
+@media (prefers-reduced-motion: no-preference){
+  ::view-transition-old(root){ animation: hl-vt-out 240ms var(--ease-settle, cubic-bezier(.22,.61,.36,1)) both; }
+  ::view-transition-new(root){ animation: hl-vt-in 480ms var(--ease-settle, cubic-bezier(.22,.61,.36,1)) both; }
+}
+@media (prefers-reduced-motion: reduce){
+  ::view-transition-old(root), ::view-transition-new(root){ animation: none; }
+}
+
+/* ---------- Physical scroll (scroll-driven, GPU-cheap, auto-degrading) ---------- */
+@media (prefers-reduced-motion: no-preference){
+  @supports (animation-timeline: scroll()){
+    .hero-candle{ animation: hl-parallax-up linear both; animation-timeline: scroll(root); animation-range: 0 78vh; will-change: transform; }
+    @keyframes hl-parallax-up{ to{ transform: translateY(-30px); } }
+    .featured-quote .quote-wrap{ animation: hl-quote-drift linear both; animation-timeline: view(); animation-range: entry 0% cover 40%; }
+    @keyframes hl-quote-drift{ from{ transform: translateY(14px); } to{ transform: translateY(0); } }
+  }
+}
+
+/* ---------- Ambient light: a slow breath through the lit rooms ---------- */
+@media (prefers-reduced-motion: no-preference){
+  .hero::before, .this-week::before, .featured-quote::before{ animation: hl-breathe 10s ease-in-out infinite; }
+  .this-week::before{ animation-delay: -3s; }
+  .featured-quote::before{ animation-delay: -6s; }
+  @keyframes hl-breathe{ 0%,100%{ opacity: 0.9; } 50%{ opacity: 1; } }
+}
+
+/* ---------- Reading: memories unfold instead of expanding ---------- */
+@media (prefers-reduced-motion: no-preference){
+  .story-details[open] .story-more{ animation: hl-unfold 640ms var(--ease-settle, cubic-bezier(.22,.61,.36,1)) both; }
+  @keyframes hl-unfold{ from{ opacity: 0; transform: translateY(10px); filter: blur(4px); } to{ opacity: 1; transform: none; filter: none; } }
+}
+
+/* =========================================================
+   HERO CANDLE — real candle cinemagraph, isolated (no box)
+   The source is a real burning candle recorded on a solid
+   BLACK background. mix-blend-mode:screen drops that black so
+   only the flame + wax remain, and a soft radial mask feathers
+   the video's rectangular edges into nothing — there is no
+   rounded box, no visible media element, just a flame in the
+   hero. A warm glow spills gently onto the surrounding area;
+   in the light theme a soft, feathered shadow seats the flame
+   so it never washes out. Falls back to the poster still, and
+   holds a single frame under prefers-reduced-motion.
+   ========================================================= */
+.hero-candle{ margin:0; display:flex; flex-direction:column; align-items:center; gap:var(--sp-2); width:100%; }
+.hero-candle-stage{
+  position:relative; width:100%; aspect-ratio:3 / 4;
+  display:grid; place-items:center;               /* frameless: no bg, radius or shadow */
+}
+/* ambient warmth the flame casts into the nearby hero — soft, not theatrical */
+.hero-candle-stage::before{
+  content:""; position:absolute; z-index:0; left:50%; top:42%; transform:translate(-50%,-50%);
+  width:170%; height:130%; pointer-events:none; filter:blur(8px);
+  background:radial-gradient(ellipse 42% 44% at 50% 50%,
+    color-mix(in srgb,var(--ember-glow) 30%, transparent) 0%,
+    color-mix(in srgb,var(--ember-glow) 9%, transparent) 44%, transparent 72%);
+}
+/* light-theme seat: a feathered pool of warm candle-shadow (never grey, never a
+   box) so a black-background flame reads against warm paper via screen. It is
+   an ellipse that fades to nothing — no edge, no rectangle — and it is removed
+   entirely in the already-dark night theme, and for true-alpha video sources. */
+.hero-candle-stage::after{
+  content:""; position:absolute; z-index:0; left:50%; top:49%; transform:translate(-50%,-50%);
+  width:74%; height:90%; pointer-events:none;
+  background:radial-gradient(ellipse 46% 56% at 50% 48%,
+    rgba(40,22,10,0.44) 0%, rgba(40,22,10,0.18) 40%, transparent 66%);
+}
+html[data-theme="night"] .hero-candle-stage::after{ opacity:0; }
+.hero-candle[data-source="alpha"] .hero-candle-stage::after{ opacity:0; }
+.hero-candle[data-source="alpha"] .hero-candle-video{ mix-blend-mode:normal; }
+
+.hero-candle-video, .hero-candle-fallback{
+  position:relative; z-index:1; width:100%; height:100%; object-fit:contain;
+  display:block; border:0; background:transparent;
+  mix-blend-mode:screen;                          /* black background disappears */
+  filter:saturate(1.06) contrast(1.03);           /* keep the flame vivid on warm paper */
+  -webkit-mask:radial-gradient(ellipse 56% 70% at 50% 46%, #000 48%, rgba(0,0,0,0) 82%);
+          mask:radial-gradient(ellipse 56% 70% at 50% 46%, #000 48%, rgba(0,0,0,0) 82%);
+}
+.hero-candle-fallback{ position:absolute; inset:0; z-index:1; }
+.hero-candle.is-video-failed .hero-candle-video{ display:none; }
+
+/* the whole candle breathes almost imperceptibly, like real light */
+@media (prefers-reduced-motion: no-preference){
+  .hero-candle-stage::before{ animation:hl-candleglow 5.5s ease-in-out infinite; }
+  @keyframes hl-candleglow{ 0%,100%{ opacity:0.9; transform:translate(-50%,-50%) scale(1); } 50%{ opacity:1; transform:translate(-50%,-50%) scale(1.05); } }
+}
+
+/* =========================================================
+   PHASE 6 — CRAFTSMANSHIP REFINEMENT (site-wide, CSS-first)
+   A calm, warm, cinematic finishing layer applied over every
+   page. Only rhythm, typography, depth, hover and reveal are
+   touched — no layout, colour system or architecture changes.
+   All motion is gated behind prefers-reduced-motion.
+   ========================================================= */
+
+/* ---- Reading rhythm: printed-memoir feel ---- */
+.story-body, .story-more{ line-height: 1.85; letter-spacing: 0.003em; }
+.story-body p, .story-more p{ margin-bottom: 1.55em; }
+.story-body .dropcap{ margin-bottom: 1.55em; }
+.bio{ line-height: 1.8; }
+.bio p{ margin-bottom: 1.4em; }
+.lede, .intro, .archive-fragment, .footer-colophon, .book-frame .measure{ line-height: 1.72; }
+h1, h2, h3{ line-height: 1.1; }
+.section-head h2, .book-frame h2, .profile-section > h2, .story-connections h2, .related-memories h2{ letter-spacing: -0.012em; }
+.quote-wrap blockquote{ line-height: 1.6; }
+
+/* ---- Breathing room: no section feels cramped ---- */
+.section-head{ margin-bottom: var(--sp-6); }
+.hero .lede{ margin-bottom: var(--sp-6); }
+.hero-ctas{ gap: var(--sp-5); }
+.chip-row{ gap: 0.55rem; margin-bottom: var(--sp-4); }
+.catalogue-grid{ gap: var(--sp-3); }
+.book-parts{ gap: var(--sp-3); }
+.featured-quote{ padding-block: var(--sp-8) var(--sp-7); }
+.profile-body .profile-section{ margin-bottom: var(--sp-7); }
+.profile-section > h2{ margin-bottom: var(--sp-4); }
+.rel-grid{ gap: var(--sp-4); }
+.story-links{ gap: var(--sp-3); }
+.story-links a, .story-links .disabled{ padding-block: 0.8rem; }
+.related-grid{ gap: var(--sp-3); }
+.entity-groups{ gap: var(--sp-5); }
+.timeline li{ padding-bottom: var(--sp-5); }
+.marginalia{ margin-top: var(--sp-6); }
+.story-connections .container, .related-memories .container{ padding-block: var(--sp-2); }
+
+/* ---- Homepage hero: immediate emotional impact ---- */
+.hero{ padding-block: clamp(4.5rem, 11vh, 9.5rem) var(--sp-7); }
+.hero .eyebrow{ margin-bottom: var(--sp-3); }
+.hero h1{ font-size: clamp(2.7rem, 1.85rem + 3.5vw, 5rem); line-height: 1.05; letter-spacing: -0.02em; margin-bottom: var(--sp-4); }
+.hero .lede{ font-size: clamp(1.17rem, 1.06rem + 0.42vw, 1.4rem); color: var(--ink-secondary); max-width: 46ch; }
+
+/* ---- Story reading: expensive hardcover immersion ---- */
+#story{ padding-block: clamp(4rem, 9vh, 7.5rem); }
+.story-card h1{ margin-bottom: var(--sp-5); }
+.story-stamp{ margin-bottom: var(--sp-4); }
+.reading-thread-fill{ background: linear-gradient(to bottom, var(--thread), color-mix(in srgb, var(--thread) 62%, var(--ember-glow))); }
+.return-invite{ padding-block: var(--sp-7); }
+
+/* ---- Profile pages: museum exhibit ---- */
+.profile-hero{ padding-block: clamp(4rem, 9vh, 7rem) var(--sp-5); }
+.profile-hero .role{ margin-top: var(--sp-3); }
+.family-hero .intro{ font-size: var(--text-body-lg); }
+.tree-caption{ font-style: italic; }
+
+/* ---- Cards: subtle depth + premium interaction ---- */
+.card-catalogue{
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(60,40,20,0.05), 0 16px 36px -24px rgba(60,40,20,0.22);
+}
+.related-card{ box-shadow: 0 1px 2px rgba(60,40,20,0.05), 0 14px 32px -22px rgba(60,40,20,0.20); }
+@media (prefers-reduced-motion: no-preference){
+  .card-catalogue{ transition: transform 480ms var(--ease-settle), box-shadow 480ms var(--ease-settle), border-color 480ms var(--ease-settle), filter var(--dur-slow) var(--ease-settle), opacity var(--dur-slow) var(--ease-settle); }
+  .card-catalogue:hover{ transform: translateY(-6px); box-shadow: 0 2px 5px rgba(60,40,20,0.08), 0 34px 64px -30px rgba(60,40,20,0.34); }
+  .related-card{ transition: transform 460ms var(--ease-settle), box-shadow 460ms var(--ease-settle), border-color 460ms var(--ease-settle); }
+  .related-card:hover{ transform: translateY(-5px); box-shadow: 0 30px 56px -28px rgba(60,40,20,0.30); }
+}
+
+/* ---- Handcrafted hover, slow & confident ---- */
+@media (prefers-reduced-motion: no-preference){
+  a, .btn, .chip, .search-result, .rel-link, .person, .book-parts li, .entity-chip,
+  .desktop-nav a, .footer-col a, .story-toggle, .theme-toggle, .candle-indicator{
+    transition-duration: 420ms;
+    transition-timing-function: cubic-bezier(.2,.72,.24,1);
+  }
+  .chip:hover{ transform: translateY(-1px); }
+  .rel-link:hover{ transform: translateX(4px); }
+  .book-parts li{ transition: color 420ms var(--ease-settle), transform 420ms var(--ease-settle); }
+  .book-parts li:hover{ color: var(--ember-core); transform: translateX(3px); }
+  .btn-primary:hover{ transform: translateY(-2px); }
+  .story-toggle:hover{ letter-spacing: 0.01em; }
+}
+.btn-primary{ box-shadow: 0 1px 2px rgba(60,40,20,0.10), 0 12px 24px -14px color-mix(in srgb, var(--ember-deep) 58%, transparent); }
+.desktop-nav a::after{ height: 1.5px; }
+
+/* ---- Family tree: visually warm ---- */
+.tree-links path{ stroke: color-mix(in srgb, var(--ember-glow) 26%, var(--ink-whisper)); }
+@media (prefers-reduced-motion: no-preference){
+  .person{ transition: transform 480ms var(--ease-settle), box-shadow 480ms var(--ease-settle), border-color 480ms var(--ease-settle); }
+  .person:hover{ transform: translateY(-5px); }
+  .person:hover .portrait{ border-color: var(--ember-core); box-shadow: 0 12px 28px -14px rgba(60,40,20,0.42); }
+  .person .portrait{ transition: border-color 480ms var(--ease-settle), box-shadow 480ms var(--ease-settle); }
+}
+
+/* ---- Search: refined & elegant ---- */
+.search-panel{ box-shadow: 0 2px 6px rgba(60,40,20,0.06), 0 32px 64px -30px rgba(60,40,20,0.32); overflow: hidden; }
+.search-field{ transition: border-color 360ms var(--ease-settle), box-shadow 360ms var(--ease-settle); }
+.search-group-title{ color: var(--ember-core); opacity: 0.8; }
+@media (prefers-reduced-motion: no-preference){
+  .search-result{ transition: background 240ms var(--ease-settle), box-shadow 240ms var(--ease-settle); }
+}
+.search-result.is-active, .search-result:hover{ background: color-mix(in srgb, var(--ember-glow) 14%, var(--paper-deep)); }
+
+/* ---- Page transitions: slower, more cinematic (per-section reveal pacing
+   is intentional and left untouched) ---- */
+@media (prefers-reduced-motion: no-preference){
+  ::view-transition-old(root){ animation: hl-vt-out 300ms var(--ease-settle, cubic-bezier(.22,.61,.36,1)) both; }
+  ::view-transition-new(root){ animation: hl-vt-in 620ms var(--ease-settle, cubic-bezier(.22,.61,.36,1)) both; }
+}
+
+/* ---- Images fade in naturally (marked by experience.js) ---- */
+html.hl-enh img.hl-fade{ opacity: 0; filter: blur(6px); }
+html.hl-enh img.hl-fade.is-in{ opacity: 1; filter: blur(0); transition: opacity 900ms var(--ease-settle), filter 900ms var(--ease-settle); }
+@media (prefers-reduced-motion: reduce){ html.hl-enh img.hl-fade{ opacity: 1 !important; filter: none !important; } }
+
+/* =========================================================
+   PHASE — consistency pass (audit)
+   ========================================================= */
+/* Collapse the primary nav to the slide-down panel a little earlier so it
+   never crowds against the candle indicator on tablet widths. Applies to
+   every page's identical nav for one consistent breakpoint. */
+@media (max-width: 860px){
+  .desktop-nav{ display: none; }
+  .nav-toggle{ display: inline-flex; align-items: center; justify-content: center; }
+}
+
+/* Natural image fade-in, extended to the journey / discovery surfaces so every
+   photograph across the site reveals the same way. */
+html.hl-enh img.hl-fade{ opacity: 0; filter: blur(6px); }
+html.hl-enh img.hl-fade.is-in{ opacity: 1; filter: blur(0); transition: opacity 900ms var(--ease-settle), filter 900ms var(--ease-settle); }
+@media (prefers-reduced-motion: reduce){ html.hl-enh img.hl-fade{ opacity: 1 !important; filter: none !important; } }
+
+/* =========================================================
+   PHASE 8 — LIVING ARCHIVE
+   Additive reading-memory layer (assets/archive.js). Uses the
+   existing tokens only, so day / night and reduced-motion are
+   inherited unchanged. Nothing here restyles an existing element;
+   every selector below is new to Phase 8.
+   ========================================================= */
+
+/* ---- Save / bookmark control (story page + This Week card) ---- */
+.hl-bookmark{
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-family: var(--font-voice); font-size: 0.72rem; letter-spacing: 0.04em;
+  color: var(--ink-secondary); background: transparent;
+  border: 1px solid var(--ink-whisper); border-radius: 999px;
+  padding: 0.32rem 0.7rem; cursor: pointer; line-height: 1;
+  transition: color var(--dur-quiet) var(--ease-settle),
+              border-color var(--dur-quiet) var(--ease-settle),
+              background var(--dur-quiet) var(--ease-settle);
+}
+.hl-bookmark .hl-bm-icon{ width: 15px; height: 15px; display: block; }
+.hl-bookmark:hover{ color: var(--ember-core); border-color: var(--ember-glow); }
+.hl-bookmark:focus-visible{ outline: 2px solid var(--ember-core); outline-offset: 2px; }
+.hl-bookmark.is-saved{ color: var(--ember-core); border-color: var(--ember-glow);
+  background: color-mix(in srgb, var(--ember-glow) 12%, transparent); }
+.hl-bookmark.is-saved .hl-bm-icon path{ fill: var(--ember-core); stroke: var(--ember-core); }
+.story-stamp{ display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.story-stamp .hl-bookmark{ margin-left: auto; }
+#this-week-card{ position: relative; }
+.hl-bookmark-float{ position: absolute; top: var(--sp-3); right: var(--sp-3); z-index: 2;
+  background: var(--paper-raised); }
+
+/* ---- Shared memory card (recommendations, recent, saved, continue) ---- */
+.hl-mem-card{
+  display: flex; flex-direction: column; gap: 0.3rem;
+  text-decoration: none; color: var(--ink-primary);
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-whisper); border-radius: var(--radius-soft);
+  border-left: 3px solid var(--tab-color, var(--thread));
+  padding: var(--sp-3);
+  transition: transform var(--dur-quiet) var(--ease-settle),
+              box-shadow var(--dur-quiet) var(--ease-settle),
+              border-color var(--dur-quiet) var(--ease-settle);
+}
+.hl-mem-card:hover{ transform: translateY(-2px);
+  box-shadow: 0 8px 24px -14px rgba(60,40,20,0.28); border-color: var(--ink-secondary); }
+.hl-mem-card:focus-visible{ outline: 2px solid var(--ember-core); outline-offset: 2px; }
+.hl-mc-kicker{ font-family: var(--font-voice); font-size: 0.68rem; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ember-core); opacity: 0.85; }
+.hl-mc-title{ font-family: var(--font-display); font-weight: 560; font-size: 1.12rem; line-height: 1.2; }
+.hl-mc-line{ font-size: var(--text-caption); color: var(--ink-secondary); line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hl-mc-foot{ display: flex; align-items: center; gap: 0.5rem; margin-top: 0.15rem;
+  font-family: var(--font-voice); font-size: 0.68rem; letter-spacing: 0.03em; color: var(--ink-muted); }
+.hl-mc-foot .hl-mc-time::before{ content: "\00B7 "; }
+
+/* ---- Read next (story page) ---- */
+.read-next .container{ max-width: 46rem; }
+.read-next-slot{ margin-top: var(--sp-3); }
+.read-next-slot .hl-mem-card{ max-width: 34rem; }
+
+/* ---- Your Visit panel (homepage) ---- */
+.your-archive{ padding-block: var(--sp-8); }
+.ya-head{ margin-bottom: var(--sp-5); }
+.ya-progress-line{ font-family: var(--font-reading); font-size: var(--text-body-lg);
+  color: var(--ink-primary); margin-top: var(--sp-2); }
+.ya-progress{ position: relative; height: 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-whisper) 70%, transparent);
+  margin-top: var(--sp-2); max-width: 34rem; overflow: hidden; }
+.ya-progress-fill{ position: absolute; inset: 0 auto 0 0; height: 100%; width: 0;
+  border-radius: 999px; background: linear-gradient(90deg, var(--ember-deep), var(--ember-core));
+  transition: width 900ms var(--ease-settle); }
+.ya-progress-count{ font-family: var(--font-voice); font-size: 0.72rem; letter-spacing: 0.05em;
+  color: var(--ink-muted); margin-top: 0.4rem; }
+
+.ya-complete{ display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem;
+  background: var(--paper-raised); border: 1px solid var(--ink-whisper);
+  border-left: 3px solid var(--ember-core); border-radius: var(--radius-soft);
+  padding: var(--sp-4); margin-bottom: var(--sp-5); }
+.ya-complete p{ font-family: var(--font-display); font-size: 1.25rem; color: var(--ink-primary); font-weight: 440; }
+.ya-complete .ya-complete-sub{ font-family: var(--font-reading); font-size: var(--text-body);
+  color: var(--ink-secondary); font-weight: 400; max-width: var(--measure); }
+.ya-complete-mark{ width: 26px; height: 3px; border-radius: 3px; background: var(--ember-core); opacity: 0.8; }
+
+.ya-grid{ display: grid; grid-template-columns: 1fr; gap: var(--sp-4); margin-bottom: var(--sp-5); }
+@media (min-width: 720px){ .ya-grid{ grid-template-columns: 2fr 1fr; align-items: stretch; } }
+.ya-block{ min-width: 0; }
+.ya-block-title{ font-family: var(--font-voice); font-size: 0.72rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-muted); margin-bottom: var(--sp-2); }
+.ya-slot{ display: block; }
+.ya-nostalgia{ display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+  background: var(--paper-deep); border: 1px dashed var(--ink-whisper); border-radius: var(--radius-soft);
+  padding: var(--sp-4); }
+.ya-nostalgia-note{ font-size: var(--text-caption); color: var(--ink-secondary); margin-bottom: var(--sp-3); }
+.ya-random{ display: inline-flex; align-items: center; gap: 0.5rem; }
+.ya-random svg{ flex: none; }
+
+.ya-row{ display: grid; grid-auto-flow: column; grid-auto-columns: minmax(15rem, 18rem);
+  gap: var(--sp-3); overflow-x: auto; padding-bottom: var(--sp-2);
+  scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.ya-row > *{ scroll-snap-align: start; }
+.ya-row .hl-mem-card{ height: 100%; }
+.hl-saved-item{ position: relative; }
+.hl-saved-item .hl-mem-card{ padding-right: 2.4rem; }
+.hl-unsave{ position: absolute; top: 0.5rem; right: 0.5rem; width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 999px; background: transparent; color: var(--ink-muted); cursor: pointer;
+  transition: color var(--dur-quiet) var(--ease-settle), background var(--dur-quiet) var(--ease-settle); }
+.hl-unsave svg{ width: 15px; height: 15px; }
+.hl-unsave:hover{ color: var(--ember-core); background: color-mix(in srgb, var(--ember-glow) 14%, transparent); }
+.hl-unsave:focus-visible{ outline: 2px solid var(--ember-core); outline-offset: 2px; }
+
+.ya-stats{ display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); }
+@media (min-width: 620px){ .ya-stats{ grid-template-columns: repeat(4, 1fr); } }
+.ya-stat{ display: flex; flex-direction: column; gap: 0.25rem; padding: var(--sp-3);
+  background: var(--paper-raised); border: 1px solid var(--ink-whisper); border-radius: var(--radius-soft); }
+.ya-stat-num{ font-family: var(--font-display); font-weight: 560; font-size: 1.7rem; color: var(--ink-primary);
+  line-height: 1; }
+.ya-stat-word{ font-size: 1.05rem; line-height: 1.2; }
+.ya-stat-label{ font-family: var(--font-voice); font-size: 0.68rem; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--ink-muted); }
+.ya-privacy{ font-family: var(--font-voice); font-size: 0.68rem; letter-spacing: 0.04em;
+  color: var(--ink-muted); margin-top: var(--sp-3); }
+
+/* ---- Announcer toast (save / finished) ---- */
+.hl-toast{ position: fixed; left: 50%; bottom: 1.4rem; transform: translate(-50%, 1rem);
+  z-index: 60; pointer-events: none;
+  background: var(--ink-primary); color: var(--paper-base);
+  font-family: var(--font-voice); font-size: 0.8rem; letter-spacing: 0.02em;
+  padding: 0.6rem 1rem; border-radius: 999px; box-shadow: 0 10px 30px -12px rgba(20,14,6,0.5);
+  opacity: 0; transition: opacity 300ms var(--ease-settle), transform 300ms var(--ease-settle); }
+.hl-toast.is-shown{ opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce){
+  .ya-progress-fill{ transition: none; }
+  .hl-mem-card{ transition: none; }
+  .hl-mem-card:hover{ transform: none; }
+  .hl-toast{ transition: opacity 200ms linear; transform: translate(-50%, 0); }
+}
+
+/* =========================================================
+   PHASE 9 — UNIVERSAL EXPLORE
+   Continue Exploring cards, relationship/inline preview cards,
+   deep-search rows. Tokens only; every selector is new.
+   ========================================================= */
+
+/* ---- Continue Exploring ---- */
+.continue-exploring{ padding-block: var(--sp-7); }
+.continue-exploring .ce-sub{ color: var(--ink-secondary); font-size: var(--text-body);
+  margin-top: 0.3rem; margin-bottom: var(--sp-4); max-width: var(--measure); }
+.explore-grid{ display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: var(--sp-3); }
+.explore-card{ display: flex; align-items: stretch; gap: var(--sp-3);
+  text-decoration: none; color: var(--ink-primary);
+  background: var(--paper-raised); border: 1px solid var(--ink-whisper);
+  border-radius: var(--radius-soft); border-left: 3px solid var(--tab-color, var(--thread));
+  padding: var(--sp-3);
+  transition: transform var(--dur-quiet) var(--ease-settle),
+              box-shadow var(--dur-quiet) var(--ease-settle),
+              border-color var(--dur-quiet) var(--ease-settle); }
+.explore-card:hover{ transform: translateY(-2px);
+  box-shadow: 0 8px 24px -14px rgba(60,40,20,0.28); border-color: var(--ink-secondary); }
+.explore-card:focus-visible{ outline: 2px solid var(--ember-core); outline-offset: 2px; }
+.explore-card .xc-media{ flex: none; width: 54px; height: 54px; border-radius: 8px; overflow: hidden;
+  background: var(--paper-deep); }
+.explore-card .xc-media img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.explore-card .xc-media-mono{ display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 1.4rem; font-weight: 440;
+  color: var(--tab-color, var(--ink-secondary));
+  background: color-mix(in srgb, var(--tab-color, var(--ink-whisper)) 14%, var(--paper-deep)); }
+.explore-card .xc-body{ display: flex; flex-direction: column; gap: 0.22rem; min-width: 0; }
+.explore-card .xc-badge{ align-self: flex-start; font-family: var(--font-voice); font-size: 0.6rem;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--tab-color, var(--ember-core));
+  border: 1px solid color-mix(in srgb, var(--tab-color, var(--ink-whisper)) 45%, transparent);
+  border-radius: 999px; padding: 0.12rem 0.5rem; }
+.explore-card .xc-title{ font-family: var(--font-display); font-weight: 560; font-size: 1.08rem; line-height: 1.18; }
+.explore-card .xc-desc{ font-size: var(--text-caption); color: var(--ink-secondary); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.explore-card .xc-meta{ font-family: var(--font-voice); font-size: 0.66rem; letter-spacing: 0.03em;
+  color: var(--ink-muted); margin-top: 0.1rem; }
+
+/* ---- Inline entity links inside story prose ---- */
+.entity-inline{ color: inherit; text-decoration: none;
+  border-bottom: 1px dotted color-mix(in srgb, var(--ember-core) 55%, transparent);
+  cursor: help; transition: border-color var(--dur-quiet) var(--ease-settle), color var(--dur-quiet) var(--ease-settle); }
+.entity-inline:hover, .entity-inline:focus-visible{ color: var(--ember-core);
+  border-bottom-color: var(--ember-core); outline: none; }
+
+/* ---- Relationship / inline preview card ---- */
+.entity-hovercard{ position: fixed; z-index: 80; width: min(280px, calc(100vw - 16px));
+  display: flex; gap: 0.7rem; padding: 0.7rem 0.8rem;
+  background: var(--paper-raised); border: 1px solid var(--ink-whisper);
+  border-radius: var(--radius-soft); box-shadow: 0 6px 16px -8px rgba(40,26,12,0.28), 0 30px 60px -34px rgba(40,26,12,0.44);
+  opacity: 0; transform: translateY(4px); pointer-events: none;
+  transition: opacity 200ms var(--ease-settle), transform 200ms var(--ease-settle); }
+.entity-hovercard.is-shown{ opacity: 1; transform: translateY(0); pointer-events: auto; }
+.entity-hovercard.is-below{ transform: translateY(-4px); }
+.entity-hovercard.is-below.is-shown{ transform: translateY(0); }
+.entity-hovercard .hc-media{ flex: none; width: 52px; height: 52px; border-radius: 8px; overflow: hidden;
+  background: var(--paper-deep); }
+.entity-hovercard .hc-media img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.entity-hovercard .hc-mono{ display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 1.35rem; color: var(--tab-color, var(--ink-secondary));
+  background: color-mix(in srgb, var(--tab-color, var(--ink-whisper)) 16%, var(--paper-deep)); }
+.entity-hovercard .hc-body{ display: flex; flex-direction: column; gap: 0.16rem; min-width: 0; }
+.entity-hovercard .hc-badge{ align-self: flex-start; font-family: var(--font-voice); font-size: 0.58rem;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--tab-color, var(--ember-core));
+  border: 1px solid color-mix(in srgb, var(--tab-color, var(--ink-whisper)) 45%, transparent);
+  border-radius: 999px; padding: 0.1rem 0.45rem; }
+.entity-hovercard .hc-name{ font-family: var(--font-display); font-weight: 560; font-size: 1.02rem; line-height: 1.15; }
+.entity-hovercard .hc-desc{ font-size: 0.78rem; color: var(--ink-secondary); line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.entity-hovercard .hc-meta{ font-family: var(--font-voice); font-size: 0.64rem; letter-spacing: 0.03em;
+  color: var(--ink-muted); margin-top: 0.15rem; }
+
+/* ---- Deep search rows ---- */
+.search-result.deep{ align-items: center; }
+.search-result.deep .sr-portrait{ flex: none; width: 36px; height: 36px; border-radius: 6px;
+  object-fit: cover; background: var(--paper-deep); }
+.search-result.deep .sr-dot-media{ flex: none; width: 10px; height: 10px; border-radius: 50%; align-self: center; }
+.search-result.deep .sr-main{ display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1; }
+.search-result.deep .sr-meta{ display: flex; flex-wrap: wrap; gap: 0.15rem 0.5rem; align-items: baseline; }
+.search-result.deep .sr-sub2{ font-size: var(--text-caption); color: var(--ink-muted); }
+.search-result.deep .sr-counts{ font-family: var(--font-voice); font-size: 0.62rem; letter-spacing: 0.03em;
+  color: var(--ember-core); opacity: 0.85; }
+.search-result.deep .sr-badge{ flex: none; font-family: var(--font-voice); font-size: 0.58rem;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-secondary);
+  border: 1px solid var(--ink-whisper); border-radius: 999px; padding: 0.1rem 0.45rem; white-space: nowrap; }
+@media (max-width: 640px){ .search-result.deep .sr-badge{ display: none; } }
+
+@media (prefers-reduced-motion: reduce){
+  .explore-card, .explore-card:hover{ transition: none; transform: none; }
+  .entity-inline{ transition: none; }
+  .entity-hovercard{ transition: opacity 120ms linear; transform: none; }
+  .entity-hovercard.is-shown, .entity-hovercard.is-below, .entity-hovercard.is-below.is-shown{ transform: none; }
+}

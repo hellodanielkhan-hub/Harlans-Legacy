@@ -1,0 +1,139 @@
+{
+  "_note": "Entity registry aligned to the confirmed Family Knowledge Base. Relationships are CONFIRMED-ONLY: Marvin J. Yaffe & Zandra L. Yaffe (née Levine) are the parents of BOTH Harlan Blaine Yaffe and Hal F. Yaffe (Harlan and Hal are brothers). Zoe Yaffe is Harlan's niece; Ben Yaffe is Harlan's nephew (their parentage is NOT confirmed, so no parent edge is asserted). No spouses, children, dates or biographies are invented — unknown fields are left null/empty. Funeral arrangements were held in Toledo, Ohio.",
+  "family": {
+    "title": "The Yaffe Family",
+    "eyebrow": "Who they were to each other",
+    "intro": "The family behind the stories, as confirmed — no more, no less. Each name opens onto their place in Harlan's life.",
+    "unions": [
+      { "id": "u-marvin-zandra", "partners": ["marvin", "zandra"], "children": ["harlan", "hal"] }
+    ],
+    "people": [
+      {
+        "id": "marvin",
+        "slug": "marvin-yaffe",
+        "name": "Marvin J. Yaffe",
+        "fullName": "Marvin J. Yaffe",
+        "role": "Father of Harlan and Hal",
+        "generation": 0,
+        "monogram": "M",
+        "deceased": true,
+        "born": null,
+        "died": null,
+        "lifeLabel": null,
+        "aliases": ["Marvin J. Yaffe", "Marvin Yaffe", "Marvin"],
+        "photos": [],
+        "bio": [],
+        "relationships": { "parents": [], "spouse": ["zandra"], "children": ["harlan", "hal"], "siblings": [], "niblings": [], "auntsUncles": [] },
+        "storyIds": [],
+        "timeline": []
+      },
+      {
+        "id": "zandra",
+        "slug": "zandra-yaffe",
+        "name": "Zandra L. Yaffe",
+        "fullName": "Zandra L. Yaffe (née Levine)",
+        "role": "Mother of Harlan and Hal",
+        "generation": 0,
+        "monogram": "Z",
+        "deceased": true,
+        "born": null,
+        "died": null,
+        "lifeLabel": null,
+        "aliases": ["Zandra L. Yaffe", "Zandra Yaffe", "Zandra Levine", "Zandra"],
+        "photos": [],
+        "bio": [],
+        "relationships": { "parents": [], "spouse": ["marvin"], "children": ["harlan", "hal"], "siblings": [], "niblings": [], "auntsUncles": [] },
+        "storyIds": [],
+        "timeline": []
+      },
+      {
+        "id": "harlan",
+        "slug": "harlan",
+        "name": "Harlan",
+        "fullName": "Harlan Blaine Yaffe",
+        "role": "The subject of every story",
+        "generation": 1,
+        "monogram": "H",
+        "deceased": true,
+        "born": null,
+        "died": null,
+        "lifeLabel": null,
+        "aliases": ["Harlan", "Harlan Blaine Yaffe", "Harlan Yaffe"],
+        "photos": [],
+        "bio": [],
+        "relationships": { "parents": ["marvin", "zandra"], "spouse": [], "children": [], "siblings": ["hal"], "niblings": ["zoe", "ben"], "auntsUncles": [] },
+        "storyIds": [214],
+        "timeline": []
+      },
+      {
+        "id": "hal",
+        "slug": "hal",
+        "name": "Hal",
+        "fullName": "Hal F. Yaffe",
+        "role": "Harlan's brother",
+        "generation": 1,
+        "monogram": "H",
+        "deceased": false,
+        "born": null,
+        "died": null,
+        "lifeLabel": null,
+        "aliases": ["Hal", "Hal F. Yaffe", "Hal Yaffe", "his brother Hal", "his brother"],
+        "photos": [],
+        "bio": [],
+        "relationships": { "parents": ["marvin", "zandra"], "spouse": [], "children": [], "siblings": ["harlan"], "niblings": [], "auntsUncles": [] },
+        "storyIds": [214],
+        "timeline": []
+      },
+      {
+        "id": "zoe",
+        "slug": "zoe-yaffe",
+        "name": "Zoe Yaffe",
+        "fullName": "Zoe Yaffe",
+        "role": "Harlan's niece",
+        "generation": 2,
+        "monogram": "Z",
+        "hidden": true,
+        "deceased": false,
+        "born": null,
+        "died": null,
+        "lifeLabel": null,
+        "aliases": ["Zoe Yaffe", "Zoe"],
+        "photos": [],
+        "bio": [],
+        "relationships": { "parents": [], "spouse": [], "children": [], "siblings": [], "niblings": [], "auntsUncles": ["harlan"] },
+        "storyIds": [],
+        "timeline": []
+      },
+      {
+        "id": "ben",
+        "slug": "ben-yaffe",
+        "name": "Ben Yaffe",
+        "fullName": "Ben Yaffe",
+        "role": "Harlan's nephew",
+        "generation": 2,
+        "monogram": "B",
+        "hidden": true,
+        "deceased": false,
+        "born": null,
+        "died": null,
+        "lifeLabel": null,
+        "aliases": ["Ben Yaffe", "Ben"],
+        "photos": [],
+        "bio": [],
+        "relationships": { "parents": [], "spouse": [], "children": [], "siblings": [], "niblings": [], "auntsUncles": ["harlan"] },
+        "storyIds": [],
+        "timeline": []
+      }
+    ]
+  },
+  "places": [
+    { "id": "pl-den", "slug": "the-den", "name": "The den", "detail": "A family home in Toledo, Ohio", "aliases": ["the den (family home, Toledo, Ohio)", "the den"], "stories": [214] },
+    { "id": "pl-toledo", "slug": "toledo-ohio", "name": "Toledo, Ohio", "detail": "Where the family's funeral arrangements were held", "aliases": ["Toledo", "Toledo, Ohio"], "stories": [] }
+  ],
+  "objects": [
+    { "id": "o-blue-chair", "slug": "the-blue-recliner", "name": "The blue recliner", "detail": "Rescued from the curb three times over twenty years", "aliases": ["the blue recliner", "the blue chair"], "stories": [214] }
+  ],
+  "events": [
+    { "id": "e-harlan-death", "slug": "harlans-death", "name": "Harlan's passing", "detail": "Funeral arrangements were held in Toledo, Ohio.", "aliases": ["Harlan's death (a Tuesday in March, year unspecified)", "Harlan's death", "Harlan's passing"], "stories": [214] }
+  ]
+}

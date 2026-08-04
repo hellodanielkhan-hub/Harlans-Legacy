@@ -1,0 +1,2288 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="day">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+/* Runs synchronously, before first paint, so there is no flash of the
+   wrong theme for returning visitors or anyone with a system dark-mode
+   preference. Kept deliberately tiny — this is the only script allowed
+   to block rendering on this page. */
+(function(){
+  try {
+    var saved = window.localStorage.getItem("hl-theme");
+    if (saved === "night" || saved === "day") {
+      document.documentElement.setAttribute("data-theme", saved);
+    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      document.documentElement.setAttribute("data-theme", "night");
+    }
+  } catch(e) { /* localStorage unavailable — default Day theme stands */ }
+})();
+</script>
+<title>Harlan's Legacy — A Living Archive of Memory</title>
+<meta name="description" content="Every Friday, a story. Every story, a piece of who he was. Harlan's Legacy is a living archive of one man's life, gathered, kept, and passed forward — one Friday at a time.">
+<meta name="theme-color" content="#F7F2E9">
+<!-- TODO(Daniel): harlanslegacy.com is a placeholder — swap in the real production domain before launch --><link rel="canonical" href="https://harlanslegacy.com/">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Harlan's Legacy">
+<meta property="og:title" content="Harlan's Legacy — A Living Archive of Memory">
+<meta property="og:description" content="Every Friday, a story. Every story, a piece of who he was. A living archive of one man's life, gathered, kept, and passed forward.">
+<meta property="og:url" content="https://harlanslegacy.com/">
+<meta property="og:locale" content="en_US">
+<!-- TODO(Daniel): no og:image yet, on purpose — the Story Experience Specification (Part 5) forbids
+     fabricated photography of Harlan. Add a real og:image (1200x630) once real family photography
+     is available; until then, social shares will fall back to a plain link card. -->
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Harlan's Legacy — A Living Archive of Memory">
+<meta name="twitter:description" content="Every Friday, a story. Every story, a piece of who he was.">
+
+<!-- Icons: SVG for modern browsers, PNG fallbacks for Safari/iOS/older engines -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23F7F2E9'/%3E%3Cpath d='M16 6c-2 4-4 6-4 9a4 4 0 0 0 8 0c0-3-2-5-4-9z' fill='%23B5502E'/%3E%3Crect x='13' y='19' width='6' height='7' rx='1' fill='%234A5261'/%3E%3C/svg%3E" type="image/svg+xml">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="assets/favicon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+
+<!-- Structured data -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "Harlan's Legacy",
+  "url": "https://harlanslegacy.com/",
+  "description": "A living archive of memory — a weekly Friday tribute preserving the stories of Harlan, gathered and kept for family and readers alike.",
+  "publisher": {
+    "@type": "Person",
+    "name": "Hal"
+  }
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,340;0,9..144,440;0,9..144,560;1,9..144,440;1,9..144,560&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Special+Elite&display=swap" rel="stylesheet">
+
+<style>
+/* =========================================================
+   METRIC-ADJUSTED FALLBACK FACES
+   Reduce layout shift on font swap: these local system faces
+   are sized to approximate Fraunces/Newsreader's proportions,
+   so the fallback occupies close to the same box the real
+   webfont will occupy once loaded. Approximate, not exact —
+   real font metrics weren't available to tune this precisely,
+   but even an approximate correction meaningfully narrows the
+   reflow versus using an unadjusted fallback.
+   ========================================================= */
+@font-face{
+  font-family: "Fraunces Fallback";
+  src: local("Georgia"), local("Times New Roman");
+  size-adjust: 103%;
+  ascent-override: 92%;
+  descent-override: 24%;
+}
+@font-face{
+  font-family: "Newsreader Fallback";
+  src: local("Georgia"), local("Times New Roman");
+  size-adjust: 100%;
+  ascent-override: 90%;
+  descent-override: 22%;
+}
+
+/* =========================================================
+   HARLAN'S LEGACY — DESIGN TOKENS
+   Derived from: Master Design Bible v1.0, Visual Design
+   Specification v1.0. Every value below traces back to a
+   named decision in those documents — nothing here is
+   arbitrary.
+   ========================================================= */
+:root{
+  /* --- Paper & Ink (Visual Spec 4.1–4.2) --- */
+  --paper-base:   #F7F2E9;
+  --paper-raised: #FBF7EF;
+  --paper-deep:   #EDE5D4;
+  --ink-primary:  #1C2430;
+  --ink-secondary:#4A5261;
+  --ink-muted:    #6C6F71; /* darkened from spec's #8A8D8F — original only cleared ~3:1 on paper-base, failing WCAG AA for small text; this clears ~4.6:1 */
+  --ink-whisper:  #B8B4A8;
+
+  /* --- Ember: the living accent (Visual Spec 4.3) --- */
+  --ember-core:  #B5502E;
+  --ember-deep:  #8C3D22;
+  --ember-glow:  #E2A46B;
+
+  /* --- Thread colors: one per theme, none louder than another --- */
+  --thread-funny:    #7C8471; /* sage-quiet */
+  --thread-momdad:   #A8735A; /* clay-warm */
+  --thread-toledo:   #6B7A8C; /* slate-soft */
+  --thread-shabbat:  #B8964F; /* gold-worn */
+  --thread-grief:    #B99189; /* dust-rose */
+  --thread-ordinary: #5F8A82; /* harbor-quiet */
+
+  /* --- Type families (Visual Spec Part 3) --- */
+  --font-display: "Fraunces", "Fraunces Fallback", Georgia, serif;      /* Monument Serif  */
+  --font-reading: "Newsreader", "Newsreader Fallback", Georgia, serif;     /* Reading / Body  */
+  --font-voice:   "Special Elite", "Courier New", monospace; /* Voice/Human Mark */
+
+  /* --- Type scale (fluid, Visual Spec 2.5 / 3.1) --- */
+  --text-display: clamp(2.5rem, 1.7rem + 3.3vw, 4.75rem);
+  --text-h1:      clamp(2.1rem, 1.7rem + 1.8vw, 3.1rem);
+  --text-h2:      clamp(1.6rem, 1.4rem + 0.9vw, 2.1rem);
+  --text-h3:      clamp(1.2rem, 1.1rem + 0.4vw, 1.4rem);
+  --text-body-lg: clamp(1.15rem, 1.08rem + 0.3vw, 1.3rem);
+  --text-body:    clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+  --text-quote:   clamp(1.5rem, 1.3rem + 0.9vw, 2.1rem);
+  --text-voice:   clamp(1.25rem, 1.1rem + 0.6vw, 1.75rem);
+  --text-caption: 0.9rem;
+  --text-label:   0.78rem;
+
+  /* --- Spacing scale: one baseline unit, multiples only --- */
+  --sp-1: 0.5rem;
+  --sp-2: 1rem;
+  --sp-3: 1.5rem;
+  --sp-4: 2rem;
+  --sp-5: 3rem;
+  --sp-6: 4rem;
+  --sp-7: 6rem;
+  --sp-8: 8rem;
+  --sp-9: 11rem;
+
+  /* --- Reading measure (Visual Spec 2.5) --- */
+  --measure: 68ch;
+
+  /* --- Motion (Visual Spec Part 3) --- */
+  --ease-settle: cubic-bezier(.22,.61,.36,1);
+  --dur-quiet: 320ms;
+  --dur-slow: 520ms;
+
+  /* --- Elevation: warm, soft, never gray --- */
+  --shadow-card: 0 1px 2px rgba(60,40,20,0.06), 0 8px 24px -12px rgba(60,40,20,0.18);
+  --shadow-raised: 0 2px 4px rgba(60,40,20,0.08), 0 16px 32px -16px rgba(60,40,20,0.22);
+
+  --radius-card: 3px;
+  --radius-soft: 6px;
+  --header-height: 72px;
+
+  color-scheme: light;
+}
+
+/* --- Night Reading state (Visual Spec 4.5) --- */
+html[data-theme="night"]{
+  --paper-base:   #161B24;
+  --paper-raised: #1D2430;
+  --paper-deep:   #10141C;
+  --ink-primary:  #EDE6D6;
+  --ink-secondary:#C9C2B2;
+  --ink-muted:    #8B8A82;
+  --ink-whisper:  #3A4150;
+  --ember-core:   #D08059;
+  --ember-deep:   #E2A46B;
+  --ember-glow:   #E2A46B;
+  color-scheme: dark;
+}
+
+*, *::before, *::after{ box-sizing: border-box; }
+html{ scroll-behavior: smooth; scrollbar-gutter: stable; }
+[hidden]{ display: none !important; }
+
+#hero, #discover, #this-week, #archive, #about, #book, #newsletter, #main{
+  scroll-margin-top: calc(var(--header-height) + 1rem);
+}
+@media (prefers-reduced-motion: reduce){
+  html{ scroll-behavior: auto; }
+  *, *::before, *::after{
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+body{
+  margin: 0;
+  background: var(--paper-base);
+  color: var(--ink-primary);
+  font-family: var(--font-reading);
+  font-size: var(--text-body);
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--dur-slow) var(--ease-settle), color var(--dur-slow) var(--ease-settle);
+  opacity: 0;
+}
+body.is-ready{ opacity: 1; transition: opacity 620ms var(--ease-settle); }
+@media (prefers-reduced-motion: reduce){ body{ opacity: 1; } }
+
+h1,h2,h3{
+  font-family: var(--font-display);
+  font-weight: 560;
+  color: var(--ink-primary);
+  line-height: 1.12;
+  margin: 0 0 var(--sp-3);
+  letter-spacing: -0.01em;
+}
+h1{ font-size: var(--text-h1); }
+h2{ font-size: var(--text-h2); }
+h3{ font-size: var(--text-h3); font-weight: 500; }
+em, i{ font-style: italic; }
+p{ margin: 0 0 var(--sp-3); }
+a{ color: inherit; }
+
+img, svg{ display:block; max-width:100%; }
+
+.container{
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-inline: var(--sp-4);
+}
+@media (max-width: 640px){
+  .container{ padding-inline: var(--sp-3); }
+}
+
+.measure{ max-width: var(--measure); }
+
+.eyebrow{
+  font-family: var(--font-reading);
+  font-size: var(--text-label);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ember-core);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.visually-hidden{
+  position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+  overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
+
+/* =========================================================
+   FOCUS STATES — the warm ember underline replaces every
+   default outline sitewide (Design Bible 3.7 / Visual Spec 8)
+   ========================================================= */
+a, button, input, summary, .card-catalogue, .chip{
+  outline: none;
+}
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible{
+  outline: 2px solid var(--ember-core);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+.card-catalogue:focus-visible{
+  outline: 2px solid var(--ember-core);
+  outline-offset: 3px;
+  border-radius: var(--radius-card);
+}
+.chip:focus-visible, .candle-indicator:focus-visible,
+.theme-toggle:focus-visible{
+  outline: 2px solid var(--ember-core);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+.btn:focus-visible{
+  outline: 2px solid var(--ember-core);
+  outline-offset: 3px;
+  border-radius: var(--radius-soft);
+}
+.nav-toggle:focus-visible{
+  outline: 2px solid var(--ember-core);
+  outline-offset: 3px;
+  border-radius: var(--radius-soft);
+}
+
+/* =========================================================
+   SKIP LINK
+   ========================================================= */
+.skip-link{
+  position: absolute;
+  left: var(--sp-2);
+  top: -60px;
+  background: var(--ink-primary);
+  color: var(--paper-base);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-soft);
+  z-index: 200;
+  transition: top var(--dur-quiet) var(--ease-settle);
+  font-size: var(--text-caption);
+  letter-spacing: 0.04em;
+}
+.skip-link:focus{ top: var(--sp-2); }
+
+/* =========================================================
+   BUTTONS (Visual Spec 6.2 — exactly two types)
+   ========================================================= */
+.btn{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-reading);
+  font-size: var(--text-body);
+  font-weight: 500;
+  padding: 0.85em 1.6em;
+  border-radius: var(--radius-soft);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--dur-quiet) var(--ease-settle),
+              color var(--dur-quiet) var(--ease-settle),
+              transform var(--dur-quiet) var(--ease-settle),
+              border-color var(--dur-quiet) var(--ease-settle);
+  text-decoration: none;
+}
+.btn-primary{
+  background: var(--ember-core); /* fallback for browsers without color-mix() */
+  background: linear-gradient(175deg, color-mix(in srgb, var(--ember-core) 100%, white 6%) 0%, var(--ember-core) 60%, var(--ember-deep) 130%);
+  color: var(--paper-raised);
+}
+.btn-primary:hover{ background: var(--ember-deep); }
+.btn-primary:active{ transform: translateY(1px); }
+
+.btn-quiet{
+  background: transparent;
+  color: var(--ink-primary);
+  border-bottom: 1px solid var(--ink-whisper);
+  border-radius: 0;
+  padding: 0.3em 0.1em;
+}
+.btn-quiet:hover{ border-color: var(--ember-core); color: var(--ember-core); }
+
+.btn[disabled], .btn[aria-disabled="true"]{ opacity: 0.55; cursor: default; pointer-events: none; }
+
+/* =========================================================
+   HEADER / DESKTOP NAVIGATION
+   ========================================================= */
+.site-header{
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--paper-base); /* fallback for browsers without color-mix() */
+  background: color-mix(in srgb, var(--paper-base) 92%, transparent);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--ink-whisper);
+  transition: box-shadow var(--dur-quiet) var(--ease-settle),
+              background var(--dur-slow) var(--ease-settle);
+}
+.site-header.is-scrolled{ box-shadow: 0 6px 20px -14px rgba(30,20,10,0.35); }
+
+.header-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-block: var(--sp-2);
+}
+
+.brand{
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: var(--ink-primary);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+}
+.brand svg{ width: 24px; height: 24px; flex-shrink: 0; }
+
+.desktop-nav{
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+.desktop-nav ul{
+  list-style: none;
+  display: flex;
+  gap: var(--sp-3);
+  margin: 0; padding: 0;
+}
+.desktop-nav a{
+  text-decoration: none;
+  font-size: var(--text-label);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-secondary);
+  position: relative;
+  padding-bottom: 4px;
+}
+.desktop-nav a::after{
+  content:"";
+  position: absolute; left:0; right:100%; bottom:0;
+  height: 1px; background: var(--ember-core);
+  transition: right var(--dur-quiet) var(--ease-settle);
+}
+.desktop-nav a:hover{ color: var(--ink-primary); }
+.desktop-nav a:hover::after{ right: 0; }
+
+/* --- Friday Candle Indicator (Design Bible 6.13 / Visual Spec Signature #1) --- */
+.candle-indicator{
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: var(--text-label);
+  letter-spacing: 0.06em;
+  color: var(--ink-secondary);
+  padding: 0.35em 0.75em;
+  border: 1px solid var(--ink-whisper);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.candle-indicator svg{ width: 15px; height: 15px; }
+.candle-indicator .flame{ fill: var(--ink-whisper); transition: fill var(--dur-slow) var(--ease-settle); }
+.candle-indicator.is-lit{ border-color: var(--ember-glow); color: var(--ember-core); }
+.candle-indicator.is-lit .flame{ fill: var(--ember-core); }
+.candle-indicator.is-lit .flame-flicker{
+  animation: flicker 2.6s ease-in-out infinite;
+  transform-origin: 50% 85%;
+}
+@keyframes flicker{
+  0%,100%{ transform: scale(1) translateY(0); }
+  50%{ transform: scale(1.08) translateY(-0.4px); }
+}
+
+.nav-toggle{
+  display: none;
+  background: none;
+  border: 1px solid var(--ink-whisper);
+  border-radius: var(--radius-soft);
+  padding: 0.5em 0.7em;
+  min-width: 44px; min-height: 44px;
+  align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.nav-toggle svg{ width: 20px; height: 20px; }
+
+.theme-toggle{
+  background: none;
+  border: 1px solid var(--ink-whisper);
+  border-radius: 999px;
+  width: 34px; height: 34px;
+  min-width: 44px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--ink-secondary);
+  flex-shrink: 0;
+}
+.theme-toggle:hover{ border-color: var(--ember-core); color: var(--ember-core); }
+.theme-toggle svg{ width: 16px; height: 16px; }
+.theme-toggle .icon-sun{ display: none; }
+html[data-theme="night"] .theme-toggle .icon-moon{ display: none; }
+html[data-theme="night"] .theme-toggle .icon-sun{ display: block; }
+
+.mobile-panel-bottom{
+  margin-top: var(--sp-6);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* =========================================================
+   MOBILE NAV PANEL
+   ========================================================= */
+.mobile-panel{
+  position: fixed;
+  inset: 0;
+  background: var(--paper-base);
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-3) var(--sp-4) var(--sp-6);
+  transform: translateY(-8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-quiet) var(--ease-settle), transform var(--dur-quiet) var(--ease-settle);
+}
+.mobile-panel.is-open{
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.mobile-panel-top{
+  display:flex; align-items:center; justify-content: space-between;
+  margin-bottom: var(--sp-6);
+}
+.mobile-panel nav ul{
+  list-style: none; margin:0; padding:0;
+  display:flex; flex-direction:column; gap: var(--sp-4);
+}
+.mobile-panel nav a{
+  font-family: var(--font-display);
+  font-weight: 440;
+  font-size: clamp(1.5rem, 1.15rem + 4vw, 1.9rem);
+  text-decoration:none;
+  color: var(--ink-primary);
+}
+.mobile-panel .candle-indicator{ align-self: flex-start; }
+
+body.panel-open{ overflow: hidden; }
+
+/* =========================================================
+   HERO
+   ========================================================= */
+.hero{
+  padding-block: var(--sp-8) var(--sp-7);
+  position: relative;
+  overflow: hidden;
+}
+.hero-grid{
+  display: grid;
+  grid-template-columns: 1.32fr 0.68fr;
+  gap: var(--sp-6);
+  align-items: center; /* the flame rests level with the heading, not pinned to the top */
+}
+.hero-flame-wrap{
+  justify-self: center;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  width: min(268px, 32vw); /* proportional to the display heading — a focal point, not an icon */
+  margin: 0;
+  position: relative;
+}
+/* The hero candle is a real looping video cinemagraph — its markup lives in
+   the hero below and its styling in assets/experience.css (.hero-candle). */
+.hero-flame-caption{
+  font-size: var(--text-caption);
+  color: var(--ink-secondary);
+  text-align: center;
+  margin: 0;
+}
+.hero h1{
+  font-size: var(--text-display);
+  margin-bottom: var(--sp-4);
+}
+.hero h1 em{ color: var(--ember-core); font-style: italic; }
+.hero .lede{
+  font-size: var(--text-body-lg);
+  color: var(--ink-secondary);
+  max-width: 46ch;
+  margin-bottom: var(--sp-5);
+}
+.hero-ctas{
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+/* =========================================================
+   ARRIVAL CHOREOGRAPHY
+   Two registers only. Everything else is stillness.
+
+   .resolve  — the ceremonial gesture. Used exactly twice on the
+               whole site (the headline, and Harlan's own voice in
+               the quote). A blur settling into focus, the way an
+               eye adjusts to a dim room. Slow, singular, never
+               repeated at this weight anywhere else.
+
+   .reveal   — the ordinary arrival, used everywhere supporting
+               content needs to appear without competing for
+               attention. Comes in three paces (hero/story, standard,
+               quick) so a section's own weight decides its speed —
+               never a single duration applied indiscriminately.
+   ========================================================= */
+.resolve{
+  opacity: 0;
+  filter: blur(14px);
+  transform: scale(1.015);
+  transition: opacity 1000ms var(--ease-settle),
+              filter 1000ms var(--ease-settle),
+              transform 1000ms var(--ease-settle);
+}
+.resolve.is-visible{ opacity: 1; filter: blur(0); transform: scale(1); }
+
+.reveal{
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 700ms var(--ease-settle), transform 700ms var(--ease-settle);
+}
+.reveal.is-visible{ opacity: 1; transform: translateY(0); }
+
+/* Hero and This Week's Story: the visit's two heaviest moments —
+   supporting text still arrives slower and more generously than
+   anywhere else, even though it isn't the ceremonial gesture. */
+.pace-primary{ transition-duration: 780ms; }
+.pace-primary{ transform: translateY(16px); }
+
+/* Archive, Newsletter, Footer: utilitarian scenes. Faster, lighter,
+   because dwelling on their arrival would be dishonest about what
+   they are. */
+.pace-quick{ transition-duration: 420ms; }
+.pace-quick{ transform: translateY(8px); }
+
+@media (prefers-reduced-motion: reduce){
+  .resolve{ opacity:1; filter:none; transform:none; }
+  .reveal{ opacity:1; transform:none; }
+}
+
+/* =========================================================
+   AMBIENT LIGHT SYSTEM
+   One implied light source for the whole site — never a literal
+   candle drawn on screen, just the felt suggestion of one. Every
+   section carries some trace of it except the footer, so the page
+   reads as one continuously warming and cooling room rather than a
+   handful of lit sections stacked among unlit ones. Each section
+   layers two things, not one: a warm gathered pool where feeling
+   matters most, and a very faint cooling toward the edges that
+   gives the pool something to be warm relative to.
+
+   Strength is controlled entirely through --glow-a / --glow-b custom
+   properties rather than filter or opacity tricks, so night mode is
+   a predictable, testable cascade override — not a guess about how a
+   brightness filter interacts with a mostly-transparent layer.
+
+   About Harlan carries no light pool of its own on purpose: per the
+   Doorway Law, two scenes meant to be remembered as one continuous
+   room shouldn't each get their own separate light source. About has
+   none, so there's no second pool competing with Quote's — combined
+   with the tight spacing between them (see #about below), the two
+   read as a single space rather than two rooms with a threshold
+   between them.
+   ========================================================= */
+.hero, .this-week, .featured-quote, #archive,
+.book-section, .newsletter{ position: relative; }
+.hero::before, .this-week::before, .featured-quote::before,
+#archive::before, .book-section::before, .newsletter::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.hero > .container, .this-week > .container, .featured-quote > .container,
+#archive > .container, .book-section > .container,
+.newsletter > .container{
+  position: relative;
+  z-index: 1;
+}
+
+.hero{ --glow-a: 22%; --glow-b: 4%; }
+.this-week{ --glow-a: 16%; --glow-b: 4.5%; }
+.featured-quote{ --glow-a: 13%; --glow-b: 3.5%; }
+#archive{ --glow-a: 3.5%; }
+.book-section{ --glow-a: 8%; }
+.newsletter{ --glow-a: 3%; }
+
+html[data-theme="night"] .hero{ --glow-a: 34%; --glow-b: 7%; }
+html[data-theme="night"] .this-week{ --glow-a: 26%; --glow-b: 8%; }
+html[data-theme="night"] .featured-quote{ --glow-a: 22%; --glow-b: 6%; }
+html[data-theme="night"] #archive{ --glow-a: 6%; }
+html[data-theme="night"] .book-section{ --glow-a: 14%; }
+html[data-theme="night"] .newsletter{ --glow-a: 5%; }
+
+.hero::before{
+  background:
+    radial-gradient(ellipse 55% 60% at 80% 30%, color-mix(in srgb, var(--ember-glow) var(--glow-a), transparent) 0%, transparent 70%),
+    radial-gradient(ellipse 130% 100% at 50% 50%, transparent 55%, color-mix(in srgb, var(--ink-primary) var(--glow-b), transparent) 100%);
+}
+/* This Week's Story — close and intimate, gathered directly over the
+   reading column; the faint cooling toward the edges is what makes
+   the column itself feel like the safest point in the room. */
+.this-week::before{
+  background:
+    radial-gradient(ellipse 62% 48% at 50% 12%, color-mix(in srgb, var(--ember-glow) var(--glow-a), transparent) 0%, transparent 68%),
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 50%, color-mix(in srgb, var(--ink-primary) var(--glow-b), transparent) 100%);
+}
+/* The Quote — a single small, tight pool. About Harlan sits directly
+   beneath it with no light pool of its own (see the Doorway Law note
+   above) — the merge between the two is carried by the tight spacing
+   and by this section's own background already fading toward paper-
+   base at its lower edge, not by this glow bleeding across the section
+   boundary, which a background on an absolutely-positioned layer can't
+   actually do regardless of how the gradient is shaped. */
+.featured-quote::before{
+  background:
+    radial-gradient(ellipse 38% 60% at 50% 40%, color-mix(in srgb, var(--ember-glow) var(--glow-a), transparent) 0%, transparent 68%),
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 55%, color-mix(in srgb, var(--ink-primary) var(--glow-b), transparent) 100%);
+}
+/* Archive — honestly flat, functional light; the faintest trace only,
+   just enough that it doesn't read as a different room's temperature. */
+#archive::before{
+  background: radial-gradient(ellipse 80% 60% at 50% 20%, color-mix(in srgb, var(--ember-glow) var(--glow-a), transparent) 0%, transparent 72%);
+}
+/* The Book — contained and steady; formal light, not intimate light,
+   and deliberately a small rise rather than a continued decline. */
+.book-section::before{
+  background: radial-gradient(ellipse 50% 70% at 50% 50%, color-mix(in srgb, var(--ember-glow) var(--glow-a), transparent) 0%, transparent 75%);
+}
+/* Newsletter — the dimmest light outside the footer; the visit is
+   quietly setting itself down. */
+.newsletter::before{
+  background: radial-gradient(ellipse 70% 60% at 50% 30%, color-mix(in srgb, var(--ember-glow) var(--glow-a), transparent) 0%, transparent 70%);
+}
+/* The Footer carries no light layer at all — true stillness, the
+   dimmest point of the whole visit, on purpose. */
+
+/* =========================================================
+   SECTION SCAFFOLDING
+   ========================================================= */
+section{ padding-block: var(--sp-7); }
+.section-head{
+  margin-bottom: var(--sp-5);
+  max-width: 640px;
+}
+.section-head h2{ font-size: var(--text-h1); line-height: 1.05; margin-bottom: var(--sp-4); }
+.section-head .eyebrow{ margin-bottom: var(--sp-3); }
+.rule{
+  border: none; border-top: 1px solid var(--ink-whisper);
+  margin: 0;
+}
+
+/* =========================================================
+   THIS WEEK'S STORY
+   ========================================================= */
+.this-week{
+  background: linear-gradient(
+    to bottom,
+    var(--paper-base) 0,
+    var(--paper-raised) 140px,
+    var(--paper-raised) calc(100% - 140px),
+    var(--paper-deep) 100%
+  );
+}
+.this-week > .container{ max-width: 880px; }
+#about{ padding-top: var(--sp-2); }
+#about > .container{ max-width: 880px; }
+/* About Harlan — a framed, quietly rotating portrait exhibit beside the note */
+.about-grid{ display: grid; grid-template-columns: 300px 1fr; gap: var(--sp-6); align-items: center; }
+.about-portrait{ margin: 0; }
+.ap-frame{ position: relative; width: 100%; aspect-ratio: 4 / 5; overflow: hidden; border-radius: 4px;
+  padding: clamp(7px, 1.1vw, 12px); background: var(--paper-raised);
+  border: 1px solid var(--ink-whisper);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink-primary) 8%, transparent) inset,
+    0 2px 6px rgba(40,26,14,0.14), 0 40px 78px -34px rgba(40,26,14,0.55); }
+.ap-slide{ position: absolute; inset: clamp(7px, 1.1vw, 12px); border-radius: 2px; overflow: hidden;
+  opacity: 0; transition: opacity 1200ms var(--ease-settle); }
+.ap-slide.is-visible{ opacity: 1; }
+.ap-slide picture, .ap-slide img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.ap-caption{ margin: var(--sp-2) 0 0; text-align: center; font-family: var(--font-voice);
+  font-size: 0.76rem; letter-spacing: 0.06em; color: var(--ink-muted); min-height: 1.1em; }
+.ap-caption .ap-name{ color: var(--ink-secondary); }
+@media (prefers-reduced-motion: reduce){ .ap-slide{ transition: none; } }
+@media (max-width: 820px){
+  .about-grid{ grid-template-columns: 1fr; gap: var(--sp-4); justify-items: center; text-align: center; }
+  .about-portrait{ width: min(260px, 72%); }
+  .about-wrap .measure{ margin-inline: auto; }
+}
+.story-card{
+  max-width: var(--measure);
+}
+.story-card h2.story-title{
+  font-size: var(--text-h1);
+  margin-top: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.story-body{ font-size: var(--text-body-lg); color: var(--ink-primary); }
+.story-body p{ margin-bottom: var(--sp-3); }
+.story-body .dropcap::first-letter{
+  font-family: var(--font-display);
+  font-size: 3.4em;
+  float: left;
+  line-height: 0.82;
+  padding-right: 0.09em;
+  padding-top: 0.04em;
+  color: var(--ember-core);
+  font-weight: 560;
+}
+
+/* Native disclosure — works with zero JavaScript, fully keyboard operable,
+   and its content is present in the DOM for search engines even collapsed. */
+.story-details{ margin-top: var(--sp-2); }
+.story-details .story-more{ margin-top: var(--sp-3); }
+.story-details[open] .story-more{
+  animation: story-fade-in 460ms var(--ease-settle);
+}
+@keyframes story-fade-in{ from{ opacity: 0; } to{ opacity: 1; } }
+
+.story-toggle{
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  list-style: none;
+  font-family: var(--font-reading); font-size: var(--text-body);
+  color: var(--ember-core); cursor: pointer;
+  border-bottom: 1px solid var(--ember-glow);
+  width: fit-content;
+}
+.story-toggle::-webkit-details-marker{ display: none; }
+.story-toggle:hover{ color: var(--ember-deep); border-color: var(--ember-deep); }
+.story-toggle .label-open{ display: none; }
+.story-details[open] .story-toggle .label-open{ display: inline; }
+.story-details[open] .story-toggle .label-closed{ display: none; }
+.toggle-chevron{
+  width: 13px; height: 13px;
+  transition: transform var(--dur-quiet) var(--ease-settle);
+  flex-shrink: 0;
+}
+.story-details[open] .toggle-chevron{ transform: rotate(180deg); }
+
+.ending-mark{
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--thread-momdad);
+  margin: var(--sp-5) 0;
+}
+
+.marginalia{
+  display: none;
+  margin-top: var(--sp-5);
+  padding-top: var(--sp-4);
+  border-top: 1px dashed var(--ink-whisper);
+}
+.story-details[open] ~ .marginalia{ display: block; }
+.marginalia p.prompt{
+  font-size: var(--text-caption);
+  color: var(--ink-secondary);
+  margin-bottom: var(--sp-2);
+}
+.marginalia-form{
+  display:flex; gap: var(--sp-2); flex-wrap: wrap;
+}
+.marginalia-form input[type="text"]{
+  flex: 1 1 260px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--ink-whisper);
+  padding: 0.6em 0.2em;
+  font-family: var(--font-reading);
+  font-size: var(--text-body);
+  color: var(--ink-primary);
+}
+.marginalia-form input[type="text"]:focus{ border-color: var(--ember-core); }
+.marginalia-notes{ margin-top: var(--sp-4); display:flex; flex-direction:column; gap: var(--sp-2); }
+.marginalia-note{
+  font-family: var(--font-voice);
+  font-size: 0.98rem;
+  color: var(--ink-secondary);
+  padding-left: var(--sp-3);
+  border-left: 2px solid var(--thread-momdad);
+}
+
+/* =========================================================
+   ARCHIVE PREVIEW — THE CATALOGUE
+   ========================================================= */
+.archive-fact-number{
+  color: var(--ember-core);
+  font-size: 1.25em;
+}
+.archive-fragment{
+  font-family: var(--font-reading);
+  font-size: var(--text-body);
+  color: var(--ink-secondary);
+  max-width: 62ch;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.chip-row{
+  display:flex; flex-wrap:wrap; gap: var(--sp-1);
+  margin-bottom: var(--sp-3);
+}
+.chip{
+  font-size: var(--text-label);
+  letter-spacing: 0.05em;
+  padding: 0.5em 0.95em;
+  border-radius: 999px;
+  border: 1px solid var(--ink-whisper);
+  background: transparent;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  display: inline-flex; align-items:center; gap: 0.5em;
+  transition: border-color var(--dur-quiet), color var(--dur-quiet), background var(--dur-quiet);
+}
+.chip .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.chip:hover{ border-color: var(--ember-core); color: var(--ink-primary); }
+.chip[aria-pressed="true"]{
+  background: var(--ink-primary);
+  border-color: var(--ink-primary);
+  color: var(--paper-raised);
+}
+
+.catalogue-grid{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-2);
+}
+.card-catalogue{
+  background: var(--paper-raised); /* fallback for browsers without color-mix() */
+  background: linear-gradient(170deg, color-mix(in srgb, var(--paper-raised) 100%, white 3%) 0%, var(--paper-raised) 55%, color-mix(in srgb, var(--paper-raised) 97%, var(--paper-deep) 3%) 100%);
+  border: 1px solid var(--ink-whisper);
+  border-radius: var(--radius-card);
+  padding: var(--sp-3) var(--sp-3) var(--sp-3);
+  position: relative;
+  text-decoration:none;
+  color: var(--ink-primary);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--dur-quiet) var(--ease-settle),
+              box-shadow var(--dur-quiet) var(--ease-settle),
+              border-color var(--dur-quiet) var(--ease-settle),
+              filter var(--dur-slow) var(--ease-settle),
+              opacity var(--dur-slow) var(--ease-settle);
+}
+.card-catalogue::before{
+  content:"";
+  position:absolute; top:-1px; left: var(--sp-3);
+  width: 34px; height: 6px;
+  border-radius: 0 0 3px 3px;
+  background: var(--tab-color, var(--ink-whisper));
+}
+.card-catalogue:hover{
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-card);
+  border-color: var(--ink-secondary);
+}
+/* Depth of field: the grid as a whole softens once a visitor starts
+   sorting through it, so the one card they're actually looking at
+   reads as nearer than the rest — the way your eye actually focuses
+   on one card in a stack rather than the whole stack at once. */
+.catalogue-grid:hover .card-catalogue{
+  filter: blur(1.5px);
+  opacity: 0.62;
+}
+.catalogue-grid:hover .card-catalogue:hover{
+  filter: blur(0);
+  opacity: 1;
+  transform: translateY(-3px) scale(1.015);
+}
+@media (prefers-reduced-motion: reduce){
+  .catalogue-grid:hover .card-catalogue{ filter:none; opacity:1; }
+}
+.card-catalogue .stamp{
+  font-family: var(--font-voice);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  color: var(--ink-muted);
+  margin-bottom: var(--sp-2);
+}
+.card-catalogue h3{
+  font-size: 1.18rem;
+  margin: 0 0 0.5rem;
+}
+.card-catalogue p.teaser{
+  font-size: 0.94rem;
+  color: var(--ink-secondary);
+  margin: 0;
+  flex-grow: 1;
+}
+.card-catalogue .theme-label{
+  margin-top: var(--sp-2);
+  display:flex; align-items:center; gap:0.4em;
+  font-size: var(--text-label);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--ink-secondary);
+}
+.card-catalogue .theme-label .dot{ width:7px;height:7px;border-radius:50%; }
+
+.catalogue-empty{
+  padding: var(--sp-5);
+  text-align:center;
+  color: var(--ink-secondary);
+  border: 1px dashed var(--ink-whisper);
+  border-radius: var(--radius-soft);
+  display: none;
+}
+.catalogue-empty.is-visible{ display:block; }
+
+.archive-cta{
+  margin-top: var(--sp-5);
+  display:flex; flex-direction:column; gap: var(--sp-1); align-items:flex-start;
+}
+.archive-cta small{ color: var(--ink-muted); font-size: var(--text-caption); }
+
+/* =========================================================
+   FEATURED QUOTE — the Voice
+   ========================================================= */
+.featured-quote{
+  background: linear-gradient(
+    to bottom,
+    var(--paper-deep) 0,
+    var(--paper-deep) 100px,
+    var(--paper-base) 100%
+  );
+  padding-top: var(--sp-8); /* the held silence after the story's ending */
+}
+.quote-wrap{
+  max-width: 620px; /* small and complete, not expansive */
+  margin: 0 auto;
+  text-align: center;
+  padding-block: var(--sp-4);
+}
+.quote-wrap blockquote{
+  font-family: var(--font-voice);
+  font-size: var(--text-voice);
+  line-height: 1.55;
+  color: var(--ink-primary);
+  margin: 0 0 var(--sp-4);
+}
+.quote-wrap cite{
+  font-style: normal;
+  font-family: var(--font-reading);
+  font-size: var(--text-caption);
+  letter-spacing: 0.05em;
+  color: var(--ink-secondary);
+}
+/* The pause itself: the blockquote waits a beat before resolving into
+   focus, even once scrolled into view, and the citation waits longer
+   still — nothing here arrives the instant it's technically visible. */
+.quote-held.resolve{ transition-delay: 260ms; }
+.quote-held.reveal{ transition-delay: 900ms; }
+@media (prefers-reduced-motion: reduce){
+  .quote-held{ transition-delay: 0ms !important; }
+}
+
+/* =========================================================
+   BOOK SECTION
+   ========================================================= */
+.book-section{
+  border-top: 1px solid var(--ink-whisper);
+}
+.book-section > .container{ max-width: 640px; }
+.book-frame{
+  text-align: center;
+}
+.book-frame h2{ margin-bottom: var(--sp-2); }
+.book-frame .measure{ margin-inline: auto; }
+.book-progress{
+  font-size: var(--text-caption);
+  color: var(--ink-secondary);
+  margin-top: var(--sp-2);
+  margin-bottom: var(--sp-6);
+}
+.book-parts{
+  list-style: none;
+  margin: 0; padding: 0;
+  counter-reset: part;
+  display: grid;
+  gap: var(--sp-3);
+}
+.book-parts li{
+  display: flex;
+  justify-content: center;
+  gap: 0.65em;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-weight: 440;
+  font-size: 1.1rem;
+}
+.book-parts .num{
+  font-family: var(--font-reading);
+  color: var(--ember-core);
+  font-size: var(--text-caption);
+  letter-spacing: 0.05em;
+  min-width: 1.6em;
+}
+
+/* =========================================================
+   NEWSLETTER
+   ========================================================= */
+.newsletter{
+  text-align: center;
+}
+.newsletter-inner{ max-width: 520px; margin: 0 auto; }
+.newsletter-form{
+  display:flex; gap: var(--sp-2); margin-top: var(--sp-4);
+  flex-wrap: wrap; justify-content:center;
+}
+.newsletter-form input[type="email"]{
+  flex: 1 1 260px;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-whisper);
+  border-radius: var(--radius-soft);
+  padding: 0.85em 1em;
+  font-family: var(--font-reading);
+  font-size: var(--text-body);
+  color: var(--ink-primary);
+}
+.newsletter-form input[type="email"]:focus{ border-color: var(--ember-core); }
+.newsletter-note{
+  font-size: var(--text-caption);
+  color: var(--ink-muted);
+  margin-top: var(--sp-2);
+}
+.newsletter-success{
+  display:none;
+  margin-top: var(--sp-4);
+  font-family: var(--font-display);
+  font-weight: 440;
+  font-style: italic;
+  font-size: 1.2rem;
+  color: var(--ember-core);
+}
+.newsletter-success.is-visible{ display:block; }
+.newsletter-error{
+  display:none;
+  margin-top: var(--sp-2);
+  font-size: var(--text-caption);
+  color: var(--ember-deep);
+}
+.newsletter-error.is-visible{ display:block; }
+
+/* =========================================================
+   FOOTER
+   ========================================================= */
+footer{
+  border-top: 1px solid var(--ink-whisper);
+  padding-block: var(--sp-6) var(--sp-5);
+}
+.footer-grid{
+  display:flex; justify-content:space-between; gap: var(--sp-5);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-5);
+}
+.footer-col h4{
+  font-family: var(--font-reading);
+  font-size: var(--text-label);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--ink-muted);
+  margin: 0 0 var(--sp-2);
+  font-weight: 500;
+}
+.footer-col ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap: 0.6rem; }
+.footer-col a{ text-decoration:none; color: var(--ink-secondary); font-size: 0.95rem; }
+.footer-col a:hover{ color: var(--ember-core); }
+.footer-colophon{
+  font-size: var(--text-caption);
+  color: var(--ink-muted);
+  max-width: 60ch;
+}
+.footer-bottom{
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: var(--sp-2);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--ink-whisper);
+  font-size: var(--text-caption);
+  color: var(--ink-muted);
+}
+.footer-address{
+  font-style: italic;
+  color: var(--ink-secondary);
+}
+
+/* =========================================================
+   RESPONSIVE — TABLET
+   ========================================================= */
+@media (max-width: 960px){
+  .hero-grid{ grid-template-columns: 1fr; gap: var(--sp-4); justify-items: center; text-align: center; }
+  .hero-flame-wrap{ justify-self: center; width: min(220px, 52vw); order: -1; }
+  .hero .lede{ margin-inline: auto; }
+  .hero-ctas{ justify-content: center; }
+  .catalogue-grid{ grid-template-columns: repeat(2, 1fr); }
+}
+
+/* =========================================================
+   RESPONSIVE — MOBILE
+   ========================================================= */
+@media (max-width: 720px){
+  .desktop-nav{ display:none; }
+  .nav-toggle{ display:inline-flex; align-items:center; justify-content:center; }
+  .catalogue-grid{ grid-template-columns: 1fr; }
+  section{ padding-block: var(--sp-6); }
+  .hero{ padding-block: var(--sp-6) var(--sp-5); }
+  .footer-grid{ flex-direction:column; gap: var(--sp-4); }
+}
+
+/* =========================================================
+   PRINT
+   ========================================================= */
+@media print{
+  .site-header, .mobile-panel, .skip-link,
+  .hero-ctas, .chip-row, .archive-cta,
+  .newsletter-form, .newsletter-note,
+  .marginalia-form, .marginalia .prompt,
+  .theme-toggle, .candle-indicator, .hero-flame-wrap,
+  .story-toggle{
+    display: none !important;
+  }
+  /* Force the story open for print — browsers hide <details> content by
+     default unless [open] is present, which we don't want to depend on. */
+  .story-details > *:not(summary){ display: block !important; }
+  body{ background: #fff; color: #000; opacity: 1 !important; }
+  a{ color: #000; text-decoration: underline; }
+  .card-catalogue, .book-frame, .this-week{
+    box-shadow: none !important;
+    border: 1px solid #999;
+    break-inside: avoid;
+  }
+  .featured-quote{ background: none !important; }
+  section{ padding-block: 1.5rem; }
+}
+
+/* =========================================================
+   SEARCH & DISCOVERY
+   Global search over stories + people/places/objects/events.
+   Data comes from an injected JSON index (build.js) — the UI
+   here is chrome only. Uses existing tokens throughout.
+   ========================================================= */
+.archive-search{ position: relative; max-width: 640px; margin-bottom: var(--sp-5); z-index: 20; }
+.search-field{
+  display: flex; align-items: center; gap: var(--sp-2);
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-whisper);
+  border-radius: var(--radius-soft);
+  padding: 0.15em 0.9em;
+  transition: border-color var(--dur-quiet) var(--ease-settle), box-shadow var(--dur-quiet) var(--ease-settle);
+}
+.search-field:focus-within{ border-color: var(--ember-core); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ember-glow) 30%, transparent); }
+.search-icon{ width: 18px; height: 18px; color: var(--ink-muted); flex-shrink: 0; }
+.search-field:focus-within .search-icon{ color: var(--ember-core); }
+#hl-search-input{
+  flex: 1; min-width: 0; border: none; background: transparent;
+  font-family: var(--font-reading); font-size: var(--text-body); color: var(--ink-primary);
+  padding: 0.85em 0; outline: none;
+}
+#hl-search-input::placeholder{ color: var(--ink-muted); }
+.search-clear{
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border: none; background: transparent;
+  color: var(--ink-muted); cursor: pointer; border-radius: 999px; flex-shrink: 0;
+}
+.search-clear:hover{ color: var(--ember-core); }
+.search-clear svg{ width: 16px; height: 16px; }
+
+.search-panel{
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+  background: var(--paper-raised);
+  border: 1px solid var(--ink-whisper);
+  border-radius: var(--radius-soft);
+  box-shadow: var(--shadow-raised);
+  max-height: min(60vh, 460px); overflow-y: auto;
+  padding: var(--sp-1);
+}
+.search-group{ padding: var(--sp-1) 0; }
+.search-group + .search-group{ border-top: 1px solid var(--ink-whisper); }
+.search-group-title{
+  display: flex; align-items: center; gap: 0.5em;
+  font-size: var(--text-label); text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--ink-muted); font-weight: 500;
+  padding: 0.5em 0.8em 0.35em;
+}
+.search-group-title .dot{ width: 7px; height: 7px; border-radius: 50%; }
+.search-result{
+  display: flex; align-items: baseline; gap: var(--sp-2);
+  text-decoration: none; color: var(--ink-primary);
+  padding: 0.6em 0.8em; border-radius: var(--radius-card);
+  scroll-margin: 0.5em;
+}
+.search-result:hover, .search-result.is-active{ background: var(--paper-deep); }
+.search-result.is-active{ box-shadow: inset 2px 0 0 var(--ember-core); }
+.search-result .sr-title{ font-weight: 500; }
+.search-result .sr-title mark{ background: color-mix(in srgb, var(--ember-glow) 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+.search-result .sr-sub{ font-size: var(--text-caption); color: var(--ink-muted); margin-left: auto; padding-left: var(--sp-2); white-space: nowrap; }
+.search-empty{ padding: var(--sp-3) var(--sp-2); text-align: center; color: var(--ink-muted); font-size: var(--text-caption); }
+@media (max-width: 640px){
+  .search-result .sr-sub{ display: none; }
+}
+
+/* =========================================================
+   DISCOVER A MEMORY — cinematic journey poster cards
+   Each card is an exhibit poster: a cover image (a face, a place,
+   or gradient art), a warm scrim, and the invitation set over it.
+   ========================================================= */
+.discover{
+  background: linear-gradient(to bottom, var(--paper-base) 0, var(--paper-raised) 140px, var(--paper-raised) calc(100% - 140px), var(--paper-base) 100%);
+}
+.discover-grid{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-4);
+}
+.topic-card{
+  position: relative;
+  display: block;
+  aspect-ratio: 5 / 7;
+  border-radius: 8px;
+  overflow: hidden;
+  text-decoration: none;
+  color: #F6EFE0;
+  isolation: isolate;
+  box-shadow: 0 2px 4px rgba(40,26,14,0.14), 0 24px 50px -26px rgba(40,26,14,0.5);
+  transition: transform 620ms var(--ease-settle), box-shadow 620ms var(--ease-settle);
+}
+.topic-card:focus-visible{ outline: 2px solid var(--ember-core); outline-offset: 4px; }
+@media (prefers-reduced-motion: no-preference){
+  .topic-card:hover{ transform: translateY(-8px); box-shadow: 0 3px 6px rgba(40,26,14,0.2), 0 44px 80px -30px rgba(40,26,14,0.6); }
+}
+/* cover fills the poster */
+.topic-cover{ position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+.topic-cover .jc{ width: 100%; height: 100%; }
+.topic-cover .jc-photo img, .topic-cover .jc-photo picture{ width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; display: block;
+  transition: transform 1100ms var(--ease-settle); }
+@media (prefers-reduced-motion: no-preference){ .topic-card:hover .topic-cover .jc-photo img{ transform: scale(1.06); } }
+.topic-cover .jc-motif, .topic-cover .jc-art{ width:100%; height:100%; display:flex; align-items:center; justify-content:center;
+  background:
+    radial-gradient(120% 90% at 28% 18%, color-mix(in srgb,var(--tab-color) 54%, transparent) 0%, transparent 58%),
+    radial-gradient(130% 110% at 82% 92%, color-mix(in srgb,var(--tab-color) 36%, transparent) 0%, transparent 55%),
+    linear-gradient(150deg, color-mix(in srgb,var(--tab-color) 24%, var(--paper-deep)) 0%, var(--paper-deep) 100%); }
+.topic-cover .jc-ghost{ font-family: var(--font-display); font-weight: 560; font-size: clamp(1.5rem, 1rem + 2.2vw, 2.8rem);
+  color: color-mix(in srgb, var(--tab-color) 62%, var(--ink-primary)); opacity: 0.30; text-transform: uppercase; text-align: center; padding: 0 1rem; line-height: 1.04; }
+/* warm cinematic scrim so the type reads over any cover */
+.topic-scrim{ position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(to top, rgba(18,11,5,0.86) 0%, rgba(18,11,5,0.5) 32%, rgba(18,11,5,0.06) 60%, transparent 100%),
+    linear-gradient(to top, color-mix(in srgb, var(--tab-color) 30%, transparent) 0%, transparent 40%);
+  transition: opacity 620ms var(--ease-settle); }
+.topic-overlay{ position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; justify-content: flex-end;
+  gap: 0.4rem; padding: var(--sp-4); }
+.topic-kicker{ font-family: var(--font-voice); font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ember-glow); }
+.topic-title{ font-family: var(--font-display); font-weight: 560; font-size: clamp(1.5rem, 1.2rem + 0.8vw, 1.95rem); line-height: 1.06; letter-spacing: -0.01em; color: #FBF6EC; }
+.topic-desc{ font-size: 0.95rem; color: #E7DECB; line-height: 1.5; max-width: 34ch;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.topic-people{ font-family: var(--font-voice); font-size: 0.74rem; letter-spacing: 0.02em; color: #C9BEA6; }
+.topic-cta{ font-size: var(--text-label); text-transform: uppercase; letter-spacing: 0.12em; color: var(--ember-glow);
+  margin-top: 0.5rem; opacity: 0; transform: translateY(6px); transition: opacity 460ms var(--ease-settle), transform 460ms var(--ease-settle); }
+.topic-cta span{ display: inline-block; transition: transform 460ms var(--ease-settle); }
+@media (prefers-reduced-motion: no-preference){
+  .topic-card:hover .topic-cta, .topic-card:focus-visible .topic-cta{ opacity: 1; transform: translateY(0); }
+  .topic-card:hover .topic-cta span{ transform: translateX(4px); }
+}
+@media (prefers-reduced-motion: reduce){ .topic-cta{ opacity: 1; transform: none; } }
+@media (max-width: 960px){ .discover-grid{ grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px){ .discover-grid{ grid-template-columns: 1fr; gap: var(--sp-3); } .topic-card{ aspect-ratio: 4 / 5; } .topic-cta{ opacity: 1; transform: none; } }
+</style>
+<link rel="stylesheet" href="assets/experience.css">
+</head>
+<body>
+<noscript><style>body{opacity:1 !important;}</style></noscript>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<!-- =========================================================
+     HEADER / DESKTOP NAV
+     ========================================================= -->
+<header class="site-header" id="site-header">
+  <div class="container header-row">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5c-2.4 4.6-4.6 6.9-4.6 10.3a4.6 4.6 0 0 0 9.2 0c0-3.4-2.2-5.7-4.6-10.3z" fill="var(--ember-core)"/><rect x="12.6" y="20" width="6.8" height="8" rx="1" fill="var(--ink-primary)"/></svg>
+      Harlan's Legacy
+    </a>
+
+    <nav class="desktop-nav" aria-label="Primary">
+      <ul>
+        <li><a href="#hero">Start Here</a></li>
+        <li><a href="#discover">Discover</a></li>
+        <li><a href="#this-week">This Week</a></li>
+        <li><a href="#archive">Archive</a></li>
+        <li><a href="family.html">Family</a></li>
+        <li><a href="#about">About Harlan</a></li>
+      </ul>
+      <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to night reading">
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 3v2.4M12 18.6V21M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M3 12h2.4M18.6 12H21M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7"/></svg>
+      </button>
+      <span class="candle-indicator" id="candle-indicator-desktop" role="status">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path class="flame flame-flicker" d="M12 3c-1.6 3.4-3.4 5.1-3.4 7.6a3.4 3.4 0 0 0 6.8 0C15.4 8.1 13.6 6.4 12 3z"/></svg>
+        <span id="candle-label-desktop">—</span>
+      </span>
+    </nav>
+
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-expanded="false" aria-controls="mobile-panel" aria-label="Open menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- =========================================================
+     MOBILE NAV PANEL
+     ========================================================= -->
+<div class="mobile-panel" id="mobile-panel" role="dialog" aria-modal="true" aria-label="Site menu">
+  <div class="mobile-panel-top">
+    <span class="brand" style="font-size:1.1rem;">Harlan's Legacy</span>
+    <button class="nav-toggle" id="nav-close" type="button" aria-label="Close menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <nav aria-label="Mobile">
+    <ul>
+      <li><a href="#hero">Start Here</a></li>
+      <li><a href="#discover">Discover</a></li>
+      <li><a href="#this-week">This Week</a></li>
+      <li><a href="#archive">Archive</a></li>
+      <li><a href="family.html">Family</a></li>
+      <li><a href="#about">About Harlan</a></li>
+    </ul>
+  </nav>
+  <div class="mobile-panel-bottom">
+    <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to night reading">
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 3v2.4M12 18.6V21M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M3 12h2.4M18.6 12H21M4.9 19.1l1.7-1.7M17.4 6.6l1.7-1.7"/></svg>
+    </button>
+    <span class="candle-indicator" id="candle-indicator-mobile" role="status">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path class="flame flame-flicker" d="M12 3c-1.6 3.4-3.4 5.1-3.4 7.6a3.4 3.4 0 0 0 6.8 0C15.4 8.1 13.6 6.4 12 3z"/></svg>
+      <span id="candle-label-mobile">—</span>
+    </span>
+  </div>
+</div>
+
+<main id="main">
+
+  <!-- =========================================================
+       HERO
+       ========================================================= -->
+  <section class="hero" id="hero">
+    <div class="container hero-grid">
+      <div>
+        <p class="eyebrow reveal pace-primary">A living archive of memory</p>
+        <h1 class="resolve">Every Friday, a story.<br>Every story, a piece of <em>who he was</em>.</h1>
+        <p class="lede reveal pace-primary">For seven years, without missing a week, Hal has written down one memory of his brother Harlan — gathered from a life in Toledo, told with the specific, ordinary, unrepeatable details that make a person a person. This is where those stories live.</p>
+        <div class="hero-ctas reveal pace-primary">
+          <a class="btn btn-primary" href="#this-week">Read this week's story</a>
+          <a class="btn btn-quiet" href="#archive">Explore the archive</a>
+        </div>
+      </div>
+      <div class="hero-flame-wrap reveal pace-primary">
+        <!-- The candle is isolated with no rectangle: a real burning candle
+             recorded on a solid BLACK background is composited with
+             mix-blend-mode:screen (the black disappears) and a feathered radial
+             mask (the edges dissolve). If you instead have a TRUE-ALPHA
+             transparent video, set data-source="alpha" below and the blend +
+             light-theme seat switch off automatically. -->
+        <figure class="hero-candle" id="hero-candle" data-source="screen">
+          <div class="hero-candle-stage">
+            <!-- Static still (candle on black): shown before playback and if the video cannot load. -->
+            <img class="hero-candle-fallback" src="assets/candle-poster.svg" alt="" aria-hidden="true" width="600" height="800" decoding="async">
+            <!-- Real candle cinemagraph. Decorative (aria-hidden); autoplay, looped,
+                 muted, inline. Drop assets/candle.webm + candle.mp4 (candle on a
+                 black background) in to replace the still — no code change needed. -->
+            <video class="hero-candle-video" id="hero-candle-video"
+                   autoplay loop muted playsinline preload="metadata"
+                   poster="assets/candle-poster.svg" aria-hidden="true" tabindex="-1">
+              <source src="assets/candle.webm" type="video/webm">
+              <source src="assets/candle.mp4" type="video/mp4">
+            </video>
+          </div>
+          <figcaption class="hero-flame-caption" id="hero-flame-caption" role="status">A candle, always burning.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       DISCOVER A MEMORY — Guided Discovery (data-driven journeys)
+       ========================================================= -->
+  <section class="discover" id="discover">
+    <div class="container">
+      <div class="section-head reveal pace-quick">
+        <p class="eyebrow">Discover a memory</p>
+        <h2>Walk into a part of his life</h2>
+        <p class="archive-fragment">You don't have to know what you're looking for. Choose a thread and let it lead you — each one gathers the people, places and Fridays that belong together, and walks you through them.</p>
+      </div>
+      <div class="discover-grid reveal pace-quick">
+        <!-- HL:DISCOVER:START -->
+        <a class="topic-card reveal pace-quick" data-theme="funny" style="--tab-color:var(--thread-funny)" href="journey/humor.html">
+          <span class="topic-cover"><span class="jc jc-photo"><picture><source type="image/webp" srcset="assets/photos/hal/hal.portrait.176.webp 176w, assets/photos/hal/hal.portrait.352.webp 352w, assets/photos/hal/hal.portrait.528.webp 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw"><img src="assets/photos/hal/hal.portrait.528.jpg" srcset="assets/photos/hal/hal.portrait.176.jpg 176w, assets/photos/hal/hal.portrait.352.jpg 352w, assets/photos/hal/hal.portrait.528.jpg 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw" width="528" height="528" style="object-position:48% 42%" alt="" loading="lazy" decoding="async"></picture></span><span class="topic-scrim"></span></span>
+          <span class="topic-overlay">
+            <span class="topic-kicker">2 memories</span>
+            <span class="topic-title">Humor</span>
+            <span class="topic-desc">The stories that made everyone laugh, and a few that still do.</span>
+            <span class="topic-people">Hal &middot; Harlan</span>
+            <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
+          </span>
+        </a>
+        <a class="topic-card reveal pace-quick" data-theme="momdad" style="--tab-color:var(--thread-momdad)" href="journey/family-home.html">
+          <span class="topic-cover"><span class="jc jc-photo"><picture><source type="image/webp" srcset="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.webp 176w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.webp 352w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.webp 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw"><img src="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg" srcset="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg 176w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.jpg 352w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw" width="528" height="528" style="object-position:57% 42%" alt="" loading="lazy" decoding="async"></picture></span><span class="topic-scrim"></span></span>
+          <span class="topic-overlay">
+            <span class="topic-kicker">2 memories</span>
+            <span class="topic-title">Family &amp; Home</span>
+            <span class="topic-desc">The people he came from, and the home they made together.</span>
+            <span class="topic-people">Hal &middot; Harlan</span>
+            <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
+          </span>
+        </a>
+        <a class="topic-card reveal pace-quick" data-theme="toledo" style="--tab-color:var(--thread-toledo)" href="journey/childhood.html">
+          <span class="topic-cover"><span class="jc jc-motif" style="--tab-color:var(--thread-toledo)" aria-hidden="true"><span class="jc-ghost">Toledo, Ohio</span></span><span class="topic-scrim"></span></span>
+          <span class="topic-overlay">
+            <span class="topic-kicker">1 memory</span>
+            <span class="topic-title">Childhood</span>
+            <span class="topic-desc">Growing up in Toledo — the streets, the small adventures, the beginning of everything.</span>
+            <span class="topic-people">Hal &middot; Harlan</span>
+            <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
+          </span>
+        </a>
+        <a class="topic-card reveal pace-quick" data-theme="shabbat" style="--tab-color:var(--thread-shabbat)" href="journey/faith-traditions.html">
+          <span class="topic-cover"><span class="jc jc-art" style="--tab-color:var(--thread-shabbat)" aria-hidden="true"><span class="jc-ghost">Faith &amp; Traditions</span></span><span class="topic-scrim"></span></span>
+          <span class="topic-overlay">
+            <span class="topic-kicker">2 memories</span>
+            <span class="topic-title">Faith &amp; Traditions</span>
+            <span class="topic-desc">Shabbat kept most Fridays — sometimes imperfectly, always on purpose.</span>
+            <span class="topic-people">Hal &middot; Harlan</span>
+            <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
+          </span>
+        </a>
+        <a class="topic-card reveal pace-quick" data-theme="grief" style="--tab-color:var(--thread-grief)" href="journey/loss-memory.html">
+          <span class="topic-cover"><span class="jc jc-art" style="--tab-color:var(--thread-grief)" aria-hidden="true"><span class="jc-ghost">Loss &amp; Memory</span></span><span class="topic-scrim"></span></span>
+          <span class="topic-overlay">
+            <span class="topic-kicker">2 memories</span>
+            <span class="topic-title">Loss &amp; Memory</span>
+            <span class="topic-desc">What remains after someone is gone — and how the remembering keeps going.</span>
+            <span class="topic-people">Hal &middot; Harlan</span>
+            <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
+          </span>
+        </a>
+        <a class="topic-card reveal pace-quick" data-theme="ordinary" style="--tab-color:var(--thread-ordinary)" href="journey/objects-places.html">
+          <span class="topic-cover"><span class="jc jc-art" style="--tab-color:var(--thread-ordinary)" aria-hidden="true"><span class="jc-ghost">Objects &amp; Places</span></span><span class="topic-scrim"></span></span>
+          <span class="topic-overlay">
+            <span class="topic-kicker">1 memory</span>
+            <span class="topic-title">Objects &amp; Places</span>
+            <span class="topic-desc">The small, unremarkable things that turned out to hold a whole life.</span>
+            <span class="topic-people">Hal &middot; Harlan</span>
+            <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
+          </span>
+        </a>
+            <!-- HL:DISCOVER:END -->
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       THIS WEEK'S STORY
+       ========================================================= -->
+  <section class="this-week" id="this-week">
+    <div class="container">
+      <div class="story-card reveal pace-primary" id="this-week-card">
+        <button class="hl-bookmark hl-bookmark-float" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
+          <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span class="hl-bm-label">Save</span>
+        </button>
+        <p class="eyebrow" id="friday-eyebrow">This week</p>
+        <!-- HL:TW_TITLE:START -->            <h2 class="story-title">The Blue Chair</h2><!-- HL:TW_TITLE:END -->
+
+        <div class="story-body">
+          <!-- HL:TW_BODY:START -->
+            <p class="dropcap">There was a recliner in the corner of the den that my father called his office, though as far as any of us could tell, the only business conducted there was arguing with the evening news and falling asleep before <em>Wheel of Fortune</em> finished. It was the color of a swimming pool on a postcard — a blue nobody would have chosen on purpose, which is probably why he loved it. My mother tried to replace it three times over twenty years. Three times it came back from the curb, carried in by my father like a man rescuing a dog from a shelter. The chair had a permanent dent shaped like him — a groove worn into the right armrest where his watch used to click against the wood trim while he read the paper.</p>
+
+            <details class="story-details">
+              <summary class="story-toggle">
+                <span class="label-closed">Continue reading</span>
+                <span class="label-open">Close this story</span>
+                <svg class="toggle-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </summary>
+              <div class="story-more">
+              <p>When I was young I thought all fathers had a chair like this: a place in the house that was unmistakably theirs, that the rest of us orbited rather than occupied.</p>
+              <p>He died on a Tuesday in March, and for a long time nobody in the house could sit in that chair. It just sat there, blue and empty and somehow still fully his, the way a coat still holds the shape of the person who wore it last.</p>
+              <p>It was my mother who finally sat in it, almost a year later, on a Friday evening before the candles were lit. She didn't say anything about it. She just sat down the way you'd sit in any chair, picked up the remote, and watched the news the way he used to — arguing quietly with the anchor under her breath.</p>
+              <p>Nobody in the family has ever gotten rid of that chair. It's still blue. It's still ugly. The dent in the armrest is still there, a little deeper now, holding two shapes instead of one.</p>
+                <div class="ending-mark" aria-hidden="true"></div>
+              </div>
+            </details>
+            <!-- HL:TW_BODY:END -->
+          <div class="marginalia" id="marginalia">
+            <p class="prompt">Leave a line in the margin — what did this remind you of?</p>
+            <form class="marginalia-form" id="marginalia-form">
+              <label class="visually-hidden" for="marginalia-input">Your note</label>
+              <input type="text" id="marginalia-input" maxlength="140" placeholder="This reminded me of…" required>
+              <button class="btn btn-quiet" type="submit">Leave a note</button>
+            </form>
+            <div class="marginalia-notes" id="marginalia-notes" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       FEATURED QUOTE
+       (moved directly after This Week's Story — readers meet Harlan's
+       own voice before anything else, per the First-Time Visitor Review)
+       ========================================================= -->
+  <section class="featured-quote">
+    <div class="container">
+      <div class="quote-wrap">
+        <h2 class="visually-hidden">In his own words</h2>
+        <!-- HL:QUOTE:START -->
+        <blockquote class="resolve quote-held">&ldquo;You don't have to win every argument, Hal. Sometimes you just let your mother be right, and you both get to eat dinner in peace.&rdquo;</blockquote>
+        <cite class="reveal pace-primary quote-held">— Harlan, as remembered by his brother</cite>
+            <!-- HL:QUOTE:END -->
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       ABOUT HARLAN — a short human introduction, not a biography
+       ========================================================= -->
+  <section id="about">
+    <div class="container about-grid">
+      <figure class="about-portrait reveal" id="about-portrait">
+        <div class="ap-frame">
+          <!-- HL:ABOUT_PORTRAITS:START -->
+          <span class="ap-slide is-visible" data-name="Marvin J. Yaffe" data-role="Father of Harlan and Hal"><picture><source type="image/webp" srcset="assets/photos/marvin/516607523-10228458948408089-8744987781729357311-n.portrait.176.webp 176w, assets/photos/marvin/516607523-10228458948408089-8744987781729357311-n.portrait.352.webp 352w" sizes="(max-width:720px) 60vw, 300px"><img src="assets/photos/marvin/516607523-10228458948408089-8744987781729357311-n.portrait.352.jpg" srcset="assets/photos/marvin/516607523-10228458948408089-8744987781729357311-n.portrait.176.jpg 176w, assets/photos/marvin/516607523-10228458948408089-8744987781729357311-n.portrait.352.jpg 352w" sizes="(max-width:720px) 60vw, 300px" width="352" height="352" style="object-position:50% 40%" alt="" loading="lazy" decoding="async"></picture></span>
+          <span class="ap-slide" data-name="Zandra L. Yaffe" data-role="Mother of Harlan and Hal"><picture><source type="image/webp" srcset="assets/photos/zandra/464922816-10225644168720356-7727881483837371960-n-1.portrait.176.webp 176w" sizes="(max-width:720px) 60vw, 300px"><img src="assets/photos/zandra/464922816-10225644168720356-7727881483837371960-n-1.portrait.176.jpg" srcset="assets/photos/zandra/464922816-10225644168720356-7727881483837371960-n-1.portrait.176.jpg 176w" sizes="(max-width:720px) 60vw, 300px" width="176" height="176" style="object-position:35% 43%" alt="" loading="lazy" decoding="async"></picture></span>
+          <span class="ap-slide" data-name="Harlan" data-role="The subject of every story"><picture><source type="image/webp" srcset="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.webp 176w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.webp 352w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.webp 528w" sizes="(max-width:720px) 60vw, 300px"><img src="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg" srcset="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg 176w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.jpg 352w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg 528w" sizes="(max-width:720px) 60vw, 300px" width="528" height="528" style="object-position:57% 42%" alt="" loading="lazy" decoding="async"></picture></span>
+          <span class="ap-slide" data-name="Hal" data-role="Harlan's brother"><picture><source type="image/webp" srcset="assets/photos/hal/hal.portrait.176.webp 176w, assets/photos/hal/hal.portrait.352.webp 352w, assets/photos/hal/hal.portrait.528.webp 528w" sizes="(max-width:720px) 60vw, 300px"><img src="assets/photos/hal/hal.portrait.528.jpg" srcset="assets/photos/hal/hal.portrait.176.jpg 176w, assets/photos/hal/hal.portrait.352.jpg 352w, assets/photos/hal/hal.portrait.528.jpg 528w" sizes="(max-width:720px) 60vw, 300px" width="528" height="528" style="object-position:48% 42%" alt="" loading="lazy" decoding="async"></picture></span>
+            <!-- HL:ABOUT_PORTRAITS:END -->
+        </div>
+        <figcaption class="ap-caption" id="ap-caption" aria-live="off"></figcaption>
+      </figure>
+      <div class="about-wrap reveal">
+        <p class="eyebrow">Who they were</p>
+        <h2>About Harlan</h2>
+        <p class="measure">Harlan lived most of his life in Toledo, Ohio, where he helped run a small hardware store on the same street for over thirty years. He kept Shabbat most Fridays, sometimes imperfectly, always on purpose. His brother Hal has written down a memory of him every single Friday since he passed, without missing one.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       ARCHIVE PREVIEW — THE CATALOGUE
+       ========================================================= -->
+  <section id="archive">
+    <div class="container">
+      <div class="archive-search reveal pace-quick" id="search">
+        <label class="visually-hidden" for="hl-search-input">Search the archive, people, places, objects and events</label>
+        <div class="search-field" role="combobox" aria-haspopup="listbox" aria-owns="search-panel" aria-expanded="false">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
+          <input type="text" id="hl-search-input" autocomplete="off" spellcheck="false"
+                 placeholder="Search stories, people, places, objects, events…"
+                 aria-controls="search-panel" aria-autocomplete="list" aria-activedescendant="">
+          <button type="button" class="search-clear" id="search-clear" aria-label="Clear search" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div class="search-panel" id="search-panel" role="listbox" aria-label="Search results" hidden></div>
+        <p class="visually-hidden" id="search-status" aria-live="polite"></p>
+      </div>
+
+      <div class="section-head reveal pace-quick">
+        <p class="eyebrow">The archive</p>
+        <h2><span class="archive-fact-number"><!-- HL:ARCHIVE_COUNT:START -->378<!-- HL:ARCHIVE_COUNT:END --></span> Fridays, and&nbsp;counting.</h2>
+        <p class="archive-fragment">Somewhere in the middle of them is the one about the argument over a strip of dead grass that outlasted a few actual marriages in the neighborhood. Somewhere else is the one about two briskets and one oven, and exactly how close that particular Friday came to disaster. All 378 are kept the same way — completely, and on purpose.</p>
+        <p class="archive-fragment" style="margin-top: var(--sp-3);">If you came for this week's story, you've already had it — everything below is only for anyone who'd like to stay a little longer.</p>
+      </div>
+
+      <div class="chip-row" role="group" aria-label="Filter stories by theme">
+        <button class="chip" data-filter="all" aria-pressed="true">All stories</button>
+        <button class="chip" data-filter="funny" aria-pressed="false"><span class="dot" style="background:var(--thread-funny)"></span>Funny Harlan Stories</button>
+        <button class="chip" data-filter="momdad" aria-pressed="false"><span class="dot" style="background:var(--thread-momdad)"></span>Mom and Dad Stories</button>
+        <button class="chip" data-filter="toledo" aria-pressed="false"><span class="dot" style="background:var(--thread-toledo)"></span>Toledo Childhood</button>
+        <button class="chip" data-filter="shabbat" aria-pressed="false" title="Shabbat: the Jewish day of weekly rest, observed Friday evening through Saturday"><span class="dot" style="background:var(--thread-shabbat)"></span>Jewish Life / Shabbat</button>
+        <button class="chip" data-filter="grief" aria-pressed="false"><span class="dot" style="background:var(--thread-grief)"></span>Grief and Memory</button>
+        <button class="chip" data-filter="ordinary" aria-pressed="false"><span class="dot" style="background:var(--thread-ordinary)"></span>Ordinary Moments</button>
+      </div>
+
+      <div class="catalogue-grid reveal pace-quick" id="catalogue-grid">
+        <p class="visually-hidden" id="catalogue-status" aria-live="polite"></p>
+
+        <!-- HL:ARCHIVE_CARDS:START -->
+        <article class="card-catalogue" data-theme="momdad" style="--tab-color:var(--thread-momdad)">
+          <span class="stamp">Story No. 191 &middot; May 2021</span>
+          <h3>Teaching Me to Drive Stick</h3>
+          <p class="teaser">Third gear, he said, was where a man's patience really lived.</p>
+          <span class="theme-label"><span class="dot" style="background:var(--thread-momdad)"></span>Mom and Dad Stories</span>
+        </article>
+
+        <article class="card-catalogue" data-theme="shabbat" style="--tab-color:var(--thread-shabbat)">
+          <span class="stamp">Story No. 137 &middot; Nov 2019</span>
+          <h3>Two Briskets, One Oven</h3>
+          <p class="teaser">The year the rabbi came early and the kitchen nearly caught fire.</p>
+          <span class="theme-label"><span class="dot" style="background:var(--thread-shabbat)"></span>Jewish Life / Shabbat</span>
+        </article>
+
+        <article class="card-catalogue" data-theme="funny" style="--tab-color:var(--thread-funny)">
+          <span class="stamp">Story No. 168 &middot; Jun 2020</span>
+          <h3>The Wrong Funeral</h3>
+          <p class="teaser">We were forty minutes in before anyone realized we didn't know the deceased.</p>
+          <span class="theme-label"><span class="dot" style="background:var(--thread-funny)"></span>Funny Harlan Stories</span>
+        </article>
+
+        <article class="card-catalogue" data-theme="grief" style="--tab-color:var(--thread-grief)">
+          <span class="stamp">Story No. 251 &middot; Jan 2022</span>
+          <h3>What the Radio Knew</h3>
+          <p class="teaser">The station changed itself, or so he always swore.</p>
+          <span class="theme-label"><span class="dot" style="background:var(--thread-grief)"></span>Grief and Memory</span>
+        </article>
+
+        <article class="card-catalogue" data-theme="toledo" style="--tab-color:var(--thread-toledo)">
+          <span class="stamp">Story No. 88 &middot; Aug 2018</span>
+          <h3>Ten Cents at the Rialto</h3>
+          <p class="teaser">The whole balcony smelled like popcorn and mischief.</p>
+          <span class="theme-label"><span class="dot" style="background:var(--thread-toledo)"></span>Toledo Childhood</span>
+        </article>
+
+        <article class="card-catalogue" data-theme="ordinary" style="--tab-color:var(--thread-ordinary)">
+          <span class="stamp">Story No. 302 &middot; Mar 2023</span>
+          <h3>The Umbrella He Never Used</h3>
+          <p class="teaser">Rain or not, it rode in the trunk for thirty years.</p>
+          <span class="theme-label"><span class="dot" style="background:var(--thread-ordinary)"></span>Ordinary Moments</span>
+        </article>
+
+        <article class="card-catalogue" data-theme="shabbat" style="--tab-color:var(--thread-shabbat)">
+          <span class="stamp">Story No. 122 &middot; Dec 2020</span>
+          <h3>Shabbat With No Candles</h3>
+          <p class="teaser">The year the power went out, and we lit the week anyway.</p>
+          <span class="theme-label"><span class="dot" style="background:var(--thread-shabbat)"></span>Jewish Life / Shabbat</span>
+        </article>
+
+        <article class="card-catalogue" data-theme="funny" style="--tab-color:var(--thread-funny)">
+          <span class="stamp">Story No. 105 &middot; Jul 2019</span>
+          <h3>The Argument About the Lawn</h3>
+          <p class="teaser">Nobody in Toledo has ever cared this much about crabgrass.</p>
+          <span class="theme-label"><span class="dot" style="background:var(--thread-funny)"></span>Funny Harlan Stories</span>
+        </article>
+
+        <article class="card-catalogue" data-theme="grief" style="--tab-color:var(--thread-grief)">
+          <span class="stamp">Story No. 226 &middot; Apr 2021</span>
+          <h3>Waiting at Gate 14</h3>
+          <p class="teaser">He always came early. That part, at least, never changed.</p>
+          <span class="theme-label"><span class="dot" style="background:var(--thread-grief)"></span>Grief and Memory</span>
+        </article>
+            <!-- HL:ARCHIVE_CARDS:END -->
+      </div>
+      <p class="catalogue-empty" id="catalogue-empty">No stories found for that thread yet — try a different one, or browse everything above.</p>
+
+      <div class="archive-cta">
+        <span class="btn btn-quiet" aria-disabled="true">The full 378-story Archive is being built next →</span>
+        <small>Search above spans every story, person, place, object and event kept so far; full filtering across all 378 stories continues to grow.</small>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       YOUR VISIT — the Living Archive (Phase 8)
+       A quiet, returning-reader panel. Hidden entirely on a first visit
+       (revealed by assets/archive.js only once there is history). Never
+       gamified: it just remembers where you have been. All data is local.
+       ========================================================= -->
+  <section class="your-archive" id="your-archive" aria-label="Your visit to the archive" hidden>
+    <div class="container">
+      <div class="section-head ya-head">
+        <p class="eyebrow">Your visit</p>
+        <h2>Where you've been</h2>
+        <p class="ya-progress-line" id="hl-progress-line" aria-live="polite">You've explored 0 of 0 memories.</p>
+        <div class="ya-progress" id="hl-progress-bar" role="progressbar" aria-valuemin="0" aria-valuenow="0" aria-valuemax="0" aria-label="Memories read">
+          <span class="ya-progress-fill" id="hl-progress-fill" style="width:0%"></span>
+        </div>
+        <p class="ya-progress-count" id="hl-progress-count" aria-hidden="true"></p>
+      </div>
+
+      <div class="ya-complete" id="hl-complete" hidden>
+        <span class="ya-complete-mark" aria-hidden="true"></span>
+        <p>You've now read every memory kept here.</p>
+        <p class="ya-complete-sub">Thank you for sitting with all of them. Harlan's Fridays live a little longer because someone came, and stayed, and read to the end. There will be more — the candle is still lit.</p>
+      </div>
+
+      <div class="ya-grid">
+        <div class="ya-block ya-continue" id="hl-continue" hidden>
+          <h3 class="ya-block-title">Continue reading</h3>
+          <div class="ya-slot" id="hl-continue-slot"></div>
+        </div>
+
+        <div class="ya-block ya-nostalgia">
+          <h3 class="ya-block-title">Feeling nostalgic?</h3>
+          <p class="ya-nostalgia-note">Let the archive choose for you.</p>
+          <button class="btn btn-primary ya-random" id="hl-random" type="button" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><path d="M12 3c-1.6 3.4-3.4 5.1-3.4 7.6a3.4 3.4 0 0 0 6.8 0C15.4 8.1 13.6 6.4 12 3z" fill="currentColor"/><rect x="9.4" y="17" width="5.2" height="4" rx="1" fill="currentColor"/></svg>
+            I'm feeling nostalgic
+          </button>
+        </div>
+      </div>
+
+      <div class="ya-block ya-recent" id="hl-recent" hidden>
+        <h3 class="ya-block-title">Recently viewed</h3>
+        <div class="ya-row" id="hl-recent-row"></div>
+      </div>
+
+      <div class="ya-block ya-saved" id="hl-saved" hidden>
+        <h3 class="ya-block-title">Saved memories</h3>
+        <div class="ya-row" id="hl-saved-row"></div>
+      </div>
+
+      <div class="ya-stats" aria-label="Your reading, kept privately on this device">
+        <div class="ya-stat">
+          <span class="ya-stat-num" id="hl-stat-read">0</span>
+          <span class="ya-stat-label">Memories read</span>
+        </div>
+        <div class="ya-stat">
+          <span class="ya-stat-num" id="hl-stat-minutes">0</span>
+          <span class="ya-stat-label">Minutes reading</span>
+        </div>
+        <div class="ya-stat">
+          <span class="ya-stat-num ya-stat-word" id="hl-stat-fav">—</span>
+          <span class="ya-stat-label">Favourite thread</span>
+        </div>
+        <div class="ya-stat">
+          <span class="ya-stat-num ya-stat-word" id="hl-stat-visit">—</span>
+          <span class="ya-stat-label">Last visit</span>
+        </div>
+      </div>
+      <p class="ya-privacy">Kept only on this device — no account, nothing sent anywhere.</p>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       BOOK SECTION
+       ========================================================= -->
+  <section class="book-section" id="book">
+    <div class="container">
+      <div class="book-frame reveal">
+        <p class="eyebrow">Further ahead</p>
+        <h2>The Book</h2>
+        <p class="measure">Fifty stories, chosen from all 378, arranged into six parts — how these Fridays survive forever.</p>
+        <!-- HL:BOOK_PROGRESS:START -->        <p class="book-progress">The fifty are being chosen slowly and thoughtfully. A little more than half already have their place.</p><!-- HL:BOOK_PROGRESS:END -->
+        <ol class="book-parts">
+          <li><span class="num">I</span> Growing Up Harlan</li>
+          <li><span class="num">II</span> Being Harlan</li>
+          <li><span class="num">III</span> Mom, Dad and Home</li>
+          <li><span class="num">IV</span> Funny Moments That Became Sacred</li>
+          <li><span class="num">V</span> Grief and Shabbat</li>
+          <li><span class="num">VI</span> Peace, Love &amp; Equality For All</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       NEWSLETTER
+       ========================================================= -->
+  <section class="newsletter" id="newsletter">
+    <div class="container">
+      <div class="newsletter-inner reveal pace-quick">
+        <p class="eyebrow">Every Friday</p>
+        <h2>Come back every Friday</h2>
+        <p class="measure" style="margin-inline:auto;">One new story, and one older one pulled back from the archive, delivered every Friday — nothing else.</p>
+
+        <form class="newsletter-form" id="newsletter-form" novalidate>
+          <label class="visually-hidden" for="newsletter-email">Email address</label>
+          <input type="email" id="newsletter-email" name="email" placeholder="you@example.com" required autocomplete="email">
+          <button class="btn btn-primary" type="submit" id="newsletter-submit">Join the Friday list</button>
+        </form>
+        <p class="newsletter-note">No spam, no selling your address. Just Fridays.</p>
+        <p class="newsletter-error" id="newsletter-error" role="alert">That doesn't look like a complete email address — mind trying again?</p>
+        <p class="newsletter-success" id="newsletter-success" role="status">Welcome. We'll see you Friday.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- =========================================================
+     FOOTER
+     ========================================================= -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-col" style="max-width:36ch;">
+        <h4>Harlan's Legacy</h4>
+        <p class="footer-colophon">A weekly act of remembering, kept alive one Friday at a time. Written by his brother, Hal, and gathered here so the stories have a home beyond Facebook.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Explore</h4>
+        <ul>
+          <li><a href="#hero">Start Here</a></li>
+          <li><a href="#discover">Discover</a></li>
+          <li><a href="#this-week">This Week's Story</a></li>
+          <li><a href="#archive">The Archive</a></li>
+          <li><a href="family.html">The Family</a></li>
+          <li><a href="#book">The Book</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Elsewhere</h4>
+        <ul>
+          <!-- TODO(Daniel): replace with the real Harlan's Legacy Facebook page URL -->
+          <li><a href="#" target="_blank" rel="noopener noreferrer">Facebook — where it started</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; <span id="year"></span> Harlan's Legacy</span>
+      <span class="footer-address">There's probably one of these in your own house too.</span>
+    </div>
+  </div>
+</footer>
+
+<!-- Search & Discovery index — generated from stories.json + entities.json by build.js. -->
+<!-- HL:SEARCH_INDEX:START --><script id="hl-search-index" type="application/json">[{"type":"journey","title":"Humor","subtitle":"2 memories · a journey","url":"journey/humor.html","badge":"Journey","memories":2,"keywords":"humor funny harlan stories the stories that made everyone laugh, and a few that still do. some of what a person leaves behind is simply the way they made a room feel lighter. these are the fridays that begin with a straight face and end with the whole table laughing. journey discover hal harlan"},{"type":"journey","title":"Family & Home","subtitle":"2 memories · a journey","url":"journey/family-home.html","badge":"Journey","memories":2,"keywords":"family & home mom and dad stories the people he came from, and the home they made together. every family has a centre of gravity. walk into the rooms harlan grew up in and later kept — the parents, the chair, the ordinary devotions that hold a family together. journey discover hal harlan"},{"type":"journey","title":"Childhood","subtitle":"1 memory · a journey","url":"journey/childhood.html","badge":"Journey","memories":1,"keywords":"childhood toledo childhood growing up in toledo — the streets, the small adventures, the beginning of everything. before he was anyone's father, brother or husband, he was a boy in toledo. this is where the whole life starts — dimes, balconies, and afternoons that felt endless. journey discover hal harlan"},{"type":"journey","title":"Faith & Traditions","subtitle":"2 memories · a journey","url":"journey/faith-traditions.html","badge":"Journey","memories":2,"keywords":"faith & traditions jewish life / shabbat shabbat kept most fridays — sometimes imperfectly, always on purpose. faith here is less a doctrine than a rhythm: candles, a table, a week set down gently. follow the traditions that returned every friday, whatever else the year had done. journey discover hal harlan"},{"type":"journey","title":"Loss & Memory","subtitle":"2 memories · a journey","url":"journey/loss-memory.html","badge":"Journey","memories":2,"keywords":"loss & memory grief and memory what remains after someone is gone — and how the remembering keeps going. this is the quietest part of the archive. not the ending, but everything that keeps on after one — the chair no one could sit in, and the fridays that kept coming anyway. journey discover hal harlan"},{"type":"journey","title":"Objects & Places","subtitle":"1 memory · a journey","url":"journey/objects-places.html","badge":"Journey","memories":1,"keywords":"objects & places ordinary moments the small, unremarkable things that turned out to hold a whole life. the umbrella that never opened. the things that rode along for decades, unremarked. these are the memories made of nothing much — which is exactly why they lasted. journey discover hal harlan"},{"type":"story","title":"The Blue Chair","subtitle":"No. 214 · Mom and Dad Stories","url":"story/214-the-blue-chair.html","badge":"Story","related":5,"keywords":"the blue chair he rescued that chair from the curb three times. mom and dad stories c. late 1990s–2010s — spans roughly two decades, no single date iii — mom, dad and home sep 2021 story no 214 214 harlan hal harlan's wife (unnamed in this telling) the den (family home, toledo, ohio) the blue recliner harlan's death (a tuesday in march, year unspecified) his wife sitting in the chair for the first time, about a year later"},{"type":"story","title":"Teaching Me to Drive Stick","subtitle":"Coming soon · Mom and Dad Stories","url":"#archive","badge":"Story","related":2,"keywords":"teaching me to drive stick third gear, he said, was where a man's patience really lived. mom and dad stories may 2021 story no 191 191 harlan hal"},{"type":"story","title":"Two Briskets, One Oven","subtitle":"Coming soon · Jewish Life / Shabbat","url":"#archive","badge":"Story","related":2,"keywords":"two briskets, one oven the year the rabbi came early and the kitchen nearly caught fire. jewish life / shabbat nov 2019 story no 137 137 harlan hal"},{"type":"story","title":"The Wrong Funeral","subtitle":"Coming soon · Funny Harlan Stories","url":"#archive","badge":"Story","related":2,"keywords":"the wrong funeral we were forty minutes in before anyone realized we didn't know the deceased. funny harlan stories jun 2020 story no 168 168 harlan hal"},{"type":"story","title":"What the Radio Knew","subtitle":"Coming soon · Grief and Memory","url":"#archive","badge":"Story","related":2,"keywords":"what the radio knew the station changed itself, or so he always swore. grief and memory jan 2022 story no 251 251 harlan hal"},{"type":"story","title":"Ten Cents at the Rialto","subtitle":"Coming soon · Toledo Childhood","url":"#archive","badge":"Story","related":3,"keywords":"ten cents at the rialto the whole balcony smelled like popcorn and mischief. toledo childhood aug 2018 story no 88 88 harlan hal toledo"},{"type":"story","title":"The Umbrella He Never Used","subtitle":"Coming soon · Ordinary Moments","url":"#archive","badge":"Story","related":2,"keywords":"the umbrella he never used rain or not, it rode in the trunk for thirty years. ordinary moments mar 2023 story no 302 302 harlan hal"},{"type":"story","title":"Shabbat With No Candles","subtitle":"Coming soon · Jewish Life / Shabbat","url":"#archive","badge":"Story","related":2,"keywords":"shabbat with no candles the year the power went out, and we lit the week anyway. jewish life / shabbat dec 2020 story no 122 122 harlan hal"},{"type":"story","title":"The Argument About the Lawn","subtitle":"Coming soon · Funny Harlan Stories","url":"#archive","badge":"Story","related":2,"keywords":"the argument about the lawn nobody in toledo has ever cared this much about crabgrass. funny harlan stories jul 2019 story no 105 105 harlan hal"},{"type":"story","title":"Waiting at Gate 14","subtitle":"Coming soon · Grief and Memory","url":"#archive","badge":"Story","related":2,"keywords":"waiting at gate 14 he always came early. that part, at least, never changed. grief and memory apr 2021 story no 226 226 harlan hal"},{"type":"person","title":"Marvin J. Yaffe","subtitle":"Father of Harlan and Hal","url":"family/marvin-yaffe.html","badge":"Person","memories":0,"related":0,"portrait":"assets/photos/marvin/516607523-10228458948408089-8744987781729357311-n.portrait.176.jpg","keywords":"marvin j. yaffe marvin j. yaffe father of harlan and hal person family"},{"type":"person","title":"Zandra L. Yaffe","subtitle":"Mother of Harlan and Hal","url":"family/zandra-yaffe.html","badge":"Person","memories":0,"related":0,"portrait":"assets/photos/zandra/464922816-10225644168720356-7727881483837371960-n-1.portrait.176.jpg","keywords":"zandra l. yaffe zandra l. yaffe (née levine) mother of harlan and hal person family"},{"type":"person","title":"Harlan","subtitle":"The subject of every story","url":"family/harlan.html","badge":"Person","memories":10,"related":5,"portrait":"assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg","keywords":"harlan harlan blaine yaffe the subject of every story person family"},{"type":"person","title":"Hal","subtitle":"Harlan's brother","url":"family/hal.html","badge":"Person","memories":10,"related":5,"portrait":"assets/photos/hal/hal.portrait.176.jpg","keywords":"hal hal f. yaffe harlan's brother person family"},{"type":"place","title":"The den","subtitle":"1 story","url":"place/the-den.html","badge":"Place","memories":1,"related":4,"keywords":"the den a family home in toledo, ohio the den (family home, toledo, ohio) the den place"},{"type":"place","title":"Toledo, Ohio","subtitle":"1 story","url":"place/toledo-ohio.html","badge":"Place","memories":1,"related":2,"keywords":"toledo, ohio where the family's funeral arrangements were held toledo toledo, ohio place"},{"type":"object","title":"The blue recliner","subtitle":"1 story","url":"object/the-blue-recliner.html","badge":"Object","memories":1,"related":4,"keywords":"the blue recliner rescued from the curb three times over twenty years the blue recliner the blue chair object"},{"type":"event","title":"Harlan's passing","subtitle":"1 story","url":"event/harlans-death.html","badge":"Event","memories":1,"related":4,"keywords":"harlan's passing funeral arrangements were held in toledo, ohio. harlan's death (a tuesday in march, year unspecified) harlan's death harlan's passing event"}]</script><!-- HL:SEARCH_INDEX:END -->
+
+<script>
+(function(){
+  "use strict";
+
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- Page-ready fade ---------- */
+  window.addEventListener("load", function(){
+    document.body.classList.add("is-ready");
+  });
+
+  /* ---------- Sticky header shadow on scroll ---------- */
+  var header = document.getElementById("site-header");
+  var lastY = window.scrollY;
+  window.addEventListener("scroll", function(){
+    header.classList.toggle("is-scrolled", window.scrollY > 8);
+    lastY = window.scrollY;
+  }, { passive: true });
+
+  /* ---------- Scroll reveal (respects reduced motion) ---------- */
+  var revealEls = document.querySelectorAll(".reveal, .resolve");
+  if (reduceMotion || !("IntersectionObserver" in window)) {
+    revealEls.forEach(function(el){ el.classList.add("is-visible"); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
+    revealEls.forEach(function(el){ io.observe(el); });
+  }
+
+  /* ---------- Night reading toggle (desktop nav + mobile panel, kept in sync) ---------- */
+  var themeToggles = document.querySelectorAll(".theme-toggle");
+  var htmlEl = document.documentElement;
+  function applyTheme(theme){
+    htmlEl.setAttribute("data-theme", theme);
+    themeToggles.forEach(function(btn){
+      btn.setAttribute("aria-pressed", theme === "night" ? "true" : "false");
+      btn.setAttribute("aria-label", theme === "night" ? "Switch to day reading" : "Switch to night reading");
+    });
+    try { window.localStorage.setItem("hl-theme", theme); } catch(e){}
+  }
+  (function initTheme(){
+    // Theme itself was already applied pre-paint by the head script;
+    // this just brings the toggle buttons' ARIA state into agreement.
+    var current = htmlEl.getAttribute("data-theme") === "night" ? "night" : "day";
+    applyTheme(current);
+  })();
+  themeToggles.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var next = htmlEl.getAttribute("data-theme") === "night" ? "day" : "night";
+      applyTheme(next);
+    });
+  });
+
+  /* ---------- Friday Candle Indicator (the signature moment) ---------- */
+  function updateCandle(){
+    var day = new Date().getDay(); // 0 Sun ... 5 Fri ... 6 Sat
+    var isLit = (day === 5);
+    var daysUntil = (5 - day + 7) % 7;
+    var label;
+    if (isLit) {
+      label = "Lit today — a new story";
+    } else if (day === 6) {
+      label = "New story in 6 days";
+    } else {
+      label = "New story in " + daysUntil + " day" + (daysUntil === 1 ? "" : "s");
+    }
+    [
+      { el: document.getElementById("candle-indicator-desktop"), lbl: document.getElementById("candle-label-desktop") },
+      { el: document.getElementById("candle-indicator-mobile"), lbl: document.getElementById("candle-label-mobile") }
+    ].forEach(function(pair){
+      if (!pair.el) return;
+      pair.el.classList.toggle("is-lit", isLit);
+      pair.lbl.textContent = label;
+      if (reduceMotion) pair.el.querySelector(".flame-flicker").style.animation = "none";
+    });
+    var eyebrow = document.getElementById("friday-eyebrow");
+    if (eyebrow) {
+      eyebrow.textContent = isLit ? "This week · Friday" : "This week's story (published each Friday)";
+    }
+
+    // The hero candle burns the same way all week; only its caption carries
+    // the weekly signal, so a first-time visitor reads it wherever they look.
+    var heroCaption = document.getElementById("hero-flame-caption");
+    if (heroCaption) {
+      heroCaption.textContent = isLit
+        ? "Lit today — this week's story just went up."
+        : "Still burning — " + label.replace("New story in ", "next story in ") + ".";
+    }
+  }
+  updateCandle();
+
+  /* ---------- Mobile nav panel ---------- */
+  var navToggle = document.getElementById("nav-toggle");
+  var navClose = document.getElementById("nav-close");
+  var panel = document.getElementById("mobile-panel");
+  var lastFocused = null;
+
+  function openPanel(){
+    lastFocused = document.activeElement;
+    panel.classList.add("is-open");
+    document.body.classList.add("panel-open");
+    navToggle.setAttribute("aria-expanded", "true");
+    var firstLink = panel.querySelector("a");
+    if (firstLink) firstLink.focus();
+    document.addEventListener("keydown", onPanelKeydown);
+  }
+  function closePanel(){
+    panel.classList.remove("is-open");
+    document.body.classList.remove("panel-open");
+    navToggle.setAttribute("aria-expanded", "false");
+    document.removeEventListener("keydown", onPanelKeydown);
+    if (lastFocused) lastFocused.focus();
+  }
+  function onPanelKeydown(e){
+    if (e.key === "Escape") { closePanel(); }
+  }
+  navToggle.addEventListener("click", openPanel);
+  navClose.addEventListener("click", closePanel);
+  panel.querySelectorAll("a").forEach(function(a){
+    a.addEventListener("click", closePanel);
+  });
+
+  /* ---------- Marginalia (front-end only demo — needs a real backend) ----------
+     Note: the story reveal itself (This Week's Story) is a native <details>
+     element and needs no JavaScript at all — see the markup + CSS. This
+     handler only powers the optional "leave a note" form beneath it. */
+  var marginaliaForm = document.getElementById("marginalia-form");
+  var marginaliaNotes = document.getElementById("marginalia-notes");
+  marginaliaForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var input = document.getElementById("marginalia-input");
+    var val = input.value.trim();
+    if (!val) return;
+    var note = document.createElement("p");
+    note.className = "marginalia-note";
+    note.textContent = "\u201C" + val + "\u201D";
+    marginaliaNotes.appendChild(note);
+    input.value = "";
+    input.focus();
+  });
+
+  /* ---------- Archive Catalogue: filter, don't render ----------
+     NOTE(Daniel): The 9 cards above are real static HTML — written to the
+     Editorial Bible's spec as representative sample content, standing in
+     for the real 378-story archive until that data is supplied. This
+     script never creates or removes them; it only shows/hides the
+     existing markup via the native `hidden` attribute, so the section
+     is fully present and readable even with JavaScript disabled. */
+  var catalogueCards = Array.prototype.slice.call(document.querySelectorAll(".card-catalogue"));
+  var emptyState = document.getElementById("catalogue-empty");
+  var catalogueStatus = document.getElementById("catalogue-status");
+  var themeNames = {
+    funny: "Funny Harlan Stories", momdad: "Mom and Dad Stories", toledo: "Toledo Childhood",
+    shabbat: "Jewish Life / Shabbat", grief: "Grief and Memory", ordinary: "Ordinary Moments"
+  };
+
+  function applyFilter(filter){
+    var visible = 0;
+    catalogueCards.forEach(function(card){
+      var match = (filter === "all") || (card.getAttribute("data-theme") === filter);
+      card.hidden = !match;
+      if (match) visible++;
+    });
+    emptyState.classList.toggle("is-visible", visible === 0);
+    var label = filter === "all" ? "all stories" : themeNames[filter];
+    catalogueStatus.textContent = "Showing " + visible + " of " + catalogueCards.length + " stories — " + label + ".";
+  }
+
+  var chips = document.querySelectorAll(".chip");
+  chips.forEach(function(chip){
+    chip.addEventListener("click", function(){
+      chips.forEach(function(c){ c.setAttribute("aria-pressed", "false"); });
+      chip.setAttribute("aria-pressed", "true");
+      applyFilter(chip.getAttribute("data-filter"));
+    });
+  });
+
+  /* ---------- Newsletter (front-end only demo — needs a real backend) ---------- */
+  var newsletterForm = document.getElementById("newsletter-form");
+  var newsletterSubmit = document.getElementById("newsletter-submit");
+  var newsletterSuccess = document.getElementById("newsletter-success");
+  var newsletterError = document.getElementById("newsletter-error");
+  var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  newsletterForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    var emailInput = document.getElementById("newsletter-email");
+    var value = emailInput.value.trim();
+    newsletterError.classList.remove("is-visible");
+
+    if (!emailPattern.test(value)) {
+      newsletterError.classList.add("is-visible");
+      emailInput.setAttribute("aria-invalid", "true");
+      emailInput.setAttribute("aria-describedby", "newsletter-error");
+      emailInput.focus();
+      return;
+    }
+    emailInput.removeAttribute("aria-invalid");
+
+    var originalLabel = newsletterSubmit.textContent;
+    newsletterSubmit.disabled = true;
+    newsletterSubmit.textContent = "Saving…";
+
+    window.setTimeout(function(){
+      newsletterForm.hidden = true;
+      newsletterSuccess.classList.add("is-visible");
+      newsletterSubmit.disabled = false;
+      newsletterSubmit.textContent = originalLabel;
+    }, reduceMotion ? 0 : 500);
+  });
+
+  /* ---------- Search & Discovery ----------
+     Instant, grouped search over stories + people/places/objects/events.
+     The index is injected as JSON by build.js (from stories.json +
+     entities.json) — no data is hardcoded here, and it works with no
+     network request. Fully keyboard operable and screen-reader announced. */
+  (function initSearch(){
+    var input = document.getElementById("hl-search-input");
+    var panel = document.getElementById("search-panel");
+    var clearBtn = document.getElementById("search-clear");
+    var statusEl = document.getElementById("search-status");
+    var field = input && input.closest(".search-field");
+    var indexNode = document.getElementById("hl-search-index");
+    if (!input || !panel || !indexNode) return;
+
+    var INDEX = [];
+    try { INDEX = JSON.parse(indexNode.textContent || "[]"); } catch(e){ INDEX = []; }
+
+    var GROUPS = [
+      { type: "journey", label: "Memory journeys", color: "var(--ember-core)" },
+      { type: "story",  label: "Stories" },
+      { type: "person", label: "People",  color: "var(--thread-momdad)" },
+      { type: "place",  label: "Places",  color: "var(--thread-toledo)" },
+      { type: "object", label: "Objects", color: "var(--thread-ordinary)" },
+      { type: "event",  label: "Events",  color: "var(--thread-grief)" }
+    ];
+    var PER_GROUP = 6;
+    var results = [];   // flat list of {rec} in render order
+    var active = -1;
+
+    function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+    function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+    function highlight(title, terms){
+      var valid = terms.filter(Boolean).map(escRe);
+      var t = title;
+      if (valid.length){
+        // Wrap matches in sentinels first, escape, then swap sentinels for <mark>,
+        // so escaping can never break the inserted tags.
+        t = t.replace(new RegExp("(" + valid.join("|") + ")", "ig"), "$1");
+      }
+      return esc(t).replace(//g, "<mark>").replace(//g, "</mark>");
+    }
+
+    function score(rec, q, terms){
+      var title = rec.title.toLowerCase();
+      if (title === q) return 100;
+      if (title.indexOf(q) === 0) return 80;
+      if (title.indexOf(q) !== -1) return 60;
+      // all terms present in keywords
+      var kw = rec.keywords;
+      for (var i = 0; i < terms.length; i++){ if (kw.indexOf(terms[i]) === -1) return 0; }
+      return 30;
+    }
+
+    function search(raw){
+      var q = raw.trim().toLowerCase();
+      if (!q){ close(); return; }
+      var terms = q.split(/\s+/);
+      var scored = [];
+      INDEX.forEach(function(rec){
+        var sc = score(rec, q, terms);
+        if (sc > 0) scored.push({ rec: rec, sc: sc });
+      });
+      scored.sort(function(a,b){ return b.sc - a.sc || a.rec.title.localeCompare(b.rec.title); });
+      render(scored, terms, q);
+    }
+
+    function render(scored, terms, q){
+      results = [];
+      var html = "";
+      var total = 0;
+      GROUPS.forEach(function(g){
+        var rows = scored.filter(function(x){ return x.rec.type === g.type; }).slice(0, PER_GROUP);
+        if (!rows.length) return;
+        total += rows.length;
+        var dot = g.color ? '<span class="dot" style="background:' + g.color + '"></span>' : '<span class="dot" style="background:var(--ember-core)"></span>';
+        html += '<div class="search-group" role="presentation">';
+        html += '<div class="search-group-title">' + dot + esc(g.label) + '</div>';
+        var gc = g.color || 'var(--ember-core)';
+        rows.forEach(function(x){
+          var i = results.length;
+          var rec = x.rec;
+          results.push(rec);
+          // Deep result: small portrait (or kind dot), title, meta + counts, type badge.
+          var media = rec.portrait
+            ? '<img class="sr-portrait" src="' + esc(rec.portrait) + '" width="36" height="36" alt="" loading="lazy" decoding="async">'
+            : '<span class="sr-dot-media" style="background:' + gc + '"></span>';
+          var counts = [];
+          if (rec.memories) counts.push(rec.memories + (rec.memories === 1 ? ' memory' : ' memories'));
+          if (rec.related) counts.push(rec.related + ' linked');
+          var meta = (rec.subtitle || counts.length)
+            ? '<span class="sr-meta">'
+              + (rec.subtitle ? '<span class="sr-sub2">' + esc(rec.subtitle) + '</span>' : '')
+              + (counts.length ? '<span class="sr-counts">' + esc(counts.join(' · ')) + '</span>' : '')
+              + '</span>'
+            : '';
+          var badge = rec.badge ? '<span class="sr-badge" style="border-color:' + gc + '">' + esc(rec.badge) + '</span>' : '';
+          html += '<a class="search-result deep" role="option" id="sr-' + i + '" tabindex="-1" href="' + esc(rec.url) + '">' +
+                    media +
+                    '<span class="sr-main"><span class="sr-title">' + highlight(rec.title, terms) + '</span>' + meta + '</span>' +
+                    badge + '</a>';
+        });
+        html += '</div>';
+      });
+      if (!total){
+        html = '<p class="search-empty">No matches for &ldquo;' + esc(q) + '&rdquo; yet.</p>';
+      }
+      panel.innerHTML = html;
+      open();
+      active = -1;
+      statusEl.textContent = total ? (total + " result" + (total === 1 ? "" : "s") + " for " + q) : ("No results for " + q);
+      // Clicking a result closes the panel (navigation happens via the href).
+      panel.querySelectorAll(".search-result").forEach(function(a){
+        a.addEventListener("mousedown", function(){ /* allow default navigation */ });
+      });
+    }
+
+    function open(){ panel.hidden = false; if (field) field.setAttribute("aria-expanded", "true"); }
+    function close(){
+      panel.hidden = true; panel.innerHTML = ""; active = -1; results = [];
+      if (field) field.setAttribute("aria-expanded", "false");
+      input.setAttribute("aria-activedescendant", "");
+    }
+
+    function setActive(i){
+      var nodes = panel.querySelectorAll(".search-result");
+      if (!nodes.length) return;
+      if (i < 0) i = nodes.length - 1;
+      if (i >= nodes.length) i = 0;
+      nodes.forEach(function(n){ n.classList.remove("is-active"); });
+      active = i;
+      var el = nodes[active];
+      el.classList.add("is-active");
+      el.scrollIntoView({ block: "nearest" });
+      input.setAttribute("aria-activedescendant", el.id);
+    }
+
+    input.addEventListener("input", function(){
+      clearBtn.hidden = !input.value;
+      search(input.value);
+    });
+
+    input.addEventListener("keydown", function(e){
+      if (e.key === "ArrowDown"){ e.preventDefault(); if (panel.hidden) search(input.value); else setActive(active + 1); }
+      else if (e.key === "ArrowUp"){ e.preventDefault(); setActive(active - 1); }
+      else if (e.key === "Enter"){
+        if (active >= 0 && results[active]){ e.preventDefault(); window.location.href = results[active].url; }
+      }
+      else if (e.key === "Escape"){ if (!panel.hidden){ e.preventDefault(); close(); } else { input.value = ""; clearBtn.hidden = true; } }
+    });
+
+    clearBtn.addEventListener("click", function(){
+      input.value = ""; clearBtn.hidden = true; close(); input.focus();
+    });
+
+    // Close when focus/click leaves the search widget.
+    document.addEventListener("click", function(e){
+      if (!e.target.closest(".archive-search")) close();
+    });
+    input.addEventListener("focus", function(){ if (input.value) search(input.value); });
+  })();
+
+  /* ---------- Footer year ---------- */
+  document.getElementById("year").textContent = new Date().getFullYear();
+
+})();
+</script>
+<script src="stories.js" defer></script>
+<script src="explore-data.js" defer></script>
+<script src="assets/experience.js" defer></script>
+<script src="assets/archive.js" defer></script>
+<script src="assets/explore.js" defer></script>
+</body>
+</html>

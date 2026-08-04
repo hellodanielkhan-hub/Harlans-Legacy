@@ -1,0 +1,12 @@
+{
+  "name": "Harlan's Legacy",
+  "short_name": "Harlan's Legacy",
+  "description": "A living archive of memory — every Friday, a story.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F2E9",
+  "theme_color": "#F7F2E9",
+  "icons": [
+    { "src": "/assets/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" }
+  ]
+}

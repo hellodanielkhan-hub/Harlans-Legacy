@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Harlan's Legacy — Story Admin</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23F7F2E9'/%3E%3Cpath d='M16 6c-2 4-4 6-4 9a4 4 0 0 0 8 0c0-3-2-5-4-9z' fill='%23B5502E'/%3E%3Crect x='13' y='19' width='6' height='7' rx='1' fill='%234A5261'/%3E%3C/svg%3E" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,440;9..144,560&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Special+Elite&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<header class="topbar">
+  <span class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5c-2.4 4.6-4.6 6.9-4.6 10.3a4.6 4.6 0 0 0 9.2 0c0-3.4-2.2-5.7-4.6-10.3z" fill="var(--ember-core)"/><rect x="12.6" y="20" width="6.8" height="8" rx="1" fill="var(--ink-primary)"/></svg>
+    Harlan's Legacy
+  </span>
+  <span class="badge">Admin</span>
+  <span class="mode-switch" role="tablist" aria-label="Admin section">
+    <button class="mode-btn is-active" id="mode-stories" type="button" role="tab" aria-selected="true">Stories</button>
+    <button class="mode-btn" id="mode-photos" type="button" role="tab" aria-selected="false">Photos</button>
+  </span>
+  <span class="spacer"></span>
+  <span class="status" id="status" role="status"></span>
+  <a class="btn btn-ghost" href="/" target="_blank" rel="noopener">View site ↗</a>
+</header>
+
+<div class="layout" id="stories-layout">
+  <!-- Story list -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <h2>Stories</h2>
+      <button class="btn btn-primary" id="new-btn" type="button">+ New</button>
+    </div>
+    <div class="stat-row" id="stats"></div>
+    <input class="search" id="search" type="text" placeholder="Search title, theme, id…" aria-label="Search stories">
+    <ul class="story-list" id="story-list"></ul>
+  </aside>
+
+  <!-- Editor -->
+  <main class="editor" id="editor">
+    <div class="empty" id="empty-state">
+      <p>Select a story to edit, or start a new one.</p>
+    </div>
+
+    <form id="story-form" hidden>
+      <h2 id="form-title">New story</h2>
+      <p class="subtle" id="form-sub">Every field feeds the website, the archive and the future book.</p>
+
+      <div class="row-3">
+        <div class="field">
+          <label for="f-id">Story No.</label>
+          <input type="number" id="f-id" min="1" step="1">
+          <p class="hint">Permanent, never reused.</p>
+        </div>
+        <div class="field">
+          <label for="f-status">Status</label>
+          <select id="f-status">
+            <option value="coming-soon">Coming soon</option>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-theme">Theme thread</label>
+          <select id="f-theme"></select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-title">Title</label>
+        <input type="text" id="f-title" required placeholder="The Blue Chair">
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="f-slug">Slug</label>
+          <input type="text" id="f-slug" placeholder="auto from title if blank">
+          <p class="hint">URL: <code id="slug-preview">story/…</code></p>
+        </div>
+        <div class="field checkline" style="align-items:flex-end;">
+          <label style="margin:0;"><input type="checkbox" id="f-featured"> This Week's Story (featured)</label>
+        </div>
+      </div>
+
+      <div class="row-3">
+        <div class="field">
+          <label for="f-iso">Publish date (ISO)</label>
+          <input type="text" id="f-iso" placeholder="2021-09-03">
+          <p class="hint">Used in &lt;time&gt; + JSON-LD.</p>
+        </div>
+        <div class="field">
+          <label for="f-datelong">Date (long)</label>
+          <input type="text" id="f-datelong" placeholder="September 3, 2021">
+        </div>
+        <div class="field">
+          <label for="f-datelabel">Date (card label)</label>
+          <input type="text" id="f-datelabel" placeholder="Sep 2021">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-memory">Memory date</label>
+        <input type="text" id="f-memory" placeholder="c. late 1990s–2010s — approximate, prose form">
+        <p class="hint">When the memory happened — deliberately separate from publish date.</p>
+      </div>
+
+      <div class="field">
+        <label for="f-summary">Summary (archive card teaser)</label>
+        <input type="text" id="f-summary" maxlength="200" placeholder="He rescued that chair from the curb three times.">
+      </div>
+
+      <div class="field">
+        <label for="f-lead">Opening paragraph (lead / drop-cap)</label>
+        <textarea id="f-lead" placeholder="The first paragraph. Shown on the homepage before “Continue reading.” Inline &lt;em&gt; allowed."></textarea>
+      </div>
+
+      <div class="field">
+        <label for="f-body">Story body</label>
+        <textarea id="f-body" class="body" placeholder="The rest of the story. One paragraph per blank line. Inline &lt;em&gt;italics&lt;/em&gt; allowed."></textarea>
+        <p class="hint">Separate paragraphs with a blank line. The lead above is paragraph one on the story page.</p>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="f-description">SEO description</label>
+          <textarea id="f-description" placeholder="Meta description for the story page (falls back to summary)."></textarea>
+        </div>
+        <div class="field">
+          <label for="f-og">Social / OG description</label>
+          <textarea id="f-og" placeholder="Short line for social shares (falls back to SEO description)."></textarea>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label for="f-people">People</label>
+          <textarea id="f-people" placeholder="One per line: Harlan, Hal…"></textarea>
+        </div>
+        <div class="field">
+          <label for="f-places">Places</label>
+          <textarea id="f-places" placeholder="One per line: the den (Toledo, Ohio)…"></textarea>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="f-objects">Objects</label>
+          <textarea id="f-objects" placeholder="One per line: the blue recliner…"></textarea>
+        </div>
+        <div class="field">
+          <label for="f-events">Events</label>
+          <textarea id="f-events" placeholder="One per line: Harlan's death…"></textarea>
+        </div>
+      </div>
+
+      <div class="row-3">
+        <div class="field">
+          <label for="f-bookpart">Book part</label>
+          <input type="text" id="f-bookpart" placeholder="III — Mom, Dad and Home">
+        </div>
+        <div class="field">
+          <label for="f-echoes">Echo stories (ids)</label>
+          <input type="text" id="f-echoes" placeholder="comma-separated ids, e.g. 105, 226">
+        </div>
+        <div class="field">
+          <label for="f-reading">Reading time (min)</label>
+          <input type="number" id="f-reading" min="0" step="1" placeholder="2">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="f-keywords">Search keywords</label>
+        <input type="text" id="f-keywords" placeholder="comma-separated extra search terms, e.g. recliner, den, father">
+        <p class="hint">Optional. Boosts global search discovery beyond the title and metadata above.</p>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" type="submit" id="save-btn">Save &amp; rebuild</button>
+        <a class="btn btn-ghost open-link" id="open-story" href="#" target="_blank" rel="noopener" hidden>Open story page ↗</a>
+        <span class="spacer"></span>
+        <button class="btn btn-danger" type="button" id="delete-btn" hidden>Delete</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<!-- ===================== PHOTOS ===================== -->
+<div class="layout" id="photos-layout" hidden>
+  <aside class="sidebar">
+    <div class="sidebar-head"><h2>People</h2></div>
+    <p class="subtle" style="color:var(--ink-muted);font-size:0.85rem;margin-top:0;">Manage each person's photographs.</p>
+    <ul class="story-list" id="people-list"></ul>
+  </aside>
+
+  <main class="editor" id="photo-editor">
+    <div class="empty" id="photo-empty"><p>Select a person to manage their photographs.</p></div>
+
+    <div id="photo-panel" hidden>
+      <h2 id="photo-person-name">—</h2>
+      <p class="subtle" id="photo-person-sub">Upload photos, choose the primary portrait, reorder the gallery.</p>
+
+      <div class="field">
+        <label for="photo-upload">Upload photographs</label>
+        <input type="file" id="photo-upload" accept="image/jpeg,image/png" multiple>
+        <p class="hint">Multiple allowed. Each is optimized into responsive WebP + JPEG on upload.</p>
+        <p class="hint" id="upload-progress" hidden></p>
+      </div>
+
+      <ul class="photo-grid" id="photo-grid"></ul>
+
+      <div class="actions">
+        <button class="btn btn-primary" type="button" id="photo-save">Save &amp; rebuild</button>
+        <span class="spacer"></span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="admin.js"></script>
+</body>
+</html>

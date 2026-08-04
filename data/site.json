@@ -1,0 +1,47 @@
+{
+  "siteName": "Harlan's Legacy",
+  "domain": "https://harlanslegacy.com",
+  "archiveTotal": 378,
+  "book": {
+    "count": 50,
+    "progress": "The fifty are being chosen slowly and thoughtfully. A little more than half already have their place.",
+    "parts": [
+      { "num": "I", "title": "Growing Up Harlan" },
+      { "num": "II", "title": "Being Harlan" },
+      { "num": "III", "title": "Mom, Dad and Home" },
+      { "num": "IV", "title": "Funny Moments That Became Sacred" },
+      { "num": "V", "title": "Grief and Shabbat" },
+      { "num": "VI", "title": "Peace, Love &amp; Equality For All" }
+    ]
+  },
+  "featuredQuote": {
+    "text": "You don't have to win every argument, Hal. Sometimes you just let your mother be right, and you both get to eat dinner in peace.",
+    "cite": "— Harlan, as remembered by his brother"
+  },
+  "themes": {
+    "funny":    { "label": "Funny Harlan Stories",  "thread": "#7C8471",
+      "topic": "Humor",
+      "description": "The stories that made everyone laugh, and a few that still do.",
+      "journeyIntro": "Some of what a person leaves behind is simply the way they made a room feel lighter. These are the Fridays that begin with a straight face and end with the whole table laughing." },
+    "momdad":   { "label": "Mom and Dad Stories",   "thread": "#A8735A",
+      "topic": "Family & Home",
+      "description": "The people he came from, and the home they made together.",
+      "journeyIntro": "Every family has a centre of gravity. Walk into the rooms Harlan grew up in and later kept — the parents, the chair, the ordinary devotions that hold a family together." },
+    "toledo":   { "label": "Toledo Childhood",      "thread": "#6B7A8C",
+      "topic": "Childhood",
+      "description": "Growing up in Toledo — the streets, the small adventures, the beginning of everything.",
+      "journeyIntro": "Before he was anyone's father, brother or husband, he was a boy in Toledo. This is where the whole life starts — dimes, balconies, and afternoons that felt endless." },
+    "shabbat":  { "label": "Jewish Life / Shabbat", "thread": "#B8964F",
+      "topic": "Faith & Traditions",
+      "description": "Shabbat kept most Fridays — sometimes imperfectly, always on purpose.",
+      "journeyIntro": "Faith here is less a doctrine than a rhythm: candles, a table, a week set down gently. Follow the traditions that returned every Friday, whatever else the year had done." },
+    "grief":    { "label": "Grief and Memory",      "thread": "#B99189",
+      "topic": "Loss & Memory",
+      "description": "What remains after someone is gone — and how the remembering keeps going.",
+      "journeyIntro": "This is the quietest part of the archive. Not the ending, but everything that keeps on after one — the chair no one could sit in, and the Fridays that kept coming anyway." },
+    "ordinary": { "label": "Ordinary Moments",      "thread": "#5F8A82",
+      "topic": "Objects & Places",
+      "description": "The small, unremarkable things that turned out to hold a whole life.",
+      "journeyIntro": "The umbrella that never opened. The things that rode along for decades, unremarked. These are the memories made of nothing much — which is exactly why they lasted." }
+  }
+}

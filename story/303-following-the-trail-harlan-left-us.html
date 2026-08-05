@@ -1,281 +1,4 @@
-#!/usr/bin/env node
-/* =========================================================
-   Harlan's Legacy — Static Site Generator
-   Zero dependencies (Node built-ins only).
-
-   Turns data/stories.json + data/site.json into:
-     - story/{id}-{slug}.html         (one page per published story)
-     - index.html                     (This Week, Archive, Quote, Book,
-                                        Archive count — injected between
-                                        <!-- HL:NAME:START/END --> markers,
-                                        everything else preserved byte-for-byte)
-     - stories.js                     (public window.HL_STORIES mirror)
-
-   The public frontend is never redesigned here. The generator only
-   writes content INSIDE the named markers and emits markup identical
-   in class/structure to the original hand-authored HTML.
-   ========================================================= */
-"use strict";
-
-const fs = require("fs");
-const path = require("path");
-
-const { buildFamily } = require("./lib/family.js");
-const { buildGraph, KIND, entityUrl } = require("./lib/graph.js");
-const journeysLib = require("./lib/journeys.js");
-const exploreLib = require("./lib/explore.js");
-const readerLib = require("./lib/reader.js");
-
-const ROOT = __dirname;
-const DATA = path.join(ROOT, "data");
-const STORY_DIR = path.join(ROOT, "story");
-
-/* ---------- tiny helpers ---------- */
-function readJSON(p) { return JSON.parse(fs.readFileSync(p, "utf8")); }
-
-// Escape for use in an HTML attribute / meta content value.
-function attr(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-// Escape for HTML text where the source is plain text (titles, summaries).
-// Story body strings are authored HTML (may contain <em>) and are NOT escaped.
-function text(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-// Replace the content between <!-- HL:NAME:START --> and <!-- HL:NAME:END -->,
-// keeping the markers in place so the operation is idempotent.
-function injectRegion(html, name, inner) {
-  const start = `<!-- HL:${name}:START -->`;
-  const end = `<!-- HL:${name}:END -->`;
-  const re = new RegExp(
-    start.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
-    "[\\s\\S]*?" +
-    end.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  );
-  if (!re.test(html)) {
-    console.warn(`  ! marker HL:${name} not found in index.html — skipped`);
-    return html;
-  }
-  // Inline content (no newlines) stays on one line so it can live inside
-  // an inline element like the archive count <span>; block content is padded.
-  const body = inner.indexOf("\n") === -1
-    ? start + inner + end
-    : start + "\n" + inner + "\n            " + end;
-  return html.replace(re, body);
-}
-
-/* ---------- derived data ---------- */
-function loadData() {
-  const site = readJSON(path.join(DATA, "site.json"));
-  const stories = readJSON(path.join(DATA, "stories.json"));
-  const entities = readJSON(path.join(DATA, "entities.json"));
-  // Attach the photo data layer (data/photos.json) to each family member.
-  const photosPath = path.join(DATA, "photos.json");
-  const photos = fs.existsSync(photosPath) ? readJSON(photosPath) : {};
-  if (entities.family && entities.family.people) {
-    entities.family.people.forEach(p => { p.photos = photos[p.id] || { primary: null, items: [] }; });
-  }
-  stories.forEach(s => {
-    const t = site.themes[s.theme] || { label: "", thread: "#B8B4A8" };
-    s.themeLabel = t.label;
-    s.threadHex = t.thread;
-    s.published = s.status === "published";
-    s.url = s.published ? `story/${s.id}-${s.slug}.html` : null;
-  });
-  return { site, stories, entities };
-}
-
-function pickFeatured(stories) {
-  const flagged = stories.find(s => s.featured && s.published);
-  if (flagged) return flagged;
-  // Fallback: newest published by date.
-  const pub = stories.filter(s => s.published && s.publishedISO)
-    .sort((a, b) => (a.publishedISO < b.publishedISO ? 1 : -1));
-  return pub[0] || null;
-}
-
-/* ---------- renderers: homepage regions ---------- */
-function renderThisWeekTitle(s) {
-  return `            <h2 class="story-title">${text(s.title)}</h2>`;
-}
-
-function renderThisWeekBody(s) {
-  const more = (s.body || []).map(p => `              <p>${p}</p>`).join("\n");
-  return [
-    `            <p class="dropcap">${s.lead || ""}</p>`,
-    ``,
-    `            <details class="story-details">`,
-    `              <summary class="story-toggle">`,
-    `                <span class="label-closed">Continue reading</span>`,
-    `                <span class="label-open">Close this story</span>`,
-    `                <svg class="toggle-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-    `              </summary>`,
-    `              <div class="story-more">`,
-    more,
-    `                <div class="ending-mark" aria-hidden="true"></div>`,
-    `              </div>`,
-    `            </details>`
-  ].join("\n");
-}
-
-function renderArchiveCard(s) {
-  const tab = `--tab-color:var(--thread-${s.theme})`;
-  const dot = `background:var(--thread-${s.theme})`;
-  const inner = [
-    `          <span class="stamp">Story No. ${s.id} &middot; ${text(s.dateLabel)}</span>`,
-    `          <h3>${text(s.title)}</h3>`,
-    `          <p class="teaser">${text(s.summary)}</p>`,
-    `          <span class="theme-label"><span class="dot" style="${dot}"></span>${text(s.themeLabel)}</span>`
-  ].join("\n");
-  if (s.published) {
-    return `        <a class="card-catalogue" data-theme="${s.theme}" style="${tab}" href="${s.url}">\n${inner}\n        </a>`;
-  }
-  return `        <article class="card-catalogue" data-theme="${s.theme}" style="${tab}">\n${inner}\n        </article>`;
-}
-
-function renderArchiveCards(stories, featured) {
-  return stories
-    .filter(s => !featured || s.id !== featured.id)
-    .map(renderArchiveCard)
-    .join("\n\n");
-}
-
-function renderQuote(site) {
-  const q = site.featuredQuote;
-  return [
-    `        <blockquote class="resolve quote-held">&ldquo;${text(q.text)}&rdquo;</blockquote>`,
-    `        <cite class="reveal pace-primary quote-held">${text(q.cite)}</cite>`
-  ].join("\n");
-}
-
-function renderBookProgress(site) {
-  return `        <p class="book-progress">${text(site.book.progress)}</p>`;
-}
-
-// Rotating framed portraits for the About exhibit (homepage only). Data-driven
-// from the visible family members who have a primary photograph; the rotation
-// itself (crossfade, pause, reduced-motion) is handled in experience.js.
-function renderHomePortraits(entities) {
-  const people = ((entities.family && entities.family.people) || []).filter(p => !p.hidden);
-  const withPhoto = people.filter(p => p.photos && !Array.isArray(p.photos) && p.photos.items && p.photos.items.length && p.photos.primary);
-  const sizes = "(max-width:720px) 60vw, 300px";
-  return withPhoto.map((p, i) => {
-    const ph = p.photos;
-    const it = ph.items.find(x => x.id === ph.primary) || ph.items[0];
-    if (!it || !it.portrait || !it.portrait.length) return "";
-    const dir = `assets/photos/${p.id}/`;
-    const set = ext => it.portrait.map(w => `${dir}${it.id}.portrait.${w}.${ext} ${w}w`).join(", ");
-    const largest = it.portrait[it.portrait.length - 1];
-    const f = it.focus || { x: 50, y: 42 };
-    const pic = `<picture><source type="image/webp" srcset="${set("webp")}" sizes="${sizes}">` +
-      `<img src="${dir}${it.id}.portrait.${largest}.jpg" srcset="${set("jpg")}" sizes="${sizes}" ` +
-      `width="${largest}" height="${largest}" style="object-position:${f.x}% ${f.y}%" alt="" loading="lazy" decoding="async"></picture>`;
-    return `          <span class="ap-slide${i === 0 ? " is-visible" : ""}" data-name="${attr(p.name)}" data-role="${attr(p.role || "")}">${pic}</span>`;
-  }).filter(Boolean).join("\n");
-}
-
-/* ---------- index.html ---------- */
-function buildIndex(site, stories, featured, journeys, entities) {
-  const file = path.join(ROOT, "index.html");
-  let html = fs.readFileSync(file, "utf8");
-
-  if (featured) {
-    html = injectRegion(html, "TW_TITLE", renderThisWeekTitle(featured));
-    html = injectRegion(html, "TW_BODY", renderThisWeekBody(featured));
-  }
-  html = injectRegion(html, "ABOUT_PORTRAITS", renderHomePortraits(entities));
-  html = injectRegion(html, "DISCOVER", journeysLib.renderDiscoverCards(journeys || [], ""));
-  html = injectRegion(html, "ARCHIVE_CARDS", renderArchiveCards(stories, featured));
-  html = injectRegion(html, "ARCHIVE_COUNT", `${site.archiveTotal}`);
-  html = injectRegion(html, "QUOTE", renderQuote(site));
-  html = injectRegion(html, "BOOK_PROGRESS", renderBookProgress(site));
-
-  fs.writeFileSync(file, html);
-  return file;
-}
-
-/* ---------- story page: knowledge-graph blocks ---------- */
-function renderStoryConnections(conn) {
-  if (!conn || !conn.total) return "";
-  const groups = Object.keys(KIND).map(kind => {
-    const list = conn.groups[kind] || [];
-    if (!list.length) return "";
-    const chips = list.map(e =>
-      `<a class="entity-chip" data-entity-id="${attr(e.id)}" data-kind="${kind}" href="../${entityUrl(e)}"><span class="ec-dot" style="background:${KIND[kind].color}"></span>${text(e.name)}</a>`
-    ).join("\n            ");
-    return `          <div class="entity-group">
-            <h3>${text(KIND[kind].label)}</h3>
-            <div class="entity-chips">
-            ${chips}
-            </div>
-          </div>`;
-  }).filter(Boolean).join("\n");
-  if (!groups) return "";
-  return `
-  <section class="story-connections" aria-label="In this memory">
-    <div class="container reveal">
-      <p class="eyebrow">Woven through this memory</p>
-      <h2>People, places &amp; things</h2>
-      <div class="entity-groups">
-${groups}
-      </div>
-    </div>
-  </section>`;
-}
-
-function renderRelatedMemories(rels) {
-  if (!rels || !rels.length) return "";
-  const cards = rels.slice(0, 4).map(r => {
-    const via = r.via.slice(0, 4).map(e => text(e.name)).join(", ");
-    const href = r.story.published ? `../${r.story.url}` : "../index.html#archive";
-    const meta = r.story.published ? `Story No. ${r.story.id}` : "Coming soon";
-    return `        <a class="related-card" href="${href}">
-          <span class="rc-title">${text(r.story.title)}</span>
-          <span class="rc-via">Shares ${via}</span>
-          <span class="rc-meta">${meta} →</span>
-        </a>`;
-  }).join("\n");
-  return `
-  <section class="related-memories" aria-label="Related memories">
-    <div class="container reveal">
-      <p class="eyebrow">Threads that cross here</p>
-      <h2>Related memories</h2>
-      <div class="related-grid">
-${cards}
-      </div>
-    </div>
-  </section>`;
-}
-
-/* ---------- story pages ---------- */
-function storyPageHTML(s, site, graph, journey, journeys) {
-  const canonical = `${site.domain}/story/${s.id}-${s.slug}.html`;
-  const titleTag = `${s.title} — Harlan's Legacy`;
-  const desc = s.description || s.summary || "";
-  const ogDesc = s.ogDescription || desc;
-  // Immersive reader: prose woven with data-driven photo & memory modules.
-  const composedBody = graph
-    ? readerLib.composeBody(s, graph, "../")
-    : [s.lead, ...(s.body || [])].filter(Boolean).map(p => `          <p>${p}</p>`).join("\n\n");
-  const mastheadMeta = readerLib.mastheadMeta(s);
-  const codaHTML = readerLib.endingCoda(s, site);
-  const moreCount = Math.max(0, site.archiveTotal - 1);
-  const connectionsHTML = graph ? renderStoryConnections(graph.storyConnections[s.id]) : "";
-  const relatedHTML = graph ? renderRelatedMemories(graph.relatedMemories[s.id]) : "";
-  const exploreHTML = graph ? exploreLib.renderContinueExploring(
-    { type: "story", story: s, selfKey: "s:" + s.id }, graph, journeys || [], "../") : "";
-  const journeyHTML = journey ? `
-  <section class="story-journey" aria-label="Memory journey">
-    <div class="container reveal">
-      <a class="journey-belong" href="../${attr(journey.url)}"><span class="jb-dot" style="background:var(--thread)"></span><span class="jb-label">Part of the journey</span><span class="jb-topic">${text(journey.topic)} →</span></a>
-    </div>
-  </section>` : "";
-
-  return `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-theme="day">
 <head>
 <meta charset="UTF-8">
@@ -292,21 +15,21 @@ function storyPageHTML(s, site, graph, journey, journeys) {
   } catch(e) {}
 })();
 </script>
-<title>${text(titleTag)}</title>
-<meta name="description" content="${attr(desc)}">
+<title>Following the Trail Harlan Left Us — Harlan's Legacy</title>
+<meta name="description" content="Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple words: Six months ago, we shared a Shabbat…">
 <meta name="theme-color" content="#F7F2E9">
-<link rel="canonical" href="${attr(canonical)}">
+<link rel="canonical" href="https://harlanslegacy.com/story/303-following-the-trail-harlan-left-us.html">
 
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Harlan's Legacy">
-<meta property="og:title" content="${attr(titleTag)}">
-<meta property="og:description" content="${attr(ogDesc)}">
-<meta property="og:url" content="${attr(canonical)}">
+<meta property="og:title" content="Following the Trail Harlan Left Us — Harlan's Legacy">
+<meta property="og:description" content="Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple…">
+<meta property="og:url" content="https://harlanslegacy.com/story/303-following-the-trail-harlan-left-us.html">
 <meta property="og:locale" content="en_US">
 
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="${attr(titleTag)}">
-<meta name="twitter:description" content="${attr(ogDesc)}">
+<meta name="twitter:title" content="Following the Trail Harlan Left Us — Harlan's Legacy">
+<meta name="twitter:description" content="Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple…">
 
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23F7F2E9'/%3E%3Cpath d='M16 6c-2 4-4 6-4 9a4 4 0 0 0 8 0c0-3-2-5-4-9z' fill='%23B5502E'/%3E%3Crect x='13' y='19' width='6' height='7' rx='1' fill='%234A5261'/%3E%3C/svg%3E" type="image/svg+xml">
 <link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
@@ -317,14 +40,14 @@ function storyPageHTML(s, site, graph, journey, journeys) {
 {
   "@context": "https://schema.org",
   "@type": "Article",
-  "identifier": "story-${s.id}",
-  "headline": ${JSON.stringify(s.title)},
-  "description": ${JSON.stringify(ogDesc)},
-  "datePublished": ${JSON.stringify(s.publishedISO || "")},
+  "identifier": "story-303",
+  "headline": "Following the Trail Harlan Left Us",
+  "description": "Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple…",
+  "datePublished": "2026-07-31",
   "author": { "@type": "Person", "name": "Hal" },
   "about": { "@type": "Person", "name": "Harlan" },
-  "isPartOf": { "@type": "WebSite", "name": "Harlan's Legacy", "url": "${site.domain}/" },
-  "mainEntityOfPage": "${canonical}"
+  "isPartOf": { "@type": "WebSite", "name": "Harlan's Legacy", "url": "https://harlanslegacy.com/" },
+  "mainEntityOfPage": "https://harlanslegacy.com/story/303-following-the-trail-harlan-left-us.html"
 }
 </script>
 
@@ -361,7 +84,7 @@ function storyPageHTML(s, site, graph, journey, journeys) {
   --ember-deep:  #8C3D22;
   --ember-glow:  #E2A46B;
 
-  --thread:   ${s.threadHex}; /* this story's own thread */
+  --thread:   #B8964F; /* this story's own thread */
 
   --font-display: "Fraunces", "Fraunces Fallback", Georgia, serif;
   --font-reading: "Newsreader", "Newsreader Fallback", Georgia, serif;
@@ -698,7 +421,7 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
 .mem-pullquote{ margin: clamp(var(--sp-5), 6vw, var(--sp-7)) auto; max-width: 32ch; text-align: center; clear: both; }
 .mem-pullquote blockquote{ position: relative; margin: 0; font-family: var(--font-display); font-weight: 440; font-style: italic;
   font-size: clamp(1.55rem, 1.2rem + 1.7vw, 2.35rem); line-height: 1.26; color: var(--ink-primary); }
-.mem-pullquote blockquote::before{ content: "\\201C"; display: block; font-size: 2.4em; line-height: 0.1; margin-bottom: 0.32em;
+.mem-pullquote blockquote::before{ content: "\201C"; display: block; font-size: 2.4em; line-height: 0.1; margin-bottom: 0.32em;
   color: var(--thread); opacity: 0.4; font-family: var(--font-display); }
 
 /* --- Portrait pull (a face beside the prose) --- */
@@ -918,24 +641,448 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
 <main id="main">
   <section id="story">
     <div class="container">
-      <div class="story-card reveal" id="hl-story" data-story-id="${s.id}" data-theme="${attr(s.theme)}" data-reading-time="${s.readingTime || 0}" data-url="${attr(s.url)}">
+      <div class="story-card reveal" id="hl-story" data-story-id="303" data-theme="shabbat" data-reading-time="7" data-url="story/303-following-the-trail-harlan-left-us.html">
         <header class="story-masthead">
           <div class="story-stamp">
             <span class="thread-dot" aria-hidden="true"></span>
-            <span class="meta">Story No. ${s.id} &middot; ${text(s.themeLabel)}</span>
+            <span class="meta">Story No. 303 &middot; Jewish Life / Shabbat</span>
             <button class="hl-bookmark" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
               <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
               <span class="hl-bm-label">Save</span>
             </button>
           </div>
 
-          <h1 class="resolve">${text(s.title)}</h1>
+          <h1 class="resolve">Following the Trail Harlan Left Us</h1>
 
-          <p class="story-byline">${mastheadMeta}</p>
+          <p class="story-byline"><span class="sm-read">7 min read</span><span class="sm-dot" aria-hidden="true">·</span><span class="sm-by">Remembered by Hal</span></p>
         </header>
 
         <div class="story-body">
-${composedBody}
+          <p class="lede-para">Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple words:</p>
+
+          <figure class="mem-module mem-pullquote reveal"><blockquote>Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple words: Six…</blockquote></figure>
+
+          <p>Harlan did it.</p>
+
+          <aside class="mem-module mem-callout reveal" data-kind="place" style="--tab:#6B7A8C">
+            <span class="mc-kind"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="1.5" fill="currentColor"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2" fill="none"/></svg>Where it happened</span>
+            <a class="mc-name" href="../place/toledo-ohio.html" data-entity-id="pl-toledo" data-kind="place">Toledo, Ohio</a>
+            <p class="mc-detail">Where the family's funeral arrangements were held</p>
+          </aside>
+
+          <p>With Ancestry, raw persistence, fierce curiosity, and far more patience than most people could ever muster, Harlan reopened a branch of our family history that had been lost, scattered, and disconnected for decades.</p>
+
+          <p>At the time, we wrote:</p>
+
+          <p>L'Dor V'Dor — from generation to generation.</p>
+
+          <p>What we didn't fully realize then was that Harlan hadn't actually finished the family tree.</p>
+
+          <p>He had done something better.</p>
+
+          <p>He gave us the trail so we could keep walking it.</p>
+
+          <p>And this week, we followed that trail a little farther into the past.</p>
+
+          <p>Beyond the Man in the Buggy</p>
+
+          <p>For years, the man in this old photograph was basically just that:</p>
+
+          <p>"The man in the buggy."</p>
+
+          <p>We had a name — Julius Yaffe, our paternal great-grandfather.</p>
+
+          <p>We had the image of him in a suit and hat, sitting behind a well-groomed horse in what appears to be an open surrey carriage.</p>
+
+          <p>We had some dates.</p>
+
+          <p>Some names.</p>
+
+          <p>A few scattered branches on a digital family tree.</p>
+
+          <p>But Julius died in March 1942, long before we were born.</p>
+
+          <p>His son Harry Yaffe — our paternal grandfather — was also gone before either Harlan or I entered the world.</p>
+
+          <p>Think about the silence created by that gap.</p>
+
+          <p>We were born already missing two entire generations of firsthand paternal family memory.</p>
+
+          <p>We could never sit down with Grandpa Harry and ask the everyday questions:</p>
+
+          <p>What was your father Julius really like?</p>
+
+          <p>Did he have an accent?</p>
+
+          <p>Was he strict, or did he laugh easily?</p>
+
+          <p>What did he tell you about the old country?</p>
+
+          <p>What did he do for a living?</p>
+
+          <p>And we certainly couldn't ask Julius the questions that burn a little brighter now:</p>
+
+          <p>Where exactly were you born?</p>
+
+          <p>Why did you leave?</p>
+
+          <p>What was the voyage to America like?</p>
+
+          <p>What did America look like through your eyes when you first arrived?</p>
+
+          <p>Were you scared?</p>
+
+          <p>Were you excited?</p>
+
+          <p>And yes...</p>
+
+          <p>Was that actually your horse?</p>
+
+          <p>Those voices were already gone.</p>
+
+          <p>Which is why what we found this week feels so meaningful.</p>
+
+          <p>Two Words Carved in Stone</p>
+
+          <p>We located Julius's gravestone in New Jersey.</p>
+
+          <p>Above the English inscription, his identity is preserved in Hebrew:</p>
+
+          <p>Yehudah ben Avraham Yitzchak</p>
+
+          <p>Judah, son of Abraham Isaac.</p>
+
+          <p>Beneath it:</p>
+
+          <p>BELOVED FATHER
+JULIUS YAFFE
+DIED MAR. 17, 1942
+AGE 78 YRS</p>
+
+          <p>But after all the dates and genealogical details, it was those first two English words that made us stop:</p>
+
+          <p>BELOVED FATHER</p>
+
+          <p>Someone chose those words.</p>
+
+          <p>His children knew the man we are now trying to piece back together.</p>
+
+          <p>They knew the cadence of his voice.</p>
+
+          <p>They knew what made him angry and what made him smile.</p>
+
+          <p>They knew what it felt like to sit at his dinner table.</p>
+
+          <p>They knew stories about him that no census taker, immigration official, or newspaper could ever record.</p>
+
+          <p>And when it came time to summarize his life in stone, they didn't choose:</p>
+
+          <p>Immigrant.
+Russian.
+Lithuanian.
+Businessman.
+American.
+Successful.</p>
+
+          <figure class="mem-module mem-portrait pull-right reveal">
+            <span class="mp-frame"><picture>
+              <source type="image/webp" srcset="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.webp 176w, ../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.webp 352w, ../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.webp 528w" sizes="(max-width:640px) 60vw, 240px">
+              <img src="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg" srcset="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg 176w, ../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.jpg 352w, ../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg 528w" sizes="(max-width:640px) 60vw, 240px" width="528" height="528" style="object-position:57% 42%" alt="Harlan" loading="lazy" decoding="async">
+            </picture></span>
+            <figcaption><span class="mp-name">Harlan</span><span class="mp-role">The subject of every story</span></figcaption>
+          </figure>
+
+          <p>They chose:</p>
+
+          <p>Beloved Father.</p>
+
+          <p>And the line continued:</p>
+
+          <p>Julius Yaffe — Yehudah ben Avraham Yitzchak
+Harry Yaffe
+Our Father
+Harlan and me</p>
+
+          <p>L'Dor V'Dor.</p>
+
+          <p>The Beautiful Friction of the Past</p>
+
+          <p>This research is also teaching us something important:</p>
+
+          <p>Family history rarely moves in a perfectly straight line.</p>
+
+          <p>Six months ago, the best information we had placed Julius's birth in Pandėlys, in what is now Lithuania, in 1862.</p>
+
+          <p>Other family records we have uncovered point instead toward Smolensk, Russia.</p>
+
+          <p>The older family tree identified his father as Yitzhok Yaffe.</p>
+
+          <p>His gravestone gives us Avraham Yitzchak.</p>
+
+          <p>The family tree gives Julius a birth year of 1862, while the gravestone says he was 78 when he died in 1942, suggesting his birth may have been closer to 1863 or 1864.</p>
+
+          <p>Those questions are not failures in the research.</p>
+
+          <p>They are the research.</p>
+
+          <p>Genealogy isn't a perfectly bound history book waiting for someone to open it.</p>
+
+          <p>We inherit fragments.</p>
+
+          <p>A photograph someone managed not to lose.</p>
+
+          <p>A name passed down through several generations.</p>
+
+          <p>A handwritten census entry faded by time.</p>
+
+          <p>A marriage record.</p>
+
+          <p>An old newspaper advertisement.</p>
+
+          <p>A gravestone in a quiet cemetery.</p>
+
+          <p>Sometimes the pieces fit perfectly.</p>
+
+          <p>Sometimes they argue with each other.</p>
+
+          <p>And almost every answer creates two new questions.</p>
+
+          <div class="mem-module mem-pause reveal" aria-hidden="true"><span></span><span></span><span></span></div>
+
+          <p>But the fog is clearing.</p>
+
+          <p>We can now see Julius's wife, Liba, and the names of their children appearing in the records — including Morris, Harry, William and Mary, with more pieces still being sorted out.</p>
+
+          <p>Harry, of course, is the anchor for our branch.</p>
+
+          <p>From the coastal communities around Belmar, New Jersey, Harry's path eventually led to Toledo, Ohio, where the next chapters of the Yaffe story were written.</p>
+
+          <p>And that is where genealogy stops feeling ancient.</p>
+
+          <p>Because that line eventually reaches Dad.</p>
+
+          <p>Then Harlan and me.</p>
+
+          <p>Then our children.</p>
+
+          <p>And the generations still to come.</p>
+
+          <p>L'Dor V'Dor.</p>
+
+          <p>A Witness to an Extraordinary Transformation</p>
+
+          <p>Looking at that buggy photograph now, the timeline is almost impossible to comprehend.</p>
+
+          <p>Julius was born in the early 1860s.</p>
+
+          <p>He entered a world of horses, steam, oil lamps and handwritten letters.</p>
+
+          <p>He lived to see electric lighting transform cities.</p>
+
+          <p>The telephone.</p>
+
+          <p>Motion pictures.</p>
+
+          <p>The automobile.</p>
+
+          <p>The Wright brothers take flight.</p>
+
+          <p>Radio bridge enormous distances.</p>
+
+          <p>He lived through World War I.</p>
+
+          <p>The 1918 influenza pandemic.</p>
+
+          <p>The Great Depression.</p>
+
+          <p>And he lived just long enough to see America enter World War II after Pearl Harbor.</p>
+
+          <p>Julius died on March 17, 1942.</p>
+
+          <p>Imagine the distance between the world into which that little Jewish boy was born in the Russian Empire and the America in which that old man closed his eyes.</p>
+
+          <p>The horse and carriage in the photograph would eventually give way to automobiles.</p>
+
+          <p>Letters crossing oceans would give way to voices traveling through the air.</p>
+
+          <p>Entire countries would disappear and borders would be redrawn.</p>
+
+          <figure class="mem-module mem-photo is-wide reveal">
+            <div class="mph-frame"><picture>
+              <source type="image/webp" srcset="../assets/photos/harlan/hal-and-harlan.full.640.webp 640w" sizes="(max-width:900px) 100vw, 860px">
+              <img src="../assets/photos/harlan/hal-and-harlan.full.640.jpg" srcset="../assets/photos/harlan/hal-and-harlan.full.640.jpg 640w" sizes="(max-width:900px) 100vw, 860px" width="1038" height="715" alt="Harlan" loading="lazy" decoding="async">
+            </picture></div>
+            <figcaption><span class="mph-cap">Harlan</span></figcaption>
+          </figure>
+
+          <p>And somewhere in the middle of that enormous changing world...</p>
+
+          <p>our family happened.</p>
+
+          <p>The Command to Remember</p>
+
+          <p>This week's Torah portion, Eikev, repeatedly returns to the importance of remembering the journey.</p>
+
+          <p>Do not become so comfortable with where you are that you forget the difficult road that brought you there.</p>
+
+          <p>That message feels especially powerful this week.</p>
+
+          <p>Remembering isn't simply memorizing names on a family tree.</p>
+
+          <p>It is understanding that our lives began long before we drew our first breath.</p>
+
+          <p>People we never met made choices that eventually made our lives possible.</p>
+
+          <p>They packed bags.</p>
+
+          <p>Crossed borders.</p>
+
+          <p>Crossed oceans.</p>
+
+          <p>Started over.</p>
+
+          <p>Found work.</p>
+
+          <p>Built businesses.</p>
+
+          <p>Raised children.</p>
+
+          <p>Buried people they loved.</p>
+
+          <p>Took chances.</p>
+
+          <p>Failed.</p>
+
+          <p>Tried again.</p>
+
+          <p>And somehow kept the next generation moving forward.</p>
+
+          <p>Eventually...</p>
+
+          <div class="mem-module mem-pause reveal" aria-hidden="true"><span></span><span></span><span></span></div>
+
+          <p>there was us.</p>
+
+          <p>Which Brings Us Back to Harlan</p>
+
+          <p>For seven years, these weekly Shabbat Shalom stories have helped make sure that Harlan never becomes a sterile record:</p>
+
+          <p>Harlan Blaine Yaffe
+Born...
+Died...
+and an old photograph someone finds eighty years from now.</p>
+
+          <p>We know too much to let that happen.</p>
+
+          <p>We know the punchlines.</p>
+
+          <p>The businesses.</p>
+
+          <p>The favorite restaurants.</p>
+
+          <p>The childhood scrapes.</p>
+
+          <p>The stubborn arguments.</p>
+
+          <p>The private conversations.</p>
+
+          <p>The people he quietly helped.</p>
+
+          <p>We remember Mom and Dad.</p>
+
+          <p>We remember growing up.</p>
+
+          <p>We remember things that seemed completely ordinary when they happened.</p>
+
+          <p>And we keep returning to Harlan's message:</p>
+
+          <p>Peace, Love & Equality for all.</p>
+
+          <p>Those ordinary stories are exactly what we wish we had from Julius and Harry today.</p>
+
+          <p>We cannot ask Grandpa Harry.</p>
+
+          <figure class="mem-module mem-portrait pull-left reveal">
+            <span class="mp-frame"><picture>
+              <source type="image/webp" srcset="../assets/photos/harlan/514971227-10228374019524920-4169024737502312036-n.portrait.176.webp 176w, ../assets/photos/harlan/514971227-10228374019524920-4169024737502312036-n.portrait.352.webp 352w" sizes="(max-width:640px) 60vw, 240px">
+              <img src="../assets/photos/harlan/514971227-10228374019524920-4169024737502312036-n.portrait.352.jpg" srcset="../assets/photos/harlan/514971227-10228374019524920-4169024737502312036-n.portrait.176.jpg 176w, ../assets/photos/harlan/514971227-10228374019524920-4169024737502312036-n.portrait.352.jpg 352w" sizes="(max-width:640px) 60vw, 240px" width="352" height="352" style="object-position:48% 56%" alt="Harlan" loading="lazy" decoding="async">
+            </picture></span>
+            <figcaption><span class="mp-name">Harlan</span><span class="mp-role">The subject of every story</span></figcaption>
+          </figure>
+
+          <p>We cannot ask Julius.</p>
+
+          <p>And now we cannot ask Harlan.</p>
+
+          <p>But there is one very important difference:</p>
+
+          <p>Harlan asked.</p>
+
+          <p>He dug.</p>
+
+          <p>He searched.</p>
+
+          <p>He called.</p>
+
+          <p>He connected cousins.</p>
+
+          <p>He followed names into forgotten branches.</p>
+
+          <p>He helped reconnect generations of a family that had drifted apart.</p>
+
+          <p>And most importantly, he left us enough breadcrumbs to keep going.</p>
+
+          <p>Six months ago, we said:</p>
+
+          <p>Harlan did it.</p>
+
+          <p>Today, we understand those words a little differently.</p>
+
+          <p>Harlan didn't finish the family tree.</p>
+
+          <p>He made sure the tree was still alive.</p>
+
+          <figure class="mem-module mem-photo is-square reveal">
+            <div class="mph-frame"><picture>
+              <source type="image/webp" srcset="../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.640.webp 640w, ../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.1280.webp 1280w" sizes="(max-width:900px) 100vw, 860px">
+              <img src="../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.1280.jpg" srcset="../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.640.jpg 640w, ../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.1280.jpg 1280w" sizes="(max-width:900px) 100vw, 860px" width="1530" height="1530" alt="Harlan" loading="lazy" decoding="async">
+            </picture></div>
+            <figcaption><span class="mph-cap">Harlan</span></figcaption>
+          </figure>
+
+          <p>He gave us a trail.</p>
+
+          <p>And because he did, more than 84 years after Julius Yaffe died, the man in the buggy is slowly becoming a person again.</p>
+
+          <p>Not just a faded face in an old photograph.</p>
+
+          <p>Not just Julius Yaffe.</p>
+
+          <p>But:</p>
+
+          <p>Yehudah ben Avraham Yitzchak.</p>
+
+          <p>Our great-grandfather.</p>
+
+          <p>Harry's father.</p>
+
+          <p>One link in a chain that eventually reached us.</p>
+
+          <p>And according to the people who actually knew him, sat beside him, argued with him, laughed with him, loved him and missed him...</p>
+
+          <p>A Beloved Father.</p>
+
+          <p>May we keep asking the questions.</p>
+
+          <p>May we preserve the answers we are fortunate enough to find.</p>
+
+          <p>May we correct the story when new evidence teaches us something new.</p>
+
+          <p>And may we leave the generations who follow us a clearer map of where they came from than the one we inherited.</p>
+
+          <p>L'Dor V'Dor.</p>
+
+          <p>Shabbat Shalom.</p>
 
           <div class="ending-mark" aria-hidden="true"></div>
         </div>
@@ -952,8 +1099,68 @@ ${composedBody}
       </div>
     </div>
   </section>
-${codaHTML}
-${journeyHTML}${connectionsHTML}${relatedHTML}
+
+  <section class="story-coda" aria-label="End of memory">
+    <div class="container reveal">
+      <span class="coda-mark" aria-hidden="true"><i></i><b></b><i></i></span>
+      <p class="coda-line">One of 378 Fridays, kept the way this one was.</p>
+      <p class="coda-sub">The thread doesn't end here — it only turns. Follow where this memory leads.</p>
+    </div>
+  </section>
+
+  <section class="story-journey" aria-label="Memory journey">
+    <div class="container reveal">
+      <a class="journey-belong" href="../journey/faith-traditions.html"><span class="jb-dot" style="background:var(--thread)"></span><span class="jb-label">Part of the journey</span><span class="jb-topic">Faith &amp; Traditions →</span></a>
+    </div>
+  </section>
+  <section class="story-connections" aria-label="In this memory">
+    <div class="container reveal">
+      <p class="eyebrow">Woven through this memory</p>
+      <h2>People, places &amp; things</h2>
+      <div class="entity-groups">
+          <div class="entity-group">
+            <h3>People</h3>
+            <div class="entity-chips">
+            <a class="entity-chip" data-entity-id="harlan" data-kind="person" href="../family/harlan.html"><span class="ec-dot" style="background:#A8735A"></span>Harlan</a>
+            </div>
+          </div>
+          <div class="entity-group">
+            <h3>Places</h3>
+            <div class="entity-chips">
+            <a class="entity-chip" data-entity-id="pl-toledo" data-kind="place" href="../place/toledo-ohio.html"><span class="ec-dot" style="background:#6B7A8C"></span>Toledo, Ohio</a>
+            </div>
+          </div>
+      </div>
+    </div>
+  </section>
+  <section class="related-memories" aria-label="Related memories">
+    <div class="container reveal">
+      <p class="eyebrow">Threads that cross here</p>
+      <h2>Related memories</h2>
+      <div class="related-grid">
+        <a class="related-card" href="../index.html#archive">
+          <span class="rc-title">Ten Cents at the Rialto</span>
+          <span class="rc-via">Shares Harlan, Toledo, Ohio</span>
+          <span class="rc-meta">Coming soon →</span>
+        </a>
+        <a class="related-card" href="../story/214-the-blue-chair.html">
+          <span class="rc-title">The Blue Chair</span>
+          <span class="rc-via">Shares Harlan</span>
+          <span class="rc-meta">Story No. 214 →</span>
+        </a>
+        <a class="related-card" href="../index.html#archive">
+          <span class="rc-title">Shabbat With No Candles</span>
+          <span class="rc-via">Shares Harlan</span>
+          <span class="rc-meta">Coming soon →</span>
+        </a>
+        <a class="related-card" href="../index.html#archive">
+          <span class="rc-title">Teaching Me to Drive Stick</span>
+          <span class="rc-via">Shares Harlan</span>
+          <span class="rc-meta">Coming soon →</span>
+        </a>
+      </div>
+    </div>
+  </section>
   <section class="read-next" id="hl-read-next" aria-label="Read next" hidden>
     <div class="container reveal">
       <p class="eyebrow">Where to go next</p>
@@ -961,10 +1168,53 @@ ${journeyHTML}${connectionsHTML}${relatedHTML}
       <div class="read-next-slot" id="hl-rn-slot"></div>
     </div>
   </section>
-${exploreHTML}
+
+  <section class="continue-exploring" aria-label="Continue exploring">
+    <div class="container reveal">
+      <p class="eyebrow">Follow a thread</p>
+      <h2>Continue exploring</h2>
+      <p class="ce-sub">Where this memory reaches across the archive.</p>
+      <div class="explore-grid">
+        <a class="explore-card ec-story" href="../story/214-the-blue-chair.html" style="--tab-color:#A8735A">
+          <span class="xc-body">
+            <span class="xc-badge">Story</span>
+            <span class="xc-title">The Blue Chair</span>
+            <span class="xc-desc">He rescued that chair from the curb three times.</span>
+            <span class="xc-meta">Story No. 214</span>
+          </span>
+        </a>
+        <a class="explore-card ec-entity" data-entity-id="harlan" data-kind="person" href="../family/harlan.html" style="--tab-color:#A8735A">
+          <span class="xc-media"><picture><source type="image/webp" srcset="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.webp"></source><img src="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg" width="176" height="176" style="object-position:57% 42%" alt="" loading="lazy" decoding="async"></picture></span>
+          <span class="xc-body">
+            <span class="xc-badge">Person</span>
+            <span class="xc-title">Harlan</span>
+            <span class="xc-desc">The subject of every story</span>
+            <span class="xc-meta">11 memories</span>
+          </span>
+        </a>
+        <a class="explore-card ec-entity" data-entity-id="pl-toledo" data-kind="place" href="../place/toledo-ohio.html" style="--tab-color:#6B7A8C">
+          <span class="xc-media xc-media-mono" data-monogram aria-hidden="true" style="--tab-color:#6B7A8C">T</span>
+          <span class="xc-body">
+            <span class="xc-badge">Place</span>
+            <span class="xc-title">Toledo, Ohio</span>
+            <span class="xc-desc">Where the family's funeral arrangements were held</span>
+            <span class="xc-meta">2 memories</span>
+          </span>
+        </a>
+        <a class="explore-card ec-journey" href="../journey/faith-traditions.html" style="--tab-color:#B8964F">
+          <span class="xc-body">
+            <span class="xc-badge">Journey</span>
+            <span class="xc-title">Faith &amp; Traditions</span>
+            <span class="xc-desc">Shabbat kept most Fridays — sometimes imperfectly, always on purpose.</span>
+            <span class="xc-meta">3 memories</span>
+          </span>
+        </a>
+      </div>
+    </div>
+  </section>
   <section class="return-invite">
     <div class="container reveal">
-      <p>There are ${moreCount} more of these, kept the same way this one was.</p>
+      <p>There are 377 more of these, kept the same way this one was.</p>
       <a class="btn btn-quiet" href="../index.html#archive">← Back to the archive</a>
     </div>
   </section>
@@ -997,7 +1247,7 @@ ${exploreHTML}
     </div>
     <div class="footer-bottom">
       <span>&copy; <span id="year"></span> Harlan's Legacy</span>
-      <span>Story No. ${s.id} of ${site.archiveTotal}</span>
+      <span>Story No. 303 of 378</span>
     </div>
   </div>
 </footer>
@@ -1107,7 +1357,7 @@ ${exploreHTML}
     if (!val) return;
     var note = document.createElement("p");
     note.className = "marginalia-note";
-    note.textContent = "\\u201C" + val + "\\u201D";
+    note.textContent = "\u201C" + val + "\u201D";
     marginaliaNotes.appendChild(note);
     input.value = "";
     input.focus();
@@ -1123,226 +1373,3 @@ ${exploreHTML}
 <script src="../assets/explore.js" defer></script>
 </body>
 </html>
-`;
-}
-
-function buildStoryPages(site, stories, graph, jByStory, journeys) {
-  if (!fs.existsSync(STORY_DIR)) fs.mkdirSync(STORY_DIR, { recursive: true });
-  const published = stories.filter(s => s.published);
-  const wanted = new Set(published.map(s => `${s.id}-${s.slug}.html`));
-
-  // Remove orphan story pages (unpublished / deleted / renamed).
-  fs.readdirSync(STORY_DIR)
-    .filter(f => /^\d+-.*\.html$/.test(f) && !wanted.has(f))
-    .forEach(f => { fs.unlinkSync(path.join(STORY_DIR, f)); console.log(`  - removed orphan story/${f}`); });
-
-  const written = [];
-  published.forEach(s => {
-    const file = path.join(STORY_DIR, `${s.id}-${s.slug}.html`);
-    fs.writeFileSync(file, storyPageHTML(s, site, graph, (jByStory || {})[s.id], journeys));
-    written.push(`story/${s.id}-${s.slug}.html`);
-  });
-  return written;
-}
-
-/* ---------- Search & Discovery index ----------
-   One flat, searchable record per story + per family member + per place /
-   object / event. Built only from data/stories.json + data/entities.json.
-   Injected into index.html (so search needs no network request) and also
-   written to search-index.json for reuse. */
-function stripTags(s) { return String(s == null ? "" : s).replace(/<[^>]+>/g, ""); }
-
-function buildSearchIndex(site, stories, entities, graph, journeys) {
-  const records = [];
-
-  // Memory journeys — a guided entry point, searchable like everything else.
-  (journeys || []).forEach(j => records.push(journeysLib.journeyRecords([j])[0]));
-
-  stories.forEach(s => {
-    const kw = [
-      s.title, s.summary, s.themeLabel, s.memoryDate, s.bookPart, s.dateLabel,
-      "story", "no " + s.id, String(s.id),
-      ...(s.people || []), ...(s.places || []), ...(s.objects || []),
-      ...(s.events || []), ...(s.keywords || [])
-    ].filter(Boolean).join(" ").toLowerCase();
-    const sConn = (graph && graph.storyConnections[s.id]) || { total: 0 };
-    records.push({
-      type: "story",
-      title: s.title,
-      subtitle: s.published ? `No. ${s.id} · ${s.themeLabel}` : `Coming soon · ${s.themeLabel}`,
-      url: s.published ? s.url : "#archive",
-      badge: "Story",
-      related: sConn.total || 0,
-      keywords: kw
-    });
-  });
-
-  const fam = ((entities.family && entities.family.people) || []).filter(p => !p.hidden);
-  fam.forEach(p => {
-    const kw = [
-      p.name, p.fullName, p.role, p.lifeLabel, p.born, p.died,
-      ...(p.bio || []).map(stripTags), "person", "family"
-    ].filter(Boolean).join(" ").toLowerCase();
-    const prev = graph && graph.entityById[p.id] ? exploreLib.entityPreview(graph.entityById[p.id], graph) : null;
-    records.push({
-      type: "person",
-      title: p.name,
-      subtitle: p.role,
-      url: `family/${p.slug}.html`,
-      badge: "Person",
-      memories: prev ? prev.memories : 0,
-      related: prev ? prev.related : 0,
-      portrait: prev && prev.portrait ? prev.portrait.jpg : null,
-      keywords: kw
-    });
-  });
-
-  // Places / objects / events now have their own entity profile pages.
-  graph.entities.filter(e => e.kind !== "person").forEach(e => {
-    const conn = graph.entityConnections[e.id] || { storyCount: 0 };
-    const kw = [e.name, e.detail, ...(e.aliases || []), e.kind]
-      .filter(Boolean).join(" ").toLowerCase();
-    const prev = exploreLib.entityPreview(e, graph);
-    records.push({
-      type: e.kind,
-      title: e.name,
-      subtitle: conn.storyCount ? `${conn.storyCount} ${conn.storyCount === 1 ? "story" : "stories"}` : (e.detail || ""),
-      url: entityUrl(e),
-      badge: KIND[e.kind].singular,
-      memories: prev.memories,
-      related: prev.related,
-      keywords: kw
-    });
-  });
-
-  // Public copy + inject into the homepage. Escape "<" so the JSON is safe
-  // inside a <script> element and can never terminate it early.
-  fs.writeFileSync(path.join(ROOT, "search-index.json"), JSON.stringify(records, null, 2) + "\n");
-  const safe = JSON.stringify(records).replace(/</g, "\\u003c");
-  const file = path.join(ROOT, "index.html");
-  let html = fs.readFileSync(file, "utf8");
-  html = injectRegion(html, "SEARCH_INDEX",
-    `<script id="hl-search-index" type="application/json">${safe}</script>`);
-  fs.writeFileSync(file, html);
-  return records.length;
-}
-
-/* ---------- stories.js public mirror ---------- */
-function buildStoriesJs(stories, graph, featured, site) {
-  const records = stories.map(s => ({
-    id: s.id, slug: s.slug, title: s.title,
-    published: s.published, status: s.status,
-    publishDate: s.publishedISO || s.dateLong, memoryDate: s.memoryDate,
-    summary: s.summary, excerpt: s.lead || null,
-    themes: [s.theme], people: s.people, places: s.places,
-    objects: s.objects, events: s.events,
-    bookPart: s.bookPart, echoStories: s.echoStories,
-    readingTime: s.readingTime, keywords: s.keywords || [],
-    url: s.url
-  }));
-
-  // --- Living Archive client data: the readable (published) archive only, plus
-  //     graph-derived "what to read next" recommendations. This is what the
-  //     client-side reading/continue/saved/stats layer (assets/archive.js) runs
-  //     on. Recommendations are NEVER random — they come straight from the
-  //     knowledge graph's related-memories ranking (shared people / places /
-  //     objects / events), with a gentle boost for emotional continuity (same
-  //     theme). Coming-soon stories are excluded so every link is real. */
-  const published = stories.filter(s => s.published);
-  const isPub = new Set(published.map(s => s.id));
-  const themeLabels = {};
-  Object.keys(site && site.themes ? site.themes : {}).forEach(k => {
-    themeLabels[k] = site.themes[k].label || k;
-  });
-  const archStories = published.map(s => {
-    const rel = graph && graph.relatedMemories[s.id] ? graph.relatedMemories[s.id] : [];
-    const rec = rel
-      .filter(r => r.story && isPub.has(r.story.id) && r.story.id !== s.id)
-      .map(r => ({ id: r.story.id, score: r.shared + (r.story.theme === s.theme ? 0.5 : 0) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 6)
-      .map(r => r.id);
-    return {
-      id: s.id, slug: s.slug, title: s.title, url: s.url,
-      theme: s.theme, themeLabel: s.themeLabel || themeLabels[s.theme] || s.theme,
-      summary: s.summary || "", dateLabel: s.dateLabel || "",
-      readingTime: s.readingTime || 0, rec
-    };
-  });
-  const archive = {
-    total: published.length,
-    featured: featured ? featured.id : null,
-    themes: themeLabels,
-    stories: archStories
-  };
-
-  const banner = "/* Auto-generated from data/stories.json by build.js — do not edit by hand.\n" +
-    "   The canonical source of truth is data/stories.json. */\n";
-  const out = banner +
-    "window.HL_STORIES = " + JSON.stringify(records, null, 2) + ";\n" +
-    "window.HL_ARCHIVE = " + JSON.stringify(archive, null, 2) + ";\n";
-  fs.writeFileSync(path.join(ROOT, "stories.js"), out);
-  return "stories.js";
-}
-
-/* ---------- explore-data.js: compact graph previews for the hover / focus
-   preview cards (assets/explore.js). Root-relative; loaded on every page. ---- */
-function buildExploreData(graph) {
-  const previews = exploreLib.exploreEntities(graph);
-  const banner = "/* Auto-generated from the knowledge graph by build.js — do not edit by hand. */\n";
-  const out = banner + "window.HL_GRAPH = { entities: " + JSON.stringify(previews) + " };\n";
-  fs.writeFileSync(path.join(ROOT, "explore-data.js"), out);
-  return "explore-data.js";
-}
-
-/* ---------- orchestrator ---------- */
-function build() {
-  const { site, stories, entities } = loadData();
-  const featured = pickFeatured(stories);
-  const graph = buildGraph(stories, entities);
-  const journeys = journeysLib.buildJourneyData(site, stories, entities, graph);
-  const jByStory = journeysLib.journeyByStory(journeys);
-  const jByPerson = journeysLib.journeysByPerson(journeys);
-
-  const idx = buildIndex(site, stories, featured, journeys, entities);
-  const searchCount = buildSearchIndex(site, stories, entities, graph, journeys);
-  const pages = buildStoryPages(site, stories, graph, jByStory, journeys);
-  const js = buildStoriesJs(stories, graph, featured, site);
-  buildExploreData(graph);
-  const family = buildFamily(site, stories, entities, graph, jByPerson, journeys);
-  const journeyPages = journeysLib.buildJourneyPages(journeys, site, graph);
-
-  const summary = {
-    featured: featured ? `${featured.id} — ${featured.title}` : "(none)",
-    published: stories.filter(s => s.published).length,
-    comingSoon: stories.filter(s => s.status === "coming-soon").length,
-    total: stories.length,
-    pages, index: path.basename(idx), storiesJs: js,
-    familyTree: family.tree, familyProfiles: family.profiles,
-    entityPages: family.entityPages || [],
-    journeys: journeyPages,
-    searchRecords: searchCount, graph: graph.stats
-  };
-  return summary;
-}
-
-module.exports = { build, loadData, pickFeatured, storyPageHTML };
-
-/* Run directly: `node build.js` */
-if (require.main === module) {
-  console.log("Harlan's Legacy — building…");
-  const s = build();
-  console.log(`  This Week : ${s.featured}`);
-  console.log(`  Published : ${s.published}   Coming soon: ${s.comingSoon}   Total: ${s.total}`);
-  console.log(`  Story pages: ${s.pages.length}`);
-  s.pages.forEach(p => console.log(`    · ${p}`));
-  console.log(`  Family     : ${s.familyTree || "(none)"} + ${s.familyProfiles.length} profile(s)`);
-  s.familyProfiles.forEach(p => console.log(`    · ${p}`));
-  console.log(`  Entities   : ${s.entityPages.length} place/object/event page(s)`);
-  s.entityPages.forEach(p => console.log(`    · ${p}`));
-  console.log(`  Journeys   : ${s.journeys.length} memory journey page(s)`);
-  s.journeys.forEach(p => console.log(`    · ${p}`));
-  console.log(`  Search     : ${s.searchRecords} records indexed`);
-  console.log(`  Graph      : ${s.graph.entities} entities · ${s.graph.edges} story↔entity edges`);
-  console.log("  Done.");
-}

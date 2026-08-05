@@ -167,6 +167,37 @@ async function handleApi(req, res, url) {
       return sendJSON(res, 200, rebuild());
     }
 
+    /* ------------------------------------------------------------------
+       AI-ready metadata endpoint. The CMS's default provider runs entirely
+       in the browser (admin/ai.js — local heuristics, no key). This server
+       route is the single, documented seam for a real model. Until a key is
+       configured it returns ok:false, and the CMS silently keeps using the
+       local provider — nothing to redesign when you wire a model in.
+
+       TO CONNECT A REAL MODEL (OpenAI / Claude / Gemini):
+         1. Set an API key in the environment, e.g. HL_AI_KEY / HL_AI_PROVIDER.
+         2. Below, branch on process.env.HL_AI_PROVIDER, call the provider's
+            HTTP API with `body` (the story context the CMS sends) and map the
+            response to the same Suggestions shape admin/ai.js documents:
+              { seoDescription, ogDescription, summary, readingTime, keywords,
+                people, places, objects, events, journey, relatedStories,
+                searchTags, tone, timeline, connections }
+         3. Return sendJSON(res, 200, { ok:true, suggestions, provider }).
+         4. In the CMS console run HL_AI.use("remote") to switch providers.
+       ------------------------------------------------------------------ */
+    if (resource === "ai" && parts[2] === "generate" && req.method === "POST") {
+      await readBody(req); // accept the context payload even when unconfigured
+      var provider = process.env.HL_AI_PROVIDER || "none";
+      if (provider === "none" || !process.env.HL_AI_KEY) {
+        return sendJSON(res, 200, {
+          ok: false, provider: "none",
+          reason: "No server AI provider configured. The CMS is using its built-in local heuristics. Set HL_AI_PROVIDER + HL_AI_KEY and implement the mapping in server.js to enable a hosted model."
+        });
+      }
+      // Placeholder for a real hosted model call (see instructions above).
+      return sendJSON(res, 501, { ok: false, provider: provider, reason: "Provider '" + provider + "' is selected but its request mapping is not implemented yet." });
+    }
+
     if (resource === "stories") {
       let stories = readJSON(STORIES);
 

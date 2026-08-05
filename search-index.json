@@ -29,11 +29,11 @@
   {
     "type": "journey",
     "title": "Faith & Traditions",
-    "subtitle": "2 memories · a journey",
+    "subtitle": "3 memories · a journey",
     "url": "journey/faith-traditions.html",
     "badge": "Journey",
-    "memories": 2,
-    "keywords": "faith & traditions jewish life / shabbat shabbat kept most fridays — sometimes imperfectly, always on purpose. faith here is less a doctrine than a rhythm: candles, a table, a week set down gently. follow the traditions that returned every friday, whatever else the year had done. journey discover hal harlan"
+    "memories": 3,
+    "keywords": "faith & traditions jewish life / shabbat shabbat kept most fridays — sometimes imperfectly, always on purpose. faith here is less a doctrine than a rhythm: candles, a table, a week set down gently. follow the traditions that returned every friday, whatever else the year had done. journey discover harlan hal"
   },
   {
     "type": "journey",
@@ -144,6 +144,15 @@
     "keywords": "waiting at gate 14 he always came early. that part, at least, never changed. grief and memory apr 2021 story no 226 226 harlan hal"
   },
   {
+    "type": "story",
+    "title": "Following the Trail Harlan Left Us",
+    "subtitle": "No. 303 · Jewish Life / Shabbat",
+    "url": "story/303-following-the-trail-harlan-left-us.html",
+    "badge": "Story",
+    "related": 2,
+    "keywords": "following the trail harlan left us six months ago, we shared a shabbat shalom post about the yaffe family tree and opened it with three simple words: six… jewish life / shabbat jewish life / shabbat jul 2026 story no 303 303 harlan toledo, ohio family harlan julius yaffe tree father harry born toledo ohio"
+  },
+  {
     "type": "person",
     "title": "Marvin J. Yaffe",
     "subtitle": "Father of Harlan and Hal",
@@ -171,7 +180,7 @@
     "subtitle": "The subject of every story",
     "url": "family/harlan.html",
     "badge": "Person",
-    "memories": 10,
+    "memories": 11,
     "related": 5,
     "portrait": "assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg",
     "keywords": "harlan harlan blaine yaffe the subject of every story person family"
@@ -200,10 +209,10 @@
   {
     "type": "place",
     "title": "Toledo, Ohio",
-    "subtitle": "1 story",
+    "subtitle": "2 stories",
     "url": "place/toledo-ohio.html",
     "badge": "Place",
-    "memories": 1,
+    "memories": 2,
     "related": 2,
     "keywords": "toledo, ohio where the family's funeral arrangements were held toledo toledo, ohio place"
   },

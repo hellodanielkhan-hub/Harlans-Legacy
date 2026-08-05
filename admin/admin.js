@@ -1,158 +1,117 @@
-/* Harlan's Legacy — Admin Dashboard controller.
-   Talks to the zero-dependency API in server.js. Every save/publish/delete
-   writes data/stories.json server-side and triggers a full site rebuild,
-   so the homepage, archive and story pages update immediately. */
+/* =========================================================================
+   Harlan's Legacy — Editorial Workspace controller (Phase 10)
+
+   Talks to the same zero-dependency API in server.js (no schema change): every
+   save/publish/delete writes data/stories.json and triggers a full rebuild, so
+   the public site updates immediately. The editor asks for only the essentials
+   (title, date, journey, story, publish state); everything else is auto-derived
+   or AI-assisted, and the full story schema is still round-tripped on save.
+   ========================================================================= */
 (function () {
   "use strict";
 
-  var THREADS = {
-    funny: "var(--thread-funny)", momdad: "var(--thread-momdad)", toledo: "var(--thread-toledo)",
-    shabbat: "var(--thread-shabbat)", grief: "var(--thread-grief)", ordinary: "var(--thread-ordinary)"
-  };
-
-  var state = { stories: [], site: null, selectedId: null, filter: "" };
-
   var $ = function (id) { return document.getElementById(id); };
-  var listEl = $("story-list"), formEl = $("story-form"), emptyEl = $("empty-state");
+  var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var THREADS = { funny: "var(--thread-funny,#8f9a80)", momdad: "#A8735A", toledo: "#6B7A8C", shabbat: "#B8964F", grief: "#B99189", ordinary: "#5F8A82" };
 
-  /* ---------- api ---------- */
+  var state = { stories: [], site: null, entities: null, selectedId: null, filter: "", status: "coming-soon", dirty: false, isNew: false, lastSuggestions: null };
+
+  /* ---------------- api ---------------- */
   function api(method, path, body) {
-    return fetch(path, {
-      method: method,
-      headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined
-    }).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (j) {
-        if (!r.ok) throw new Error(j.error || (r.status + " " + r.statusText));
-        return j;
-      });
-    });
+    return fetch(path, { method: method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || (r.status + " " + r.statusText)); return j; }); });
   }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function escAttr(s) { return esc(s).replace(/"/g, "&quot;"); }
+  function slugify(str) { return String(str || "").toLowerCase().trim().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
 
-  /* ---------- toast + status ---------- */
+  /* ---------------- toast + status ---------------- */
   var toastTimer;
-  function toast(msg, isErr) {
-    var t = $("toast");
-    t.textContent = msg;
-    t.className = "toast show" + (isErr ? " err" : "");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.className = "toast"; }, 3200);
-  }
+  function toast(msg, kind) { var t = $("toast"); t.textContent = msg; t.className = "toast show" + (kind ? " " + kind : ""); clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.className = "toast"; }, 3400); }
   function status(msg) { $("status").textContent = msg || ""; }
 
-  /* ---------- load ---------- */
+  /* ---------------- theme (dark default, light optional) ---------------- */
+  (function initMode() {
+    var toggle = $("mode-toggle");
+    function reflect() { var light = document.documentElement.getAttribute("data-mode") === "light"; toggle.querySelector(".ic-moon").hidden = light; toggle.querySelector(".ic-sun").hidden = !light; }
+    reflect();
+    toggle.addEventListener("click", function () {
+      var next = document.documentElement.getAttribute("data-mode") === "light" ? "dark" : "light";
+      document.documentElement.setAttribute("data-mode", next);
+      try { localStorage.setItem("hl-admin-mode", next); } catch (e) {}
+      reflect();
+    });
+  })();
+
+  /* ---------------- load ---------------- */
   function loadAll() {
-    return Promise.all([api("GET", "/api/stories"), api("GET", "/api/site")])
-      .then(function (res) {
-        state.stories = res[0];
-        state.site = res[1];
-        populateThemeSelect();
-        renderList();
-        renderStats();
-      })
-      .catch(function (e) { toast("Load failed: " + e.message, true); });
+    return Promise.all([api("GET", "/api/stories"), api("GET", "/api/site"), api("GET", "/api/entities")]).then(function (res) {
+      state.stories = res[0]; state.site = res[1]; state.entities = res[2];
+      populateThemeSelect(); renderStats(); renderList();
+    }).catch(function (e) { toast("Load failed: " + e.message, "err"); });
   }
-
   function populateThemeSelect() {
-    var sel = $("f-theme");
-    sel.innerHTML = "";
-    Object.keys(state.site.themes).forEach(function (key) {
-      var o = document.createElement("option");
-      o.value = key; o.textContent = state.site.themes[key].label + " (" + key + ")";
-      sel.appendChild(o);
-    });
+    var sel = $("f-theme"); sel.innerHTML = "";
+    Object.keys(state.site.themes).forEach(function (key) { var o = document.createElement("option"); o.value = key; o.textContent = state.site.themes[key].label; sel.appendChild(o); });
   }
 
-  /* ---------- list ---------- */
+  /* ---------------- list + stats ---------------- */
   function renderStats() {
-    var pub = state.stories.filter(function (s) { return s.status === "published"; }).length;
-    var soon = state.stories.filter(function (s) { return s.status === "coming-soon"; }).length;
-    var draft = state.stories.filter(function (s) { return s.status === "draft"; }).length;
-    $("stats").innerHTML =
-      '<span class="stat"><b>' + pub + '</b> published</span>' +
-      '<span class="stat"><b>' + soon + '</b> coming soon</span>' +
-      '<span class="stat"><b>' + draft + '</b> draft</span>' +
-      '<span class="stat"><b>' + state.stories.length + '</b> total</span>';
+    var pub = 0, soon = 0, draft = 0;
+    state.stories.forEach(function (s) { if (s.status === "published") pub++; else if (s.status === "draft") draft++; else soon++; });
+    $("stats").innerHTML = '<span class="stat"><b>' + pub + '</b> live</span><span class="stat"><b>' + soon + '</b> soon</span><span class="stat"><b>' + draft + '</b> draft</span><span class="stat"><b>' + state.stories.length + '</b> total</span>';
   }
-
   function renderList() {
-    var q = state.filter.toLowerCase();
-    var items = state.stories.filter(function (s) {
-      if (!q) return true;
-      return (s.title + " " + s.theme + " " + s.id + " " + s.status).toLowerCase().indexOf(q) !== -1;
-    });
+    var q = state.filter.toLowerCase(), listEl = $("story-list");
+    var items = state.stories.filter(function (s) { return !q || (s.title + " " + s.theme + " " + s.id + " " + s.status).toLowerCase().indexOf(q) !== -1; });
     listEl.innerHTML = "";
-    if (!items.length) {
-      listEl.innerHTML = '<li class="subtle" style="color:var(--ink-muted);padding:0.5rem;">No matches.</li>';
-      return;
-    }
+    if (!items.length) { listEl.innerHTML = '<li class="list-empty">No memories match “' + esc(state.filter) + '”.</li>'; return; }
+    items.sort(function (a, b) { return (b.publishedISO || "").localeCompare(a.publishedISO || "") || b.id - a.id; });
     items.forEach(function (s) {
       var li = document.createElement("li");
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "story-item" + (s.id === state.selectedId ? " active" : "");
-      btn.style.setProperty("--thread", THREADS[s.theme] || "var(--ink-whisper)");
-      var pills = '<span class="pill ' + s.status + '">' + s.status.replace("-", " ") + '</span>';
-      if (s.featured && s.status === "published") pills += ' <span class="pill featured">This week</span>';
-      btn.innerHTML =
-        '<span class="si-main"><span class="si-title">' + esc(s.title) + '</span>' +
-        '<span class="si-meta">No. ' + s.id + ' · ' + (state.site.themes[s.theme] ? state.site.themes[s.theme].label : s.theme) + '</span></span>' +
-        pills;
-      btn.addEventListener("click", function () { select(s.id); });
-      li.appendChild(btn);
-      listEl.appendChild(li);
+      var b = document.createElement("button"); b.type = "button";
+      b.className = "item" + (s.id === state.selectedId ? " active" : "");
+      b.style.setProperty("--thread", THREADS[s.theme] || "var(--line)");
+      var label = state.site.themes[s.theme] ? state.site.themes[s.theme].label : s.theme;
+      var pill = '<span class="pill ' + s.status + '">' + s.status.replace("-", " ") + '</span>';
+      if (s.featured && s.status === "published") pill = '<span class="pill featured">This week</span>' + pill;
+      b.innerHTML = '<span class="im"><span class="it">' + esc(s.title || "Untitled") + '</span><span class="is">No. ' + s.id + ' · ' + esc(label) + '</span></span>' + pill;
+      b.addEventListener("click", function () { attemptSelect(s.id); });
+      li.appendChild(b); listEl.appendChild(li);
     });
   }
 
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
-
-  /* ---------- select / new ---------- */
-  function select(id) {
-    var s = state.stories.filter(function (x) { return x.id === id; })[0];
-    if (!s) return;
-    state.selectedId = id;
-    fill(s);
-    renderList();
-  }
-
+  /* ---------------- select / new ---------------- */
+  function attemptSelect(id) { if (state.dirty && !confirm("You have unsaved changes. Discard them and open another memory?")) return; select(id); }
+  function select(id) { var s = state.stories.filter(function (x) { return x.id === id; })[0]; if (!s) return; state.selectedId = id; state.isNew = false; fill(s); renderList(); restoreDraft(id); }
   function newStory() {
-    state.selectedId = null;
+    if (state.dirty && !confirm("Discard the current unsaved memory?")) return;
+    state.selectedId = null; state.isNew = true;
     var nextId = state.stories.reduce(function (m, s) { return Math.max(m, s.id); }, 0) + 1;
-    fill({
-      id: nextId, title: "", slug: "", status: "coming-soon", featured: false,
-      theme: "ordinary", publishedISO: "", dateLong: "", dateLabel: "", memoryDate: "",
-      summary: "", description: "", ogDescription: "", lead: "", body: [],
-      people: [], places: [], objects: [], events: [], bookPart: "", keywords: [], echoStories: [], readingTime: ""
-    }, true);
-    renderList();
+    fill({ id: nextId, title: "", slug: "", status: "draft", featured: false, theme: "ordinary", publishedISO: "", dateLong: "", dateLabel: "", memoryDate: "", summary: "", description: "", ogDescription: "", lead: "", body: [], people: [], places: [], objects: [], events: [], bookPart: "", keywords: [], echoStories: [], readingTime: "" }, true);
+    renderList(); restoreDraft("new"); $("f-title").focus();
   }
 
-  /* ---------- fill form ---------- */
+  /* ---------------- fill form ---------------- */
+  function isoToDateInput(iso) { return /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? String(iso).slice(0, 10) : ""; }
   function fill(s, isNew) {
-    emptyEl.hidden = true;
-    formEl.hidden = false;
-    $("form-title").textContent = isNew ? "New story" : "Editing: " + s.title;
-    $("form-sub").textContent = isNew
-      ? "A new record. Publishing it makes it live on the homepage."
-      : "Story No. " + s.id + " — changes rebuild the site on save.";
-
-    $("f-id").value = s.id;
-    $("f-status").value = s.status || "coming-soon";
-    $("f-theme").value = s.theme || "ordinary";
+    $("empty-state").hidden = true; $("editor").hidden = false;
+    $("editor-eyebrow").textContent = isNew ? "New memory" : "Editing Story No. " + s.id;
+    $("form-title").textContent = s.title || "Untitled";
     $("f-title").value = s.title || "";
     $("f-slug").value = s.slug || "";
+    $("f-id").value = s.id;
+    $("f-theme").value = s.theme || "ordinary";
+    $("f-date").value = isoToDateInput(s.publishedISO);
     $("f-featured").checked = !!s.featured;
-    $("f-iso").value = s.publishedISO || "";
-    $("f-datelong").value = s.dateLong || "";
-    $("f-datelabel").value = s.dateLabel || "";
-    $("f-memory").value = s.memoryDate || "";
+    // body textarea = lead + body paragraphs
+    var paras = (s.lead ? [s.lead] : []).concat(s.body || []);
+    $("f-body").value = paras.join("\n\n");
     $("f-summary").value = s.summary || "";
-    $("f-lead").value = s.lead || "";
-    $("f-body").value = (s.body || []).join("\n\n");
     $("f-description").value = s.description || "";
     $("f-og").value = s.ogDescription || "";
+    $("f-memory").value = s.memoryDate || "";
     $("f-people").value = (s.people || []).join("\n");
     $("f-places").value = (s.places || []).join("\n");
     $("f-objects").value = (s.objects || []).join("\n");
@@ -161,38 +120,79 @@
     $("f-keywords").value = (s.keywords || []).join(", ");
     $("f-echoes").value = (s.echoStories || []).join(", ");
     $("f-reading").value = (s.readingTime === 0 || s.readingTime) ? s.readingTime : "";
-
+    setStatus(s.status || "draft");
     $("delete-btn").hidden = !!isNew;
-    updateSlugPreview();
+    $("ai-suggestions").innerHTML = ""; $("ai-apply-all").hidden = true; state.lastSuggestions = null;
+    state.dirty = false;
+    updateDerived(); updateSaveState(false, isNew ? "New — not yet saved" : (s.status === "published" ? "Published & live" : titleCase(s.status || "draft")));
     updateOpenLink(s, isNew);
   }
+  function titleCase(s) { return String(s).charAt(0).toUpperCase() + String(s).slice(1).replace("-", " "); }
 
-  function updateSlugPreview() {
+  function setStatus(v) {
+    state.status = v;
+    Array.prototype.forEach.call($("pubseg").children, function (b) { var on = b.getAttribute("data-v") === v; b.classList.toggle("on", on); });
+    if (v !== "published") $("f-featured").checked = false;
+  }
+
+  /* ---------------- derived (slug, reading time, preview) ---------------- */
+  function bodyParas() { return $("f-body").value.split(/\n\s*\n/).map(function (p) { return p.trim(); }).filter(Boolean); }
+  function wordCount() { return $("f-body").value.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length; }
+  function computedReading() { return Math.max(1, Math.round(wordCount() / 200)); }
+
+  function updateDerived() {
     var slug = $("f-slug").value.trim() || slugify($("f-title").value) || "…";
     $("slug-preview").textContent = "story/" + $("f-id").value + "-" + slug + ".html";
+    var rt = $("f-reading").value.trim(); $("rt-min").textContent = rt === "" ? computedReading() : rt;
+    $("form-title").textContent = $("f-title").value.trim() || "Untitled";
+    renderPreview(); renderSeo();
   }
+
+  function allowEm(s) { return esc(s).replace(/&lt;(\/?)(em|i)&gt;/g, "<$1em>"); }
+  function renderPreview() {
+    var title = $("f-title").value.trim(), paras = bodyParas();
+    var themeLabel = state.site && state.site.themes[$("f-theme").value] ? state.site.themes[$("f-theme").value].label : "";
+    var iso = $("f-date").value, dateLong = iso ? longDate(iso) : ($("f-memory").value.trim() || "");
+    var host = $("pv-story");
+    if (!title && !paras.length) { host.innerHTML = '<p class="pv-empty">Start writing — the memory appears here as readers will see it.</p>'; return; }
+    var html = '<p class="stamp">Story No. ' + esc($("f-id").value) + (themeLabel ? ' · ' + esc(themeLabel) : "") + '</p>' +
+      '<h1>' + (esc(title) || "Untitled") + '</h1>' +
+      (dateLong ? '<p class="pv-date">' + esc(dateLong) + '</p>' : "") +
+      '<div class="pv-prose">' + paras.map(function (p) { return "<p>" + allowEm(p) + "</p>"; }).join("") + '</div>';
+    host.innerHTML = html;
+  }
+  function renderSeo() {
+    var title = $("f-title").value.trim() || "Untitled";
+    var slug = $("f-slug").value.trim() || slugify(title);
+    var desc = $("f-description").value.trim() || $("f-summary").value.trim() || (bodyParas()[0] || "").replace(/<[^>]+>/g, "").slice(0, 155);
+    var og = $("f-og").value.trim() || desc;
+    $("seo-url").textContent = "harlanslegacy.com › story › " + (slug || "…");
+    $("seo-title").textContent = title + " — Harlan's Legacy";
+    $("seo-desc").textContent = desc || "The SEO description appears here…";
+    $("og-title").textContent = title;
+    $("og-desc").textContent = og || "Social share description…";
+    var tl = (title + " — Harlan's Legacy").length, dl = desc.length;
+    $("seo-metric").innerHTML =
+      '<span class="m' + (tl > 60 ? " warn" : "") + '">title ' + tl + '/60</span>' +
+      '<span class="m' + (dl > 160 || (dl && dl < 70) ? " warn" : "") + '">description ' + dl + '/160</span>' +
+      '<span class="m">' + computedReading() + ' min read</span>';
+  }
+  function longDate(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso); if (!m) return ""; return MONTHS[+m[2] - 1] + " " + (+m[3]) + ", " + m[1]; }
+  function labelDate(iso) { var m = /^(\d{4})-(\d{2})/.exec(iso); if (!m) return ""; return MON[+m[2] - 1] + " " + m[1]; }
 
   function updateOpenLink(s, isNew) {
     var link = $("open-story");
-    if (!isNew && s.status === "published") {
-      link.hidden = false;
-      link.href = "/story/" + s.id + "-" + (s.slug || slugify(s.title)) + ".html";
-    } else {
-      link.hidden = true;
-    }
+    if (!isNew && s.status === "published") { link.hidden = false; link.href = "/story/" + s.id + "-" + (s.slug || slugify(s.title)) + ".html"; }
+    else link.hidden = true;
   }
 
-  function slugify(str) {
-    return String(str || "").toLowerCase().trim()
-      .replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  }
-
-  /* ---------- gather form -> record ---------- */
-  function lines(id) {
-    return $(id).value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
-  }
+  /* ---------------- collect -> record ---------------- */
+  function lines(id) { return $(id).value.split("\n").map(function (x) { return x.trim(); }).filter(Boolean); }
   function collect() {
-    var body = $("f-body").value.split(/\n\s*\n/).map(function (p) { return p.trim(); }).filter(Boolean);
+    var paras = bodyParas();
+    var lead = paras.length ? paras[0] : null;
+    var body = paras.slice(1);
+    var iso = $("f-date").value || null;
     var echoes = $("f-echoes").value.split(",").map(function (x) { return parseInt(x.trim(), 10); }).filter(function (n) { return !isNaN(n); });
     var keywords = $("f-keywords").value.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
     var reading = $("f-reading").value.trim();
@@ -200,222 +200,292 @@
       id: parseInt($("f-id").value, 10),
       title: $("f-title").value.trim(),
       slug: $("f-slug").value.trim(),
-      status: $("f-status").value,
+      status: state.status,
       featured: $("f-featured").checked,
       theme: $("f-theme").value,
-      publishedISO: $("f-iso").value.trim() || null,
-      dateLong: $("f-datelong").value.trim(),
-      dateLabel: $("f-datelabel").value.trim(),
+      publishedISO: iso,
+      dateLong: iso ? longDate(iso) : "",
+      dateLabel: iso ? labelDate(iso) : "",
       memoryDate: $("f-memory").value.trim() || null,
       summary: $("f-summary").value.trim(),
       description: $("f-description").value.trim() || null,
       ogDescription: $("f-og").value.trim() || null,
-      lead: $("f-lead").value.trim() || null,
-      body: body,
-      people: lines("f-people"), places: lines("f-places"),
-      objects: lines("f-objects"), events: lines("f-events"),
+      lead: lead, body: body,
+      people: lines("f-people"), places: lines("f-places"), objects: lines("f-objects"), events: lines("f-events"),
       bookPart: $("f-bookpart").value.trim() || null,
-      keywords: keywords,
-      echoStories: echoes,
-      readingTime: reading === "" ? null : parseInt(reading, 10)
+      keywords: keywords, echoStories: echoes,
+      readingTime: reading === "" ? computedReading() : parseInt(reading, 10)
     };
   }
 
-  /* ---------- save / delete ---------- */
-  function save(e) {
-    e.preventDefault();
+  /* ---------------- validation ---------------- */
+  function validate(rec) {
+    var errs = [];
+    $("wrap-title").classList.remove("field-invalid"); $("err-title").hidden = true;
+    if (!rec.title) { errs.push("A title is needed."); $("wrap-title").classList.add("field-invalid"); $("err-title").hidden = false; }
+    if (rec.featured && rec.status !== "published") errs.push("Only a published memory can be This Week's featured story.");
+    if (rec.status === "published" && !rec.publishedISO) errs.push("A published memory needs a story date.");
+    return errs;
+  }
+
+  /* ---------------- save / delete ---------------- */
+  function save(publish) {
+    if (publish) setStatus("published");
     var rec = collect();
-    if (!rec.title) { toast("A title is required.", true); return; }
-    if (rec.featured && rec.status !== "published") {
-      toast("Only a published story can be This Week's Story.", true); return;
-    }
+    var errs = validate(rec);
+    if (errs.length) { toast(errs[0], "err"); return; }
     var exists = state.stories.some(function (s) { return s.id === rec.id; });
-    var saveBtn = $("save-btn");
-    saveBtn.disabled = true; saveBtn.textContent = "Saving…"; status("Rebuilding site…");
-
-    var req = (state.selectedId != null && exists)
-      ? api("PUT", "/api/stories/" + state.selectedId, rec)
-      : api("POST", "/api/stories", rec);
-
+    [$("save-btn"), $("save-btn-2")].forEach(function (b) { b.disabled = true; }); status("Rebuilding the archive…");
+    var req = (!state.isNew && exists) ? api("PUT", "/api/stories/" + state.selectedId, rec) : api("POST", "/api/stories", rec);
     req.then(function (res) {
       var b = res.build || {};
-      toast(exists ? "Saved & rebuilt." : "Created & rebuilt.");
-      status(b.summary ? ("Live: This Week = " + b.summary.featured + " · " + b.summary.published + " published") : "Rebuilt.");
-      state.selectedId = rec.id;
+      toast(exists && !state.isNew ? "Saved & rebuilt." : "Created & rebuilt.", "ok");
+      status(b.summary ? ("Live · This week = " + b.summary.featured + " · " + b.summary.published + " published") : "Rebuilt.");
+      state.selectedId = rec.id; state.isNew = false; clearDraft(rec.id); clearDraft("new"); state.dirty = false;
       return loadAll();
-    }).then(function () {
-      var s = state.stories.filter(function (x) { return x.id === rec.id; })[0];
-      if (s) fill(s);
-    }).catch(function (err) {
-      toast("Save failed: " + err.message, true); status("");
-    }).then(function () {
-      saveBtn.disabled = false; saveBtn.textContent = "Save & rebuild";
-    });
+    }).then(function () { var s = state.stories.filter(function (x) { return x.id === rec.id; })[0]; if (s) fill(s); })
+      .catch(function (err) { toast("Save failed: " + err.message, "err"); status(""); })
+      .then(function () { [$("save-btn"), $("save-btn-2")].forEach(function (b) { b.disabled = false; }); });
   }
-
   function del() {
-    if (state.selectedId == null) return;
+    if (state.selectedId == null || state.isNew) return;
     var s = state.stories.filter(function (x) { return x.id === state.selectedId; })[0];
-    if (!confirm("Delete “" + (s ? s.title : "this story") + "” (No. " + state.selectedId + ")? This also removes its story page. This cannot be undone.")) return;
+    if (!confirm("Delete “" + (s ? s.title : "this memory") + "” (No. " + state.selectedId + ")? This removes its story page too. This cannot be undone.")) return;
     status("Deleting…");
     api("DELETE", "/api/stories/" + state.selectedId).then(function () {
-      toast("Deleted & rebuilt.");
-      state.selectedId = null;
-      formEl.hidden = true; emptyEl.hidden = false;
-      status("");
+      toast("Deleted & rebuilt.", "ok"); clearDraft(state.selectedId); state.selectedId = null; state.dirty = false;
+      $("editor").hidden = true; $("empty-state").hidden = false; status("");
       return loadAll();
-    }).catch(function (err) { toast("Delete failed: " + err.message, true); });
+    }).catch(function (err) { toast("Delete failed: " + err.message, "err"); });
   }
 
-  /* ---------- wire up ---------- */
+  /* ---------------- autosave (local drafts) ---------------- */
+  var draftTimer;
+  function draftKey(id) { return "hl-admin-draft:" + id; }
+  function markDirty() {
+    state.dirty = true; updateDerived();
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(function () {
+      try { localStorage.setItem(draftKey(state.isNew ? "new" : state.selectedId), JSON.stringify(collect())); } catch (e) {}
+      updateSaveState(true, "Autosaved locally · " + clock());
+    }, 700);
+  }
+  function restoreDraft(id) {
+    var raw; try { raw = localStorage.getItem(draftKey(id)); } catch (e) { raw = null; }
+    if (!raw) return;
+    try {
+      var d = JSON.parse(raw); applyRecord(d); state.dirty = true;
+      updateSaveState(true, "Unsaved local draft restored · " + clock());
+    } catch (e) {}
+  }
+  function applyRecord(d) {
+    $("f-title").value = d.title || ""; $("f-slug").value = d.slug || ""; $("f-theme").value = d.theme || "ordinary";
+    $("f-date").value = isoToDateInput(d.publishedISO); $("f-featured").checked = !!d.featured;
+    $("f-body").value = (d.lead ? [d.lead] : []).concat(d.body || []).join("\n\n");
+    $("f-summary").value = d.summary || ""; $("f-description").value = d.description || ""; $("f-og").value = d.ogDescription || "";
+    $("f-memory").value = d.memoryDate || ""; $("f-people").value = (d.people || []).join("\n"); $("f-places").value = (d.places || []).join("\n");
+    $("f-objects").value = (d.objects || []).join("\n"); $("f-events").value = (d.events || []).join("\n");
+    $("f-bookpart").value = d.bookPart || ""; $("f-keywords").value = (d.keywords || []).join(", "); $("f-echoes").value = (d.echoStories || []).join(", ");
+    $("f-reading").value = (d.readingTime === 0 || d.readingTime) ? d.readingTime : "";
+    setStatus(d.status || "draft"); updateDerived();
+  }
+  function clearDraft(id) { try { localStorage.removeItem(draftKey(id)); } catch (e) {} }
+  function clock() { var d = new Date(); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
+  function updateSaveState(dirty, text) { var el = $("save-state"); el.className = "save-state" + (dirty ? " dirty" : " saved"); $("save-text").textContent = text || (dirty ? "Unsaved changes" : "Saved"); }
+
+  /* ---------------- AI assisted metadata ---------------- */
+  function runAI() {
+    if (!window.HL_AI) { toast("AI layer not loaded.", "err"); return; }
+    $("ai-provider").textContent = "via " + window.HL_AI.currentName();
+    var btn = $("ai-generate"); btn.disabled = true; btn.textContent = "Reading the memory…";
+    var input = {
+      title: $("f-title").value.trim(), lead: bodyParas()[0] || "", body: bodyParas().join("\n\n"),
+      dateISO: $("f-date").value, theme: $("f-theme").value, selfId: parseInt($("f-id").value, 10),
+      entities: state.entities || {}, stories: state.stories, themes: state.site.themes
+    };
+    window.HL_AI.generate(input).then(function (sug) { state.lastSuggestions = sug; renderSuggestions(sug); })
+      .catch(function (e) { toast("Generate failed: " + e.message, "err"); })
+      .then(function () { btn.disabled = false; btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/></svg> Regenerate'; });
+  }
+  var SUGGEST_FIELDS = [
+    { key: "summary", label: "Summary", apply: function (v) { $("f-summary").value = v; } },
+    { key: "seoDescription", label: "SEO description", apply: function (v) { $("f-description").value = v; } },
+    { key: "ogDescription", label: "Social / OG", apply: function (v) { $("f-og").value = v; } },
+    { key: "readingTime", label: "Reading time", fmt: function (v) { return v + " min"; }, apply: function (v) { $("f-reading").value = v; } },
+    { key: "journey", label: "Journey", fmt: function (v) { return state.site.themes[v] ? state.site.themes[v].label : v; }, apply: function (v) { $("f-theme").value = v; } },
+    { key: "tone", label: "Emotional tone", apply: null },
+    { key: "timeline", label: "Timeline placement", apply: null },
+    { key: "people", label: "People", list: true, apply: function (v) { $("f-people").value = v.join("\n"); } },
+    { key: "places", label: "Places", list: true, apply: function (v) { $("f-places").value = v.join("\n"); } },
+    { key: "objects", label: "Objects", list: true, apply: function (v) { $("f-objects").value = v.join("\n"); } },
+    { key: "events", label: "Events", list: true, apply: function (v) { $("f-events").value = v.join("\n"); } },
+    { key: "keywords", label: "Search keywords", list: true, apply: function (v) { $("f-keywords").value = v.join(", "); } },
+    { key: "searchTags", label: "Search tags", list: true, apply: null },
+    { key: "relatedStories", label: "Related stories", related: true, apply: function (v) { $("f-echoes").value = v.map(function (r) { return r.id; }).join(", "); } },
+    { key: "connections", label: "Internal connections", list: true, apply: null }
+  ];
+  function renderSuggestions(sug) {
+    var host = $("ai-suggestions"); host.innerHTML = "";
+    SUGGEST_FIELDS.forEach(function (f, i) {
+      var v = sug[f.key]; if (v == null || (Array.isArray(v) && !v.length) || v === "") return;
+      var disp;
+      if (f.related) disp = v.map(function (r) { return '<span class="chip">No. ' + r.id + " · " + esc(r.title) + " (" + r.shared + "×)</span>"; }).join("");
+      else if (f.list) disp = v.map(function (x) { return '<span class="chip">' + esc(x) + "</span>"; }).join("");
+      else disp = esc(f.fmt ? f.fmt(v) : v);
+      var row = document.createElement("div"); row.className = "sugg";
+      row.innerHTML = '<div class="sg-body"><div class="sg-label">' + esc(f.label) + '</div><div class="sg-val">' + disp + '</div></div>' +
+        (f.apply ? '<button class="mini-btn" type="button" data-i="' + i + '">Apply</button>' : '');
+      if (f.apply) row.querySelector(".mini-btn").addEventListener("click", function () {
+        f.apply(v); this.textContent = "Applied ✓"; this.classList.add("applied"); markDirty();
+      });
+      host.appendChild(row);
+    });
+    $("ai-apply-all").hidden = false;
+    if (sug._note) { var n = document.createElement("p"); n.className = "hint"; n.style.marginTop = "0.6rem"; n.textContent = sug._note; host.appendChild(n); }
+  }
+  function applyAll() {
+    if (!state.lastSuggestions) return;
+    SUGGEST_FIELDS.forEach(function (f) { if (!f.apply) return; var v = state.lastSuggestions[f.key]; if (v == null || (Array.isArray(v) && !v.length) || v === "") return; f.apply(v); });
+    Array.prototype.forEach.call(document.querySelectorAll("#ai-suggestions .mini-btn"), function (b) { b.textContent = "Applied ✓"; b.classList.add("applied"); });
+    markDirty(); toast("Applied all suggestions.", "ok");
+  }
+
+  /* ---------------- preview tabs ---------------- */
+  function showPreview(which) {
+    var story = which === "story";
+    $("pv-story-card").hidden = !story; $("pv-seo-card").hidden = story;
+    $("pv-tab-story").classList.toggle("on", story); $("pv-tab-seo").classList.toggle("on", !story);
+    $("pv-tab-story").setAttribute("aria-selected", story); $("pv-tab-seo").setAttribute("aria-selected", !story);
+  }
+
+  /* ---------------- wire memories ---------------- */
   $("new-btn").addEventListener("click", newStory);
+  $("empty-new").addEventListener("click", newStory);
   $("delete-btn").addEventListener("click", del);
-  formEl.addEventListener("submit", save);
+  $("story-form").addEventListener("submit", function (e) { e.preventDefault(); save(false); });
   $("search").addEventListener("input", function () { state.filter = this.value; renderList(); });
-  $("f-title").addEventListener("input", updateSlugPreview);
-  $("f-slug").addEventListener("input", updateSlugPreview);
-  $("f-id").addEventListener("input", updateSlugPreview);
+  $("ai-generate").addEventListener("click", runAI);
+  $("ai-apply-all").addEventListener("click", applyAll);
+  $("pv-tab-story").addEventListener("click", function () { showPreview("story"); });
+  $("pv-tab-seo").addEventListener("click", function () { showPreview("seo"); });
+  Array.prototype.forEach.call($("pubseg").children, function (b) { b.addEventListener("click", function () { setStatus(b.getAttribute("data-v")); markDirty(); }); });
+  ["f-title", "f-slug", "f-id", "f-theme", "f-date", "f-featured", "f-body", "f-summary", "f-description", "f-og", "f-memory", "f-people", "f-places", "f-objects", "f-events", "f-bookpart", "f-keywords", "f-echoes", "f-reading"].forEach(function (id) {
+    var el = $(id); if (el) el.addEventListener("input", markDirty);
+  });
+  $("goto-photos").addEventListener("click", function () { switchMode("photos"); });
+  $("goto-photos").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); switchMode("photos"); } });
 
-  loadAll().then(function () { status(state.stories.length + " stories loaded."); });
+  /* keyboard shortcuts */
+  document.addEventListener("keydown", function (e) {
+    var mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); if (!$("editor").hidden) save(false); }
+    else if (mod && e.key === "Enter") { e.preventDefault(); if (!$("editor").hidden) save(true); }
+    else if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); switchMode("stories"); $("search").focus(); }
+    else if (mod && e.key.toLowerCase() === "g") { e.preventDefault(); if (!$("editor").hidden) runAI(); }
+    else if (e.key === "Escape") { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); }
+  });
+  window.addEventListener("beforeunload", function (e) { if (state.dirty) { e.preventDefault(); e.returnValue = ""; } });
 
-  /* ====================== PHOTOS ====================== */
-  var photoState = { photos: {}, names: {}, personId: null, loaded: false };
-
+  /* ---------------- workspace switch ---------------- */
   function switchMode(mode) {
     var stories = mode === "stories";
-    $("stories-layout").hidden = !stories;
-    $("photos-layout").hidden = stories;
-    $("mode-stories").classList.toggle("is-active", stories);
-    $("mode-photos").classList.toggle("is-active", !stories);
-    $("mode-stories").setAttribute("aria-selected", stories);
-    $("mode-photos").setAttribute("aria-selected", !stories);
+    $("view-stories").hidden = !stories; $("view-photos").hidden = stories;
+    $("mode-stories").classList.toggle("is-active", stories); $("mode-photos").classList.toggle("is-active", !stories);
+    $("mode-stories").setAttribute("aria-selected", stories); $("mode-photos").setAttribute("aria-selected", !stories);
     if (!stories && !photoState.loaded) loadPhotos();
   }
   $("mode-stories").addEventListener("click", function () { switchMode("stories"); });
   $("mode-photos").addEventListener("click", function () { switchMode("photos"); });
 
-  function loadPhotos() {
-    return api("GET", "/api/photos").then(function (res) {
-      photoState.photos = res.photos || {};
-      photoState.names = res.names || {};
-      photoState.loaded = true;
-      renderPeople();
-    }).catch(function (e) { toast("Photos load failed: " + e.message, true); });
-  }
+  loadAll().then(function () { status(state.stories.length + " memories loaded."); });
 
+  /* ====================== PHOTOGRAPHS ====================== */
+  var photoState = { photos: {}, names: {}, personId: null, loaded: false, dragFrom: null };
+  function loadPhotos() {
+    return api("GET", "/api/photos").then(function (res) { photoState.photos = res.photos || {}; photoState.names = res.names || {}; photoState.loaded = true; renderPeople(); }).catch(function (e) { toast("Photos load failed: " + e.message, "err"); });
+  }
   function renderPeople() {
-    var ul = $("people-list");
-    ul.innerHTML = "";
+    var ul = $("people-list"); ul.innerHTML = "";
     Object.keys(photoState.names).forEach(function (id) {
       var p = photoState.photos[id] || { items: [] };
       var li = document.createElement("li");
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "story-item" + (id === photoState.personId ? " active" : "");
-      btn.innerHTML = '<span class="si-main"><span class="si-title">' + esc(photoState.names[id]) +
-        '</span><span class="si-meta">' + (p.items ? p.items.length : 0) + ' photo(s)</span></span>';
-      btn.addEventListener("click", function () { selectPerson(id); });
-      li.appendChild(btn); ul.appendChild(li);
+      var b = document.createElement("button"); b.type = "button"; b.className = "item" + (id === photoState.personId ? " active" : "");
+      b.innerHTML = '<span class="im"><span class="it">' + esc(photoState.names[id]) + '</span><span class="is">' + (p.items ? p.items.length : 0) + ' photograph(s)</span></span>';
+      b.addEventListener("click", function () { selectPerson(id); });
+      li.appendChild(b); ul.appendChild(li);
     });
   }
-
-  function selectPerson(id) {
-    photoState.personId = id;
-    $("photo-empty").hidden = true;
-    $("photo-panel").hidden = false;
-    $("photo-person-name").textContent = photoState.names[id] || id;
-    renderPeople();
-    renderPhotoGrid();
-  }
-
+  function selectPerson(id) { photoState.personId = id; $("photo-empty").hidden = true; $("photo-panel").hidden = false; $("photo-person-name").textContent = photoState.names[id] || id; renderPeople(); renderPhotoGrid(); }
   function person() { return photoState.photos[photoState.personId] || { primary: null, items: [] }; }
-
-  function thumb(pid, it) {
-    var w = (it.portrait && it.portrait[0]) || null;
-    if (!w) return "";
-    return "/assets/photos/" + pid + "/" + it.id + ".portrait." + w + ".jpg";
-  }
+  function thumb(pid, it) { var w = (it.portrait && it.portrait[0]) || null; return w ? "/assets/photos/" + pid + "/" + it.id + ".portrait." + w + ".jpg" : ""; }
 
   function renderPhotoGrid() {
-    var pid = photoState.personId, p = person();
-    var grid = $("photo-grid"); grid.innerHTML = "";
-    if (!p.items.length) { grid.innerHTML = '<li class="subtle" style="color:var(--ink-muted)">No photographs yet — upload some above.</li>'; return; }
+    var pid = photoState.personId, p = person(), grid = $("photo-grid"); grid.innerHTML = "";
+    if (!p.items.length) { grid.innerHTML = '<li class="list-empty">No photographs yet — drop some above.</li>'; return; }
     p.items.forEach(function (it, idx) {
-      var li = document.createElement("li");
-      li.className = "photo-card" + (it.id === p.primary ? " is-primary" : "");
+      var li = document.createElement("li"); li.className = "photo-card" + (it.id === p.primary ? " is-primary" : ""); li.setAttribute("draggable", "true"); li.dataset.idx = idx;
       var src = thumb(pid, it);
-      li.innerHTML =
-        (src ? '<img class="photo-thumb" src="' + esc(src) + '" alt="" loading="lazy">' : '<div class="photo-thumb"></div>') +
+      li.innerHTML = (src ? '<img class="photo-thumb" src="' + escAttr(src) + '" alt="" loading="lazy">' : '<div class="photo-thumb"></div>') +
         '<div class="pc-body">' +
-          '<label class="pc-primary"><input type="radio" name="primary" ' + (it.id === p.primary ? "checked" : "") + '> Primary' +
-            (it.id === p.primary ? ' <span class="pc-badge">portrait</span>' : '') + '</label>' +
-          '<input type="text" class="pc-cap" placeholder="Caption" value="' + esc(it.caption || "") + '">' +
-          '<div class="pc-row"><input type="text" class="pc-year" placeholder="Year" value="' + esc(it.year || "") + '">' +
-            '<input type="text" class="pc-loc" placeholder="Location" value="' + esc(it.location || "") + '"></div>' +
-          '<input type="text" class="pc-src" placeholder="Photographer / source" value="' + esc(it.source || "") + '">' +
-          '<div class="pc-actions">' +
-            '<button type="button" class="pc-btn pc-up" ' + (idx === 0 ? "disabled" : "") + '>↑</button>' +
-            '<button type="button" class="pc-btn pc-down" ' + (idx === p.items.length - 1 ? "disabled" : "") + '>↓</button>' +
-            '<button type="button" class="pc-btn pc-del">Delete</button>' +
-          '</div>' +
+        '<label class="pc-primary"><input type="radio" name="primary" ' + (it.id === p.primary ? "checked" : "") + '> Primary portrait' + (it.id === p.primary ? ' <span class="pc-badge">shown</span>' : '') + '</label>' +
+        '<input type="text" class="pc-cap" placeholder="Caption" value="' + escAttr(it.caption || "") + '">' +
+        '<div class="pc-two"><input type="text" class="pc-year" placeholder="Year" value="' + escAttr(it.year || "") + '"><input type="text" class="pc-loc" placeholder="Location" value="' + escAttr(it.location || "") + '"></div>' +
+        '<input type="text" class="pc-src" placeholder="Photographer / source" value="' + escAttr(it.source || "") + '">' +
+        '<div class="pc-actions"><button type="button" class="mini-btn pc-up" ' + (idx === 0 ? "disabled" : "") + '>↑ Up</button><button type="button" class="mini-btn pc-down" ' + (idx === p.items.length - 1 ? "disabled" : "") + '>↓ Down</button><button type="button" class="mini-btn del">Delete</button></div>' +
         '</div>';
-      // wire events
       li.querySelector(".pc-primary input").addEventListener("change", function () { p.primary = it.id; renderPhotoGrid(); });
       li.querySelector(".pc-cap").addEventListener("input", function () { it.caption = this.value; });
       li.querySelector(".pc-year").addEventListener("input", function () { it.year = this.value || null; });
       li.querySelector(".pc-loc").addEventListener("input", function () { it.location = this.value || null; });
       li.querySelector(".pc-src").addEventListener("input", function () { it.source = this.value || null; });
-      li.querySelector(".pc-up").addEventListener("click", function () { if (idx > 0) { p.items.splice(idx - 1, 0, p.items.splice(idx, 1)[0]); renderPhotoGrid(); } });
-      li.querySelector(".pc-down").addEventListener("click", function () { if (idx < p.items.length - 1) { p.items.splice(idx + 1, 0, p.items.splice(idx, 1)[0]); renderPhotoGrid(); } });
-      li.querySelector(".pc-del").addEventListener("click", function () { deletePhoto(it.id); });
+      li.querySelector(".pc-up").addEventListener("click", function () { move(idx, idx - 1); });
+      li.querySelector(".pc-down").addEventListener("click", function () { move(idx, idx + 1); });
+      li.querySelector(".del").addEventListener("click", function () { deletePhoto(it.id); });
+      // drag reorder
+      li.addEventListener("dragstart", function (e) { photoState.dragFrom = idx; e.dataTransfer.effectAllowed = "move"; });
+      li.addEventListener("dragover", function (e) { e.preventDefault(); li.classList.add("drag-over"); });
+      li.addEventListener("dragleave", function () { li.classList.remove("drag-over"); });
+      li.addEventListener("drop", function (e) { e.preventDefault(); li.classList.remove("drag-over"); if (photoState.dragFrom != null) move(photoState.dragFrom, idx); photoState.dragFrom = null; });
       grid.appendChild(li);
     });
   }
+  function move(from, to) { var p = person(); if (to < 0 || to >= p.items.length || from === to) return; p.items.splice(to, 0, p.items.splice(from, 1)[0]); renderPhotoGrid(); }
 
   function savePhotos() {
     var pid = photoState.personId, p = person();
-    var body = { primary: p.primary, items: p.items.map(function (it) {
-      return { id: it.id, caption: it.caption || "", year: it.year || null, location: it.location || null, source: it.source || null, alt: it.alt || null };
-    }) };
-    var btn = $("photo-save"); btn.disabled = true; btn.textContent = "Saving…"; status("Rebuilding…");
-    api("PUT", "/api/photos/" + encodeURIComponent(pid), body).then(function (res) {
-      photoState.photos[pid] = res.person; toast("Saved & rebuilt."); status("Photos updated.");
-      renderPeople(); renderPhotoGrid();
-    }).catch(function (e) { toast("Save failed: " + e.message, true); })
-      .then(function () { btn.disabled = false; btn.textContent = "Save & rebuild"; });
+    var body = { primary: p.primary, items: p.items.map(function (it) { return { id: it.id, caption: it.caption || "", year: it.year || null, location: it.location || null, source: it.source || null, alt: it.alt || null }; }) };
+    var btn = $("photo-save"); btn.disabled = true; status("Rebuilding…");
+    api("PUT", "/api/photos/" + encodeURIComponent(pid), body).then(function (res) { photoState.photos[pid] = res.person; toast("Saved & rebuilt.", "ok"); status("Photographs updated."); renderPeople(); renderPhotoGrid(); })
+      .catch(function (e) { toast("Save failed: " + e.message, "err"); }).then(function () { btn.disabled = false; });
   }
   $("photo-save").addEventListener("click", savePhotos);
 
   function deletePhoto(photoId) {
-    var pid = photoState.personId;
     if (!confirm("Delete this photograph and its optimized versions? This cannot be undone.")) return;
     status("Deleting…");
-    api("DELETE", "/api/photos/" + encodeURIComponent(pid) + "/" + encodeURIComponent(photoId)).then(function (res) {
-      photoState.photos[pid] = res.person; toast("Deleted & rebuilt."); renderPeople(); renderPhotoGrid();
-    }).catch(function (e) { toast("Delete failed: " + e.message, true); });
+    api("DELETE", "/api/photos/" + encodeURIComponent(photoState.personId) + "/" + encodeURIComponent(photoId))
+      .then(function (res) { photoState.photos[photoState.personId] = res.person; toast("Deleted & rebuilt.", "ok"); renderPeople(); renderPhotoGrid(); })
+      .catch(function (e) { toast("Delete failed: " + e.message, "err"); });
   }
 
-  $("photo-upload").addEventListener("change", function () {
-    var pid = photoState.personId, files = Array.prototype.slice.call(this.files || []);
+  function uploadFiles(files) {
+    var pid = photoState.personId; files = Array.prototype.slice.call(files || []).filter(function (f) { return /image\/(jpeg|png)/.test(f.type); });
     if (!pid || !files.length) return;
-    var prog = $("upload-progress"); prog.hidden = false;
-    var done = 0, total = files.length;
-    var input = this;
+    var prog = $("upload-progress"); prog.hidden = false; var done = 0, total = files.length;
     function next(i) {
-      if (i >= total) {
-        prog.textContent = "Uploaded " + done + " of " + total + " — rebuilt.";
-        input.value = "";
-        return api("GET", "/api/photos").then(function (res) { photoState.photos = res.photos; photoState.names = res.names; renderPeople(); renderPhotoGrid(); });
-      }
+      if (i >= total) { prog.textContent = "Uploaded " + done + " of " + total + " — rebuilt."; return api("GET", "/api/photos").then(function (res) { photoState.photos = res.photos; photoState.names = res.names; renderPeople(); renderPhotoGrid(); }); }
       prog.textContent = "Uploading " + (i + 1) + " of " + total + "…";
-      var f = files[i], reader = new FileReader();
-      reader.onload = function () {
-        api("POST", "/api/photos/" + encodeURIComponent(pid), { filename: f.name, data: reader.result })
-          .then(function () { done++; next(i + 1); })
-          .catch(function (e) { toast("Upload failed: " + e.message, true); next(i + 1); });
-      };
-      reader.readAsDataURL(f);
+      var reader = new FileReader();
+      reader.onload = function () { api("POST", "/api/photos/" + encodeURIComponent(pid), { filename: files[i].name, data: reader.result }).then(function () { done++; next(i + 1); }).catch(function (e) { toast("Upload failed: " + e.message, "err"); next(i + 1); }); };
+      reader.readAsDataURL(files[i]);
     }
     next(0);
-  });
+  }
+  $("photo-upload").addEventListener("change", function () { uploadFiles(this.files); this.value = ""; });
+  var dz = $("photo-drop");
+  dz.addEventListener("click", function () { if (photoState.personId) $("photo-upload").click(); else toast("Choose a person first.", "err"); });
+  dz.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); dz.click(); } });
+  ["dragenter", "dragover"].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add("drag"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove("drag"); }); });
+  dz.addEventListener("drop", function (e) { if (!photoState.personId) { toast("Choose a person first.", "err"); return; } uploadFiles(e.dataTransfer.files); });
 })();

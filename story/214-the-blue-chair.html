@@ -382,6 +382,187 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
   .footer-grid{ flex-direction:column; gap: var(--sp-4); }
 }
 
+/* =========================================================
+   PHASE 11A — IMMERSIVE READER
+   A cinematic, museum-grade reading experience woven from the
+   memory's own data. Additive: layers over .story-body without
+   touching the tracking hooks, ending-mark, bookmark or marginalia.
+   ========================================================= */
+#story{ padding-block: clamp(var(--sp-5), 6vw, var(--sp-8)); }
+.story-card{ max-width: 44rem; margin-inline: auto; }
+
+/* --- Masthead --- */
+.story-masthead{ margin-bottom: clamp(var(--sp-4), 4vw, var(--sp-6)); }
+.story-masthead .story-stamp{ margin-bottom: var(--sp-3); }
+.story-masthead .meta{ text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.72rem; }
+.story-card h1{ font-size: clamp(2.3rem, 1.7rem + 2.6vw, 3.7rem); line-height: 1.06; letter-spacing: -0.018em;
+  margin: var(--sp-2) 0 0; text-wrap: balance; }
+.story-byline{ font-family: var(--font-voice); font-size: 0.8rem; letter-spacing: 0.02em; color: var(--ink-muted);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.55em; margin-top: var(--sp-3); }
+.story-byline .sm-dot{ opacity: 0.45; }
+.story-byline .sm-by{ color: var(--ink-secondary); }
+
+/* --- Reading rhythm --- */
+.story-body{ font-size: clamp(1.18rem, 1.08rem + 0.4vw, 1.36rem); line-height: 1.85; color: var(--ink-primary); }
+.story-body::after{ content: ""; display: block; clear: both; }
+.story-body > p{ margin: 0 0 1.4em; max-width: 62ch; }
+.story-body > p > em{ font-style: italic; }
+.lede-para{ }
+@supports (initial-letter: 3) or (-webkit-initial-letter: 3){
+  .lede-para::first-letter{ -webkit-initial-letter: 3; initial-letter: 3; color: var(--ember-core);
+    font-family: var(--font-display); font-weight: 560; margin-right: 0.08em; }
+}
+@supports not ((initial-letter: 3) or (-webkit-initial-letter: 3)){
+  .lede-para::first-letter{ float: left; font-family: var(--font-display); font-weight: 560;
+    font-size: 3.4em; line-height: 0.72; padding: 0.04em 0.12em 0 0; color: var(--ember-core); }
+}
+
+/* --- Pull quote (the memory's own summary, given room) --- */
+.mem-pullquote{ margin: clamp(var(--sp-5), 6vw, var(--sp-7)) auto; max-width: 32ch; text-align: center; clear: both; }
+.mem-pullquote blockquote{ position: relative; margin: 0; font-family: var(--font-display); font-weight: 440; font-style: italic;
+  font-size: clamp(1.55rem, 1.2rem + 1.7vw, 2.35rem); line-height: 1.26; color: var(--ink-primary); }
+.mem-pullquote blockquote::before{ content: "\201C"; display: block; font-size: 2.4em; line-height: 0.1; margin-bottom: 0.32em;
+  color: var(--thread); opacity: 0.4; font-family: var(--font-display); }
+
+/* --- Portrait pull (a face beside the prose) --- */
+.mem-portrait{ float: right; width: clamp(180px, 33%, 240px); margin: 0.4em 0 var(--sp-3) var(--sp-4); }
+.mem-portrait .mp-frame{ display: block; aspect-ratio: 4/5; padding: 8px; background: var(--paper-raised);
+  border: 1px solid var(--ink-whisper); box-shadow: 0 2px 4px rgba(60,40,20,0.06), 0 22px 46px -26px rgba(60,40,20,0.42); }
+.mem-portrait img{ width: 100%; height: 100%; object-fit: cover; display: block; }
+.mem-portrait figcaption{ margin-top: 0.65rem; text-align: center; }
+.mp-name{ display: block; font-family: var(--font-display); font-weight: 560; font-size: 0.98rem; }
+.mp-role{ display: block; font-family: var(--font-voice); font-size: 0.66rem; letter-spacing: 0.03em; color: var(--ink-muted); margin-top: 0.15rem; }
+
+/* --- Full-width memory photograph (landscape breaks out; portrait is a plate) --- */
+.mem-photo{ clear: both; margin: clamp(var(--sp-5), 6vw, var(--sp-7)) 0;
+  width: calc(100% + 2 * clamp(0px, 8vw, 130px)); margin-inline: calc(-1 * clamp(0px, 8vw, 130px)); }
+.mem-photo.is-portrait{ width: min(100%, 460px); margin-inline: auto; }
+.mem-photo .mph-frame{ overflow: hidden; border-radius: 2px; background: var(--paper-deep);
+  box-shadow: 0 3px 8px rgba(60,40,20,0.10), 0 44px 90px -46px rgba(60,40,20,0.5); }
+.mem-photo img{ width: 100%; height: auto; display: block; }
+.mem-photo figcaption{ margin-top: 0.75rem; display: flex; justify-content: center; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; text-align: center; }
+.mph-cap{ font-family: var(--font-reading); font-style: italic; font-size: 0.92rem; color: var(--ink-secondary); }
+.mph-meta{ font-family: var(--font-voice); font-size: 0.66rem; letter-spacing: 0.04em; color: var(--ink-muted); }
+
+/* --- Memory callouts (object / place / event, from the graph) --- */
+.mem-callout{ clear: both; margin: clamp(var(--sp-4), 4vw, var(--sp-5)) 0; max-width: 46ch;
+  padding: var(--sp-3) var(--sp-4); background: var(--paper-raised); border: 1px solid var(--ink-whisper);
+  border-left: 3px solid var(--tab, var(--thread)); border-radius: var(--radius-soft); }
+.mem-callout .mc-kind{ display: inline-flex; align-items: center; gap: 0.45em; font-family: var(--font-voice);
+  font-size: 0.64rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--tab, var(--ember-core)); }
+.mem-callout .mc-kind svg{ width: 15px; height: 15px; }
+.mem-callout .mc-name{ display: inline-block; font-family: var(--font-display); font-weight: 560; font-size: 1.22rem;
+  color: var(--ink-primary); text-decoration: none; margin-top: 0.25rem; }
+.mem-callout .mc-name:hover{ color: var(--ember-core); }
+.mem-callout .mc-detail{ font-size: 0.94rem; color: var(--ink-secondary); line-height: 1.5; margin: 0.35rem 0 0; }
+
+/* --- Chapter pause --- */
+.mem-pause{ display: flex; justify-content: center; gap: 0.85rem; margin: clamp(var(--sp-4), 5vw, var(--sp-6)) 0; clear: both; }
+.mem-pause span{ width: 5px; height: 5px; border-radius: 50%; background: var(--ink-whisper); }
+.mem-pause span:nth-child(2){ background: var(--thread); transform: translateY(-1px); }
+
+/* --- Ending coda (bridges into exploration) --- */
+.story-coda .container{ max-width: 40rem; text-align: center; padding-block: clamp(var(--sp-5), 6vw, var(--sp-7)); }
+.coda-mark{ display: inline-flex; gap: 0.7rem; justify-content: center; margin-bottom: var(--sp-3); }
+.coda-mark span{ width: 6px; height: 6px; border-radius: 50%; background: var(--thread); opacity: 0.55; }
+.coda-mark span:nth-child(2){ opacity: 1; transform: translateY(-3px); }
+.coda-line{ font-family: var(--font-display); font-size: clamp(1.3rem, 1.05rem + 1.1vw, 1.75rem); line-height: 1.3;
+  color: var(--ink-primary); margin-bottom: var(--sp-2); text-wrap: balance; }
+.coda-sub{ color: var(--ink-secondary); max-width: 44ch; margin-inline: auto; }
+
+@media (max-width: 640px){
+  .mem-portrait{ float: none; width: min(66%, 260px); margin: var(--sp-4) auto; }
+  .mem-photo{ width: 100%; margin-inline: 0; }
+  .story-body > p{ max-width: none; }
+}
+
+/* =========================================================
+   PHASE 11A.5 — MASTERPIECE CRAFTSMANSHIP
+   Refinement only. Elevates rhythm, choreography, photography
+   and micro-interactions. Every rule has purpose; all motion is
+   gated behind prefers-reduced-motion.
+   ========================================================= */
+
+/* Masthead: a small thread tick — a quiet "the story begins". */
+.story-masthead{ position: relative; }
+.story-masthead::after{ content: ""; display: block; width: 38px; height: 2px; border-radius: 2px;
+  background: var(--thread); opacity: 0.85; margin-top: clamp(var(--sp-3), 3vw, var(--sp-4)); }
+.story-byline .sm-when{ color: var(--ink-secondary); }
+
+/* Reading rhythm: fewer orphans, no hyphenation, a hair more air, a subtly
+   weightier opening paragraph. */
+.story-body{ line-height: 1.88; hanging-punctuation: first last; }
+.story-body > p{ text-wrap: pretty; hyphens: none; max-width: 63ch; }
+.lede-para{ font-size: 1.05em; }
+
+/* Photographic reveals — a gentle "developing" settle (never flashy). */
+@media (prefers-reduced-motion: no-preference){
+  .mem-photo, .mem-diptych, .mem-portrait{ transition: opacity 1000ms var(--ease-settle), transform 1000ms var(--ease-settle); }
+  .mem-photo:not(.is-visible), .mem-diptych:not(.is-visible){ opacity: 0; transform: translateY(22px) scale(0.986); }
+  .mem-portrait:not(.is-visible){ opacity: 0; transform: translateY(16px); }
+  .mem-photo.is-visible, .mem-diptych.is-visible, .mem-portrait.is-visible{ opacity: 1; transform: none; }
+  .mem-photo img, .mem-diptych img{ transition: filter 1300ms var(--ease-settle), transform 900ms var(--ease-settle); }
+  .mem-photo:not(.is-visible) img, .mem-diptych:not(.is-visible) img{ filter: saturate(0.82) contrast(0.97); }
+}
+
+/* Portrait pull: alternating sides + a handcrafted frame lift on hover. */
+.mem-portrait.pull-left{ float: left; margin: 0.4em var(--sp-4) var(--sp-3) 0; }
+.mem-portrait .mp-frame{ transition: transform 550ms var(--ease-settle), box-shadow 550ms var(--ease-settle); }
+.mem-portrait:hover .mp-frame{ transform: translateY(-3px); box-shadow: 0 4px 8px rgba(60,40,20,0.08), 0 30px 56px -24px rgba(60,40,20,0.5); }
+
+/* Plate widths by orientation; a whisper of zoom on hover invites a closer look. */
+.mem-photo.is-square{ width: min(100%, 560px); margin-inline: auto; }
+.mem-photo .mph-frame img{ transform-origin: center; }
+.mem-photo:hover .mph-frame img{ transform: scale(1.028); }
+
+/* Diptych — two moments held side by side. */
+.mem-diptych{ clear: both; margin: clamp(var(--sp-5), 6vw, var(--sp-7)) 0; display: grid; grid-template-columns: 1fr 1fr;
+  gap: clamp(0.5rem, 1.6vw, 1.1rem); width: calc(100% + 2 * clamp(0px, 6vw, 90px)); margin-inline: calc(-1 * clamp(0px, 6vw, 90px)); }
+.mem-diptych .dp-cell{ margin: 0; }
+.mem-diptych .dp-frame{ display: block; aspect-ratio: 4/5; overflow: hidden; background: var(--paper-deep);
+  box-shadow: 0 2px 6px rgba(60,40,20,0.08), 0 30px 60px -34px rgba(60,40,20,0.45); }
+.mem-diptych img{ width: 100%; height: 100%; object-fit: cover; display: block; transform-origin: center; }
+.mem-diptych .dp-frame:hover img{ transform: scale(1.03); }
+.mem-diptych figcaption{ margin-top: 0.5rem; text-align: center; font-family: var(--font-voice);
+  font-size: 0.66rem; letter-spacing: 0.03em; color: var(--ink-muted); }
+@media (max-width: 640px){ .mem-diptych{ grid-template-columns: 1fr; width: 100%; margin-inline: 0; } }
+
+/* Callout: quiet reveal, warmer hover. */
+.mem-callout{ transition: box-shadow 400ms var(--ease-settle), border-left-color 400ms var(--ease-settle); }
+.mem-callout:hover{ box-shadow: 0 18px 40px -30px rgba(60,40,20,0.4); }
+.mem-callout .mc-name{ transition: color 320ms var(--ease-settle); }
+
+/* Refined reading thread: thinner, with a soft glow at the growing tip. */
+.reading-thread{ width: 2px; opacity: 0.22; }
+.reading-thread-fill{ box-shadow: 0 6px 12px -2px color-mix(in srgb, var(--thread) 65%, transparent); }
+
+/* Emotional pause: "— • —" rather than three plain dots. */
+.mem-pause span{ align-self: center; }
+.mem-pause span:nth-child(1){ width: 26px; height: 1px; border-radius: 0; background: linear-gradient(90deg, transparent, var(--ink-whisper)); }
+.mem-pause span:nth-child(3){ width: 26px; height: 1px; border-radius: 0; background: linear-gradient(90deg, var(--ink-whisper), transparent); }
+.mem-pause span:nth-child(2){ width: 5px; height: 5px; }
+
+/* Coda ornament: a thread dot flanked by hairlines; more air below. */
+.coda-mark{ align-items: center; }
+.coda-mark i{ display: block; width: 30px; height: 1px; background: linear-gradient(90deg, transparent, var(--ink-whisper)); }
+.coda-mark i:last-child{ background: linear-gradient(90deg, var(--ink-whisper), transparent); }
+.coda-mark b{ display: block; width: 7px; height: 7px; border-radius: 50%; background: var(--thread); }
+.story-coda .container{ padding-block: clamp(var(--sp-6), 8vw, var(--sp-8)); }
+
+/* Section choreography: soften hard rules into centred hairlines so the acts
+   flow into one another instead of snapping. */
+.story-connections{ border-top: none; }
+.related-memories, .return-invite{ border-top: none; position: relative; }
+.related-memories::before, .return-invite::before{ content: ""; position: absolute; top: 0; left: 50%;
+  transform: translateX(-50%); width: min(78%, 40rem); height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ink-whisper), transparent); }
+
+@media (prefers-reduced-motion: reduce){
+  .mem-photo, .mem-diptych, .mem-portrait, .mem-callout{ opacity: 1 !important; transform: none !important; }
+  .mem-photo img, .mem-diptych img{ filter: none !important; }
+  .mem-portrait:hover .mp-frame, .mem-photo:hover .mph-frame img, .mem-diptych .dp-frame:hover img{ transform: none; }
+}
+
 @media print{
   .site-header, .mobile-panel, .skip-link, .theme-toggle, .candle-indicator,
   .marginalia-form, .marginalia .prompt, .reading-thread, .return-invite{ display: none !important; }
@@ -461,25 +642,65 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
   <section id="story">
     <div class="container">
       <div class="story-card reveal" id="hl-story" data-story-id="214" data-theme="momdad" data-reading-time="2" data-url="story/214-the-blue-chair.html">
-        <div class="story-stamp">
-          <span class="thread-dot" aria-hidden="true"></span>
-          <span class="meta">Story No. 214 &middot; September 3, 2021 &middot; Mom and Dad Stories</span>
-          <button class="hl-bookmark" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
-            <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-            <span class="hl-bm-label">Save</span>
-          </button>
-        </div>
+        <header class="story-masthead">
+          <div class="story-stamp">
+            <span class="thread-dot" aria-hidden="true"></span>
+            <span class="meta">Story No. 214 &middot; Mom and Dad Stories</span>
+            <button class="hl-bookmark" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
+              <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span class="hl-bm-label">Save</span>
+            </button>
+          </div>
 
-        <h1 class="resolve">The Blue Chair</h1>
+          <h1 class="resolve">The Blue Chair</h1>
+
+          <p class="story-byline"><span class="sm-when">c. late 1990s–2010s — spans roughly two decades, no single date</span><span class="sm-dot" aria-hidden="true">·</span><span class="sm-read">2 min read</span><span class="sm-dot" aria-hidden="true">·</span><span class="sm-by">Remembered by Hal</span></p>
+        </header>
 
         <div class="story-body">
-          <p>There was a recliner in the corner of the den that my father called his office, though as far as any of us could tell, the only business conducted there was arguing with the evening news and falling asleep before <em>Wheel of Fortune</em> finished. It was the color of a swimming pool on a postcard — a blue nobody would have chosen on purpose, which is probably why he loved it. My mother tried to replace it three times over twenty years. Three times it came back from the curb, carried in by my father like a man rescuing a dog from a shelter. The chair had a permanent dent shaped like him — a groove worn into the right armrest where his watch used to click against the wood trim while he read the paper.</p>
+          <p class="lede-para">There was a recliner in the corner of the den that my father called his office, though as far as any of us could tell, the only business conducted there was arguing with the evening news and falling asleep before <em>Wheel of Fortune</em> finished. It was the color of a swimming pool on a postcard — a blue nobody would have chosen on purpose, which is probably why he loved it. My mother tried to replace it three times over twenty years. Three times it came back from the curb, carried in by my father like a man rescuing a dog from a shelter. The chair had a permanent dent shaped like him — a groove worn into the right armrest where his watch used to click against the wood trim while he read the paper.</p>
+
+          <figure class="mem-module mem-pullquote reveal"><blockquote>He rescued that chair from the curb three times.</blockquote></figure>
 
           <p>When I was young I thought all fathers had a chair like this: a place in the house that was unmistakably theirs, that the rest of us orbited rather than occupied.</p>
 
+          <aside class="mem-module mem-callout reveal" data-kind="place" style="--tab:#6B7A8C">
+            <span class="mc-kind"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="1.5" fill="currentColor"><path d="M12 21s-6-5.3-6-10a6 6 0 1 1 12 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2" fill="none"/></svg>Where it happened</span>
+            <a class="mc-name" href="../place/the-den.html" data-entity-id="pl-den" data-kind="place">The den</a>
+            <p class="mc-detail">A family home in Toledo, Ohio</p>
+          </aside>
+
+          <figure class="mem-module mem-portrait pull-right reveal">
+            <span class="mp-frame"><picture>
+              <source type="image/webp" srcset="../assets/photos/hal/hal.portrait.176.webp 176w, ../assets/photos/hal/hal.portrait.352.webp 352w, ../assets/photos/hal/hal.portrait.528.webp 528w" sizes="(max-width:640px) 60vw, 240px">
+              <img src="../assets/photos/hal/hal.portrait.528.jpg" srcset="../assets/photos/hal/hal.portrait.176.jpg 176w, ../assets/photos/hal/hal.portrait.352.jpg 352w, ../assets/photos/hal/hal.portrait.528.jpg 528w" sizes="(max-width:640px) 60vw, 240px" width="528" height="528" style="object-position:48% 42%" alt="Hal" loading="lazy" decoding="async">
+            </picture></span>
+            <figcaption><span class="mp-name">Hal</span><span class="mp-role">Harlan's brother</span></figcaption>
+          </figure>
+
           <p>He died on a Tuesday in March, and for a long time nobody in the house could sit in that chair. It just sat there, blue and empty and somehow still fully his, the way a coat still holds the shape of the person who wore it last.</p>
 
+          <aside class="mem-module mem-callout reveal" data-kind="object" style="--tab:#5F8A82">
+            <span class="mc-kind"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="1.5" fill="currentColor"><path d="M4 8l8-4 8 4-8 4-8-4z"/><path d="M4 8v8l8 4 8-4V8" fill="none"/></svg>Remembered object</span>
+            <a class="mc-name" href="../object/the-blue-recliner.html" data-entity-id="o-blue-chair" data-kind="object">The blue recliner</a>
+            <p class="mc-detail">Rescued from the curb three times over twenty years</p>
+          </aside>
+
           <p>It was my mother who finally sat in it, almost a year later, on a Friday evening before the candles were lit. She didn't say anything about it. She just sat down the way you'd sit in any chair, picked up the remote, and watched the news the way he used to — arguing quietly with the anchor under her breath.</p>
+
+          <aside class="mem-module mem-callout reveal" data-kind="event" style="--tab:#B99189">
+            <span class="mc-kind"><svg viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" stroke-width="1.5" fill="currentColor"><circle cx="12" cy="12" r="8" fill="none"/><path d="M12 8v4l3 2" fill="none"/></svg>A moment in time</span>
+            <a class="mc-name" href="../event/harlans-death.html" data-entity-id="e-harlan-death" data-kind="event">Harlan's passing</a>
+            <p class="mc-detail">Funeral arrangements were held in Toledo, Ohio.</p>
+          </aside>
+
+          <figure class="mem-module mem-photo is-wide reveal">
+            <div class="mph-frame"><picture>
+              <source type="image/webp" srcset="../assets/photos/hal/hal-yaffe-harlan-yaffe.full.552.webp 552w" sizes="(max-width:900px) 100vw, 860px">
+              <img src="../assets/photos/hal/hal-yaffe-harlan-yaffe.full.552.jpg" srcset="../assets/photos/hal/hal-yaffe-harlan-yaffe.full.552.jpg 552w" sizes="(max-width:900px) 100vw, 860px" width="552" height="504" alt="Hal" loading="lazy" decoding="async">
+            </picture></div>
+            <figcaption><span class="mph-cap">Hal</span></figcaption>
+          </figure>
 
           <p>Nobody in the family has ever gotten rid of that chair. It's still blue. It's still ugly. The dent in the armrest is still there, a little deeper now, holding two shapes instead of one.</p>
 
@@ -496,6 +717,14 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
           <div class="marginalia-notes" id="marginalia-notes" aria-live="polite"></div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="story-coda" aria-label="End of memory">
+    <div class="container reveal">
+      <span class="coda-mark" aria-hidden="true"><i></i><b></b><i></i></span>
+      <p class="coda-line">One of 378 Fridays, kept the way this one was.</p>
+      <p class="coda-sub">The thread doesn't end here — it only turns. Follow where this memory leads.</p>
     </div>
   </section>
 
@@ -579,6 +808,14 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
       <h2>Continue exploring</h2>
       <p class="ce-sub">Where this memory reaches across the archive.</p>
       <div class="explore-grid">
+        <a class="explore-card ec-story" href="../story/303-following-the-trail-harlan-left-us.html" style="--tab-color:#B8964F">
+          <span class="xc-body">
+            <span class="xc-badge">Story</span>
+            <span class="xc-title">Following the Trail Harlan Left Us</span>
+            <span class="xc-desc">Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple words: Six…</span>
+            <span class="xc-meta">Story No. 303</span>
+          </span>
+        </a>
         <a class="explore-card ec-entity" data-entity-id="hal" data-kind="person" href="../family/hal.html" style="--tab-color:#A8735A">
           <span class="xc-media"><picture><source type="image/webp" srcset="../assets/photos/hal/hal.portrait.176.webp"></source><img src="../assets/photos/hal/hal.portrait.176.jpg" width="176" height="176" style="object-position:48% 42%" alt="" loading="lazy" decoding="async"></picture></span>
           <span class="xc-body">
@@ -623,15 +860,6 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
             <span class="xc-meta">2 memories</span>
           </span>
         </a>
-        <a class="explore-card ec-entity" data-entity-id="harlan" data-kind="person" href="../family/harlan.html" style="--tab-color:#A8735A">
-          <span class="xc-media"><picture><source type="image/webp" srcset="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.webp"></source><img src="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg" width="176" height="176" style="object-position:57% 42%" alt="" loading="lazy" decoding="async"></picture></span>
-          <span class="xc-body">
-            <span class="xc-badge">Person</span>
-            <span class="xc-title">Harlan</span>
-            <span class="xc-desc">The subject of every story</span>
-            <span class="xc-meta">10 memories</span>
-          </span>
-        </a>
       </div>
     </div>
   </section>
@@ -664,8 +892,7 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
       <div class="footer-col">
         <h4>Elsewhere</h4>
         <ul>
-          <!-- TODO(Daniel): replace with the real Harlan's Legacy Facebook page URL -->
-          <li><a href="#" target="_blank" rel="noopener noreferrer">Facebook — where it started</a></li>
+          <li><a href="https://www.facebook.com/halyes" target="_blank" rel="noopener noreferrer">Facebook — where it started</a></li>
         </ul>
       </div>
     </div>
@@ -719,7 +946,7 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
     var day = new Date().getDay();
     var isLit = (day === 5);
     var daysUntil = (5 - day + 7) % 7;
-    var label = isLit ? "Lit today — a new story" : (day === 6 ? "New story in 6 days" : "New story in " + daysUntil + " day" + (daysUntil === 1 ? "" : "s"));
+    var label = isLit ? "Lit today — a new story" : "New story in " + daysUntil + " day" + (daysUntil === 1 ? "" : "s");
     [
       { el: document.getElementById("candle-indicator-desktop"), lbl: document.getElementById("candle-label-desktop") },
       { el: document.getElementById("candle-indicator-mobile"), lbl: document.getElementById("candle-label-mobile") }

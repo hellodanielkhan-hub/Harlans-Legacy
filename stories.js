@@ -270,11 +270,55 @@ window.HL_STORIES = [
     "readingTime": null,
     "keywords": [],
     "url": null
+  },
+  {
+    "id": 303,
+    "slug": "following-the-trail-harlan-left-us",
+    "title": "Following the Trail Harlan Left Us",
+    "published": true,
+    "status": "published",
+    "publishDate": "2026-07-31",
+    "memoryDate": null,
+    "summary": "Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple words: Six…",
+    "excerpt": "Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple words:",
+    "themes": [
+      "shabbat"
+    ],
+    "people": [
+      "Harlan"
+    ],
+    "places": [
+      "Toledo, Ohio"
+    ],
+    "objects": [],
+    "events": [],
+    "bookPart": "Jewish Life / Shabbat",
+    "echoStories": [
+      88,
+      105,
+      122,
+      137,
+      168
+    ],
+    "readingTime": 7,
+    "keywords": [
+      "family",
+      "harlan",
+      "julius",
+      "yaffe",
+      "tree",
+      "father",
+      "harry",
+      "born",
+      "Toledo",
+      "Ohio"
+    ],
+    "url": "story/303-following-the-trail-harlan-left-us.html"
   }
 ];
 window.HL_ARCHIVE = {
-  "total": 1,
-  "featured": 214,
+  "total": 2,
+  "featured": 303,
   "themes": {
     "funny": "Funny Harlan Stories",
     "momdad": "Mom and Dad Stories",
@@ -294,7 +338,23 @@ window.HL_ARCHIVE = {
       "summary": "He rescued that chair from the curb three times.",
       "dateLabel": "Sep 2021",
       "readingTime": 2,
-      "rec": []
+      "rec": [
+        303
+      ]
+    },
+    {
+      "id": 303,
+      "slug": "following-the-trail-harlan-left-us",
+      "title": "Following the Trail Harlan Left Us",
+      "url": "story/303-following-the-trail-harlan-left-us.html",
+      "theme": "shabbat",
+      "themeLabel": "Jewish Life / Shabbat",
+      "summary": "Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple words: Six…",
+      "dateLabel": "Jul 2026",
+      "readingTime": 7,
+      "rec": [
+        214
+      ]
     }
   ]
 };

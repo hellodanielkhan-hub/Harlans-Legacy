@@ -530,9 +530,9 @@ html[data-theme="night"] .journey-hero{ --jglow:32%; }
           </span>
         </a>
         <a class="jrec" href="../journey/faith-traditions.html">
-          <span class="jrec-cover"><span class="jc jc-art" style="--tab-color:var(--thread-shabbat)" aria-hidden="true"><span class="jc-ghost">Faith &amp; Traditions</span></span><span class="jrec-scrim"></span></span>
+          <span class="jrec-cover"><span class="jc jc-motif" style="--tab-color:var(--thread-shabbat)" aria-hidden="true"><span class="jc-ghost">Toledo, Ohio</span></span><span class="jrec-scrim"></span></span>
           <span class="jrec-body">
-            <span class="jrec-kicker">2 memories</span>
+            <span class="jrec-kicker">3 memories</span>
             <span class="jrec-title">Faith &amp; Traditions</span>
             <span class="jrec-desc">Shabbat kept most Fridays — sometimes imperfectly, always on purpose.</span>
           </span>
@@ -579,7 +579,7 @@ html[data-theme="night"] .journey-hero{ --jglow:32%; }
             <span class="xc-badge">Person</span>
             <span class="xc-title">Harlan</span>
             <span class="xc-desc">The subject of every story</span>
-            <span class="xc-meta">10 memories</span>
+            <span class="xc-meta">11 memories</span>
           </span>
         </a>
         <a class="explore-card ec-journey" href="../journey/family-home.html" style="--tab-color:#A8735A">
@@ -603,7 +603,7 @@ html[data-theme="night"] .journey-hero{ --jglow:32%; }
             <span class="xc-badge">Journey</span>
             <span class="xc-title">Faith &amp; Traditions</span>
             <span class="xc-desc">Shabbat kept most Fridays — sometimes imperfectly, always on purpose.</span>
-            <span class="xc-meta">2 memories</span>
+            <span class="xc-meta">3 memories</span>
           </span>
         </a>
       </div>
@@ -662,7 +662,7 @@ html[data-theme="night"] .journey-hero{ --jglow:32%; }
       <div class="footer-col">
         <h4>Elsewhere</h4>
         <ul>
-          <li><a href="#" target="_blank" rel="noopener noreferrer">Facebook — where it started</a></li>
+          <li><a href="https://www.facebook.com/halyes" target="_blank" rel="noopener noreferrer">Facebook — where it started</a></li>
         </ul>
       </div>
     </div>
@@ -707,7 +707,7 @@ html[data-theme="night"] .journey-hero{ --jglow:32%; }
 
   function updateCandle(){
     var day = new Date().getDay(); var isLit = (day === 5); var daysUntil = (5 - day + 7) % 7;
-    var label = isLit ? "Lit today — a new story" : (day === 6 ? "New story in 6 days" : "New story in " + daysUntil + " day" + (daysUntil === 1 ? "" : "s"));
+    var label = isLit ? "Lit today — a new story" : "New story in " + daysUntil + " day" + (daysUntil === 1 ? "" : "s");
     [ { el:document.getElementById("candle-indicator-desktop"), lbl:document.getElementById("candle-label-desktop") },
       { el:document.getElementById("candle-indicator-mobile"), lbl:document.getElementById("candle-label-mobile") } ].forEach(function(pair){
       if (!pair.el) return; pair.el.classList.toggle("is-lit", isLit); pair.lbl.textContent = label;

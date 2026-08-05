@@ -57,7 +57,27 @@
     setCaption(slides[idx]);
 
     if (reduceMotion || slides.length < 2) return;
-    var ROTATE = 6500, timer = null;
+    var ROTATE = 6500, timer = null, inView = false, primed = false;
+
+    // Root cause of "rotates on mobile, not desktop": the exhibit sits far
+    // below the fold on desktop, so its slide images stay lazy/unloaded and the
+    // timer (started at load) cross-dissolves through blank frames — it looks
+    // frozen. Fix: only rotate while the exhibit is actually on screen, and
+    // eagerly decode every slide the first time it appears, so each dissolve
+    // always lands on a real photograph. This is also more efficient — no work
+    // happens while the exhibit is off-screen.
+    function prime() {
+      if (primed) return; primed = true;
+      slides.forEach(function (s) {
+        var img = s.querySelector("img");
+        if (!img) return;
+        img.loading = "eager";
+        if (!(img.complete && img.naturalWidth > 0)) {
+          var pre = new Image();
+          if (img.currentSrc || img.getAttribute("src")) pre.src = img.currentSrc || img.getAttribute("src");
+        }
+      });
+    }
     function tick() {
       var prev = slides[idx];
       idx = (idx + 1) % slides.length;
@@ -66,9 +86,17 @@
       prev.classList.remove("is-visible");
       setCaption(next);
     }
-    function schedule() { window.clearTimeout(timer); if (!document.hidden) timer = window.setTimeout(function () { tick(); schedule(); }, ROTATE); }
-    document.addEventListener("visibilitychange", function () { if (document.hidden) window.clearTimeout(timer); else schedule(); });
-    schedule();
+    function running() { return inView && !document.hidden; }
+    function schedule() { window.clearTimeout(timer); if (running()) timer = window.setTimeout(function () { tick(); schedule(); }, ROTATE); }
+    document.addEventListener("visibilitychange", schedule);
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) { inView = en.isIntersecting; if (inView) prime(); schedule(); });
+      }, { threshold: 0.25 });
+      io.observe(fig);
+    } else {
+      inView = true; prime(); schedule();
+    }
   })();
 
   /* ---- Hero candle cinemagraph ----

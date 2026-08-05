@@ -123,7 +123,31 @@
                 <div class="readtime" style="cursor:pointer;" id="goto-photos" role="button" tabindex="0" title="Open the Photographs workspace">
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-8 7"/></svg>
                   Manage portraits in the Photographs workspace →</div>
-                <p class="hint">Photographs live with each person (drag &amp; drop, ordering, primary portrait) and flow into every memory they touch.</p>
+                <p class="hint">Family portraits live with each person (below). This memory can also carry its own editorial images ↓.</p>
+              </div>
+            </section>
+
+            <!-- ---- story editorial images + reader placement ---- -->
+            <section class="panel" id="story-images-panel">
+              <div class="panel-head"><h2>Images for this memory</h2><span class="ph-note">Editorial material — streets, documents, objects, maps. Separate from family photos.</span></div>
+              <div class="dropzone" id="si-drop" role="button" tabindex="0" aria-label="Upload editorial images">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                <p><b>Drag images here</b> or click to choose</p>
+                <p class="upload-note">JPEG or PNG · unlimited · optimized into responsive WebP + JPEG on upload · save the memory first to give it a home</p>
+              </div>
+              <input type="file" id="si-upload" accept="image/jpeg,image/png" multiple hidden>
+              <p class="upload-note" id="si-progress" hidden></p>
+              <ul class="photo-grid" id="si-grid"></ul>
+
+              <div class="reader-plan">
+                <div class="panel-head" style="margin-top:1.4rem;"><h2 style="font-size:1.05rem;">Reader placement</h2><span class="ph-note" id="rp-mode">Automatic</span></div>
+                <p class="ai-intro">By default the reader weaves images automatically. Load the automatic picks to fine-tune each one — <b>disable, replace, re-caption, reorder or move</b> — or add your own. Manual choices always win.</p>
+                <div class="ai-run">
+                  <button class="btn btn-soft" id="rp-auto" type="button">Load automatic picks</button>
+                  <button class="btn btn-ghost" id="rp-add" type="button">+ Add image</button>
+                  <button class="btn btn-ghost" id="rp-reset" type="button" hidden>Reset to automatic</button>
+                </div>
+                <div id="rp-list"></div>
               </div>
             </section>
 

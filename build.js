@@ -79,6 +79,13 @@ function loadData() {
   if (entities.family && entities.family.people) {
     entities.family.people.forEach(p => { p.photos = photos[p.id] || { primary: null, items: [] }; });
   }
+  // Attach each story's own editorial image gallery (data/story-photos.json).
+  const storyPhotosPath = path.join(DATA, "story-photos.json");
+  const storyPhotos = fs.existsSync(storyPhotosPath) ? readJSON(storyPhotosPath) : {};
+  stories.forEach(s => {
+    s.storyPhotos = storyPhotos["story-" + s.id] || { primary: null, items: [] };
+    s.readerImages = Array.isArray(s.readerImages) ? s.readerImages : [];
+  });
   stories.forEach(s => {
     const t = site.themes[s.theme] || { label: "", thread: "#B8B4A8" };
     s.themeLabel = t.label;
@@ -137,9 +144,15 @@ function renderArchiveCard(s) {
   return `        <article class="card-catalogue" data-theme="${s.theme}" style="${tab}">\n${inner}\n        </article>`;
 }
 
-function renderArchiveCards(stories, featured) {
-  return stories
-    .filter(s => !featured || s.id !== featured.id)
+// The archive lists EVERY story — including This Week's featured one — so a
+// newly published memory always surfaces here (and in the theme filters /
+// categories), never buried. Order: published first, then newest first, so
+// fresh publications lead the grid instead of sitting under coming-soon cards.
+function renderArchiveCards(stories) {
+  const rank = s => (s.published ? 0 : 1);
+  const dkey = s => s.publishedISO || "0000-00-00";
+  return stories.slice()
+    .sort((a, b) => rank(a) - rank(b) || (dkey(a) < dkey(b) ? 1 : dkey(a) > dkey(b) ? -1 : 0) || b.id - a.id)
     .map(renderArchiveCard)
     .join("\n\n");
 }
@@ -189,7 +202,7 @@ function buildIndex(site, stories, featured, journeys, entities) {
   }
   html = injectRegion(html, "ABOUT_PORTRAITS", renderHomePortraits(entities));
   html = injectRegion(html, "DISCOVER", journeysLib.renderDiscoverCards(journeys || [], ""));
-  html = injectRegion(html, "ARCHIVE_CARDS", renderArchiveCards(stories, featured));
+  html = injectRegion(html, "ARCHIVE_CARDS", renderArchiveCards(stories));
   html = injectRegion(html, "ARCHIVE_COUNT", `${site.archiveTotal}`);
   html = injectRegion(html, "QUOTE", renderQuote(site));
   html = injectRegion(html, "BOOK_PROGRESS", renderBookProgress(site));

@@ -18,8 +18,10 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
-const { build } = require("./build.js");
-const { processPhotos } = require("./lib/photos.js");
+const { build, loadData } = require("./build.js");
+const { processPhotos, processStoryPhotos } = require("./lib/photos.js");
+const { buildGraph } = require("./lib/graph.js");
+const { autoPlan } = require("./lib/reader.js");
 
 const ROOT = __dirname;
 const DATA = path.join(ROOT, "data");
@@ -29,6 +31,9 @@ const ENTITIES = path.join(DATA, "entities.json");
 const PHOTOS_JSON = path.join(DATA, "photos.json");
 const PHOTOS_SRC = path.join(ROOT, "photos");
 const PHOTOS_OUT = path.join(ROOT, "assets", "photos");
+const STORY_PHOTOS_JSON = path.join(DATA, "story-photos.json");
+const STORY_PHOTOS_SRC = path.join(ROOT, "story-photos");
+const STORY_PHOTOS_OUT = path.join(ROOT, "assets", "story-photos");
 const PORT = process.env.PORT || 4317;
 
 const MIME = {
@@ -76,6 +81,8 @@ function normalize(input, existing) {
   });
   s.bookPart = s.bookPart || null;
   s.readingTime = (s.readingTime === 0 || s.readingTime) ? s.readingTime : null;
+  // Manual reader-image override plan (empty = automatic composition).
+  s.readerImages = Array.isArray(s.readerImages) ? s.readerImages : [];
   return s;
 }
 
@@ -124,6 +131,14 @@ function rmDerivatives(personId, photoId) {
   fs.readdirSync(dir).filter(f => f.indexOf(photoId + ".") === 0)
     .forEach(f => { try { fs.unlinkSync(path.join(dir, f)); } catch (e) {} });
 }
+function rmStoryDerivatives(key, photoId) {
+  const dir = path.join(STORY_PHOTOS_OUT, key);
+  if (!fs.existsSync(dir)) return;
+  fs.readdirSync(dir).filter(f => f.indexOf(photoId + ".") === 0)
+    .forEach(f => { try { fs.unlinkSync(path.join(dir, f)); } catch (e) {} });
+}
+// A safe story-gallery directory key derived from the story id.
+function storyKey(id) { return "story-" + String(id).replace(/[^0-9a-zA-Z-]/g, ""); }
 
 /* ---------- static files ---------- */
 function serveStatic(req, res, pathname) {
@@ -165,6 +180,16 @@ async function handleApi(req, res, url) {
 
     if (resource === "build" && req.method === "POST") {
       return sendJSON(res, 200, rebuild());
+    }
+
+    // GET /api/reader-plan/:id → the images AUTO composition would pick for this
+    // story, so the CMS can show and override them. Read-only; no rebuild.
+    if (resource === "reader-plan" && req.method === "GET" && idParam != null) {
+      const data = loadData();
+      const s = data.stories.find(x => x.id === idParam);
+      if (!s) return sendJSON(res, 404, { error: "No story " + idParam });
+      const graph = buildGraph(data.stories, data.entities);
+      return sendJSON(res, 200, { plan: autoPlan(s, graph), storyPhotos: s.storyPhotos || { items: [] } });
     }
 
     /* ------------------------------------------------------------------
@@ -306,6 +331,73 @@ async function handleApi(req, res, url) {
         await processPhotos();
         const updated = readJSON(PHOTOS_JSON);
         return sendJSON(res, 200, { ok: true, person: updated[personId], build: rebuild() });
+      }
+    }
+
+    /* ---------- per-story editorial images ---------- */
+    if (resource === "story-photos") {
+      const sid = parts[2] ? decodeURIComponent(parts[2]) : null;
+      const photoId = parts[3] ? decodeURIComponent(parts[3]) : null;
+      const key = sid != null ? storyKey(sid) : null;
+      const manifest = fs.existsSync(STORY_PHOTOS_JSON) ? readJSON(STORY_PHOTOS_JSON) : {};
+
+      if (req.method === "GET" && sid == null) return sendJSON(res, 200, manifest);
+      if (req.method === "GET" && sid != null) return sendJSON(res, 200, manifest[key] || { primary: null, items: [] });
+
+      // POST /api/story-photos/:id  → upload one editorial image
+      if (req.method === "POST" && sid != null) {
+        const body = await readBody(req);
+        if (!body.data || !body.filename) return sendJSON(res, 400, { error: "filename and data (base64) required" });
+        const b64 = String(body.data).replace(/^data:[^;]+;base64,/, "");
+        const buf = Buffer.from(b64, "base64");
+        if (!buf.length) return sendJSON(res, 400, { error: "empty image" });
+        const ext = /\.png$/i.test(body.filename) ? ".png" : ".jpg";
+        const dir = path.join(STORY_PHOTOS_SRC, key);
+        fs.mkdirSync(dir, { recursive: true });
+        let base = photoSlug(body.filename) || ("image-" + Date.now());
+        let file = base + ext, n = 1;
+        while (fs.existsSync(path.join(dir, file))) { file = base + "-" + (++n) + ext; }
+        fs.writeFileSync(path.join(dir, file), buf);
+        await processStoryPhotos();
+        const updated = readJSON(STORY_PHOTOS_JSON);
+        return sendJSON(res, 201, { ok: true, gallery: updated[key], build: rebuild() });
+      }
+
+      // PUT /api/story-photos/:id  → save order + primary + captions + focal point
+      if (req.method === "PUT" && sid != null) {
+        const body = await readBody(req);
+        const current = manifest[key] || { primary: null, items: [] };
+        const byId = {}; current.items.forEach(it => { byId[it.id] = it; });
+        const items = (body.items || []).map(x => {
+          const b = byId[x.id]; if (!b) return null;
+          return Object.assign({}, b, {
+            caption: x.caption != null ? x.caption : b.caption,
+            year: x.year != null ? x.year : b.year,
+            location: x.location != null ? x.location : b.location,
+            source: x.source != null ? x.source : b.source,
+            alt: x.alt != null ? x.alt : b.alt,
+            focus: (x.focus && typeof x.focus.x === "number") ? { x: x.focus.x, y: x.focus.y } : b.focus
+          });
+        }).filter(Boolean);
+        current.items.forEach(it => { if (!items.find(i => i.id === it.id)) items.push(it); });
+        let primary = body.primary;
+        if (!primary || !items.find(it => it.id === primary)) primary = items[0] ? items[0].id : null;
+        manifest[key] = { primary, items };
+        writeJSON(STORY_PHOTOS_JSON, manifest);
+        return sendJSON(res, 200, { ok: true, gallery: manifest[key], build: rebuild() });
+      }
+
+      // DELETE /api/story-photos/:id/:photoId
+      if (req.method === "DELETE" && sid != null && photoId) {
+        const g = manifest[key];
+        if (!g) return sendJSON(res, 404, { error: "No gallery " + key });
+        const item = g.items.find(it => it.id === photoId);
+        if (!item) return sendJSON(res, 404, { error: "No image " + photoId });
+        try { fs.unlinkSync(path.join(STORY_PHOTOS_SRC, key, item.file)); } catch (e) {}
+        rmStoryDerivatives(key, photoId);
+        await processStoryPhotos();
+        const updated = readJSON(STORY_PHOTOS_JSON);
+        return sendJSON(res, 200, { ok: true, gallery: updated[key] || { primary: null, items: [] }, build: rebuild() });
       }
     }
 

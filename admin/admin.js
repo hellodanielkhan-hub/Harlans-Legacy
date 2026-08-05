@@ -15,7 +15,7 @@
   var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   var THREADS = { funny: "var(--thread-funny,#8f9a80)", momdad: "#A8735A", toledo: "#6B7A8C", shabbat: "#B8964F", grief: "#B99189", ordinary: "#5F8A82" };
 
-  var state = { stories: [], site: null, entities: null, selectedId: null, filter: "", status: "coming-soon", dirty: false, isNew: false, lastSuggestions: null };
+  var state = { stories: [], site: null, entities: null, selectedId: null, filter: "", status: "coming-soon", dirty: false, isNew: false, lastSuggestions: null, readerPlan: [], readerManual: false, storyGallery: { primary: null, items: [] } };
 
   /* ---------------- api ---------------- */
   function api(method, path, body) {
@@ -124,6 +124,12 @@
     $("delete-btn").hidden = !!isNew;
     $("ai-suggestions").innerHTML = ""; $("ai-apply-all").hidden = true; state.lastSuggestions = null;
     state.dirty = false;
+    // reader images: manual plan if the story carries one, else automatic
+    state.readerPlan = Array.isArray(s.readerImages) ? s.readerImages.slice() : [];
+    state.readerManual = state.readerPlan.length > 0;
+    state.storyGallery = { primary: null, items: [] };
+    renderReaderPlan();
+    if (!isNew) loadStoryImages(s.id); else renderStoryGrid();
     updateDerived(); updateSaveState(false, isNew ? "New — not yet saved" : (s.status === "published" ? "Published & live" : titleCase(s.status || "draft")));
     updateOpenLink(s, isNew);
   }
@@ -214,7 +220,8 @@
       people: lines("f-people"), places: lines("f-places"), objects: lines("f-objects"), events: lines("f-events"),
       bookPart: $("f-bookpart").value.trim() || null,
       keywords: keywords, echoStories: echoes,
-      readingTime: reading === "" ? computedReading() : parseInt(reading, 10)
+      readingTime: reading === "" ? computedReading() : parseInt(reading, 10),
+      readerImages: state.readerManual ? state.readerPlan : []
     };
   }
 
@@ -488,4 +495,131 @@
   ["dragenter", "dragover"].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add("drag"); }); });
   ["dragleave", "drop"].forEach(function (ev) { dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove("drag"); }); });
   dz.addEventListener("drop", function (e) { if (!photoState.personId) { toast("Choose a person first.", "err"); return; } uploadFiles(e.dataTransfer.files); });
+
+  /* ====================== STORY IMAGES + READER PLACEMENT ====================== */
+  function siThumb(it) { var w = (it.portrait && it.portrait[0]) || (it.full && it.full[0]); return w ? "/assets/story-photos/" + storyKeyOf() + "/" + it.id + ".portrait." + w + ".jpg" : ((it.full && it.full[0]) ? "/assets/story-photos/" + storyKeyOf() + "/" + it.id + ".full." + it.full[0] + ".jpg" : ""); }
+  function storyKeyOf() { return "story-" + state.selectedId; }
+  function loadStoryImages(id) {
+    if (id == null) { state.storyGallery = { primary: null, items: [] }; renderStoryGrid(); return; }
+    api("GET", "/api/story-photos/" + id).then(function (g) { state.storyGallery = g || { primary: null, items: [] }; renderStoryGrid(); renderReaderPlan(); }).catch(function () { state.storyGallery = { primary: null, items: [] }; renderStoryGrid(); });
+  }
+  var siSaveTimer;
+  function putStoryImages() {
+    if (state.selectedId == null) return;
+    clearTimeout(siSaveTimer);
+    siSaveTimer = setTimeout(function () {
+      var g = state.storyGallery;
+      var body = { primary: g.primary, items: g.items.map(function (it) { return { id: it.id, caption: it.caption || "", year: it.year || null, location: it.location || null, source: it.source || null, alt: it.alt || null, focus: it.focus || null }; }) };
+      status("Rebuilding…");
+      api("PUT", "/api/story-photos/" + state.selectedId, body).then(function (r) { state.storyGallery = r.gallery; status("Images updated."); }).catch(function (e) { toast("Image save failed: " + e.message, "err"); });
+    }, 500);
+  }
+  function renderStoryGrid() {
+    var grid = $("si-grid"); if (!grid) return; grid.innerHTML = "";
+    var g = state.storyGallery;
+    if (state.selectedId == null) { grid.innerHTML = '<li class="list-empty">Save the memory first, then add its images.</li>'; return; }
+    if (!g.items.length) { grid.innerHTML = '<li class="list-empty">No editorial images yet — drop some above.</li>'; return; }
+    g.items.forEach(function (it, idx) {
+      var li = document.createElement("li"); li.className = "photo-card" + (it.id === g.primary ? " is-primary" : "");
+      var src = siThumb(it); var f = it.focus || { x: 50, y: 50 };
+      li.innerHTML = '<div class="si-focus">' + (src ? '<img class="photo-thumb focusable" src="' + escAttr(src) + '" alt="" loading="lazy" style="object-position:' + f.x + '% ' + f.y + '%">' : '<div class="photo-thumb"></div>') + '<span class="focus-dot" style="left:' + f.x + '%;top:' + f.y + '%"></span></div>' +
+        '<div class="pc-body">' +
+        '<label class="pc-primary"><input type="radio" name="si-primary" ' + (it.id === g.primary ? "checked" : "") + '> Primary' + (it.id === g.primary ? ' <span class="pc-badge">shown</span>' : '') + '</label>' +
+        '<input type="text" class="pc-cap" placeholder="Caption" value="' + escAttr(it.caption || "") + '">' +
+        '<div class="pc-two"><input type="text" class="pc-year" placeholder="Year" value="' + escAttr(it.year || "") + '"><input type="text" class="pc-loc" placeholder="Location" value="' + escAttr(it.location || "") + '"></div>' +
+        '<div class="pc-actions"><button type="button" class="mini-btn si-up" ' + (idx === 0 ? "disabled" : "") + '>↑</button><button type="button" class="mini-btn si-down" ' + (idx === g.items.length - 1 ? "disabled" : "") + '>↓</button><button type="button" class="mini-btn del">Delete</button></div>' +
+        '<p class="hint" style="margin:0;">Click image to set focal point (cropping).</p>' +
+        '</div>';
+      li.querySelector(".pc-primary input").addEventListener("change", function () { g.primary = it.id; renderStoryGrid(); putStoryImages(); });
+      li.querySelector(".pc-cap").addEventListener("input", function () { it.caption = this.value; putStoryImages(); });
+      li.querySelector(".pc-year").addEventListener("input", function () { it.year = this.value || null; putStoryImages(); });
+      li.querySelector(".pc-loc").addEventListener("input", function () { it.location = this.value || null; putStoryImages(); });
+      li.querySelector(".si-up").addEventListener("click", function () { if (idx > 0) { g.items.splice(idx - 1, 0, g.items.splice(idx, 1)[0]); renderStoryGrid(); putStoryImages(); } });
+      li.querySelector(".si-down").addEventListener("click", function () { if (idx < g.items.length - 1) { g.items.splice(idx + 1, 0, g.items.splice(idx, 1)[0]); renderStoryGrid(); putStoryImages(); } });
+      li.querySelector(".del").addEventListener("click", function () { deleteStoryImage(it.id); });
+      var img = li.querySelector(".focusable");
+      if (img) img.addEventListener("click", function (e) { var r = img.getBoundingClientRect(); it.focus = { x: Math.round((e.clientX - r.left) / r.width * 100), y: Math.round((e.clientY - r.top) / r.height * 100) }; renderStoryGrid(); putStoryImages(); });
+      grid.appendChild(li);
+    });
+  }
+  function deleteStoryImage(pid) {
+    if (!confirm("Delete this image and its optimized versions? This cannot be undone.")) return;
+    status("Deleting…");
+    api("DELETE", "/api/story-photos/" + state.selectedId + "/" + encodeURIComponent(pid)).then(function (r) { state.storyGallery = r.gallery; toast("Deleted & rebuilt.", "ok"); renderStoryGrid(); renderReaderPlan(); }).catch(function (e) { toast("Delete failed: " + e.message, "err"); });
+  }
+  function uploadStoryFiles(files) {
+    if (state.selectedId == null) { toast("Save the memory first.", "err"); return; }
+    files = Array.prototype.slice.call(files || []).filter(function (f) { return /image\/(jpeg|png)/.test(f.type); });
+    if (!files.length) return;
+    var prog = $("si-progress"); prog.hidden = false; var done = 0, total = files.length;
+    function next(i) {
+      if (i >= total) { prog.textContent = "Uploaded " + done + " of " + total + " — rebuilt."; return loadStoryImages(state.selectedId); }
+      prog.textContent = "Uploading " + (i + 1) + " of " + total + "…";
+      var reader = new FileReader();
+      reader.onload = function () { api("POST", "/api/story-photos/" + state.selectedId, { filename: files[i].name, data: reader.result }).then(function () { done++; next(i + 1); }).catch(function (e) { toast("Upload failed: " + e.message, "err"); next(i + 1); }); };
+      reader.readAsDataURL(files[i]);
+    }
+    next(0);
+  }
+  var siInput = $("si-upload"), siDrop = $("si-drop");
+  if (siInput) siInput.addEventListener("change", function () { uploadStoryFiles(this.files); this.value = ""; });
+  if (siDrop) {
+    siDrop.addEventListener("click", function () { if (state.selectedId == null) { toast("Save the memory first.", "err"); return; } siInput.click(); });
+    siDrop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); siDrop.click(); } });
+    ["dragenter", "dragover"].forEach(function (ev) { siDrop.addEventListener(ev, function (e) { e.preventDefault(); siDrop.classList.add("drag"); }); });
+    ["dragleave", "drop"].forEach(function (ev) { siDrop.addEventListener(ev, function (e) { e.preventDefault(); siDrop.classList.remove("drag"); }); });
+    siDrop.addEventListener("drop", function (e) { uploadStoryFiles(e.dataTransfer.files); });
+  }
+
+  /* ---- reader placement plan ---- */
+  function ensurePhotos(cb) { if (photoState.loaded) { if (cb) cb(); } else { loadPhotos().then(function () { if (cb) cb(); }); } }
+  function availableRefs() {
+    var opts = [];
+    (state.storyGallery.items || []).forEach(function (it) { opts.push({ ref: "story:" + it.id, label: "Image · " + (it.caption || it.id).slice(0, 28) }); });
+    // Family portraits come from the photo manifest (people who actually have photos).
+    Object.keys(photoState.names || {}).forEach(function (id) {
+      var p = photoState.photos[id];
+      if (p && p.items && p.items.length) opts.push({ ref: "family:" + id, label: "Portrait · " + photoState.names[id] });
+    });
+    return opts;
+  }
+  var LAYOUTS = [["", "Auto layout"], ["pull-right", "Portrait — right"], ["pull-left", "Portrait — left"], ["plate", "Plate (centred)"], ["wide", "Full-width"]];
+  function renderReaderPlan() {
+    var list = $("rp-list"); if (!list) return;
+    $("rp-mode").textContent = state.readerManual ? "Manual — your placement wins" : "Automatic";
+    $("rp-reset").hidden = !state.readerManual;
+    list.innerHTML = "";
+    if (!state.readerManual) { list.innerHTML = '<p class="rp-empty">Images are placed automatically. Load the automatic picks to fine-tune, or add your own.</p>'; return; }
+    if (!photoState.loaded) { ensurePhotos(renderReaderPlan); }
+    if (!state.readerPlan.length) { list.innerHTML = '<p class="rp-empty">No images placed. Add one, or reset to automatic.</p>'; }
+    var refs = availableRefs();
+    state.readerPlan.forEach(function (entry, i) {
+      var row = document.createElement("div"); row.className = "rp-row" + (entry.enabled === false ? " off" : "");
+      var refOpts = refs.map(function (o) { return '<option value="' + escAttr(o.ref) + '"' + (o.ref === entry.ref ? " selected" : "") + '>' + esc(o.label) + '</option>'; }).join("");
+      if (entry.ref && !refs.some(function (o) { return o.ref === entry.ref; })) refOpts = '<option value="' + escAttr(entry.ref) + '" selected>' + esc(entry.ref) + '</option>' + refOpts;
+      var layOpts = LAYOUTS.map(function (l) { return '<option value="' + l[0] + '"' + ((entry.layout || "") === l[0] ? " selected" : "") + '>' + l[1] + '</option>'; }).join("");
+      row.innerHTML = '<label class="rp-en check"><input type="checkbox" ' + (entry.enabled !== false ? "checked" : "") + '></label>' +
+        '<select class="rp-ref">' + refOpts + '</select>' +
+        '<select class="rp-layout">' + layOpts + '</select>' +
+        '<input class="rp-cap" type="text" placeholder="Caption" value="' + escAttr(entry.caption || "") + '">' +
+        '<input class="rp-after" type="number" min="1" placeholder="after ¶" value="' + (entry.after != null ? (entry.after + 1) : "") + '">' +
+        '<span class="rp-tools"><button type="button" class="mini-btn rp-up" ' + (i === 0 ? "disabled" : "") + '>↑</button><button type="button" class="mini-btn rp-down" ' + (i === state.readerPlan.length - 1 ? "disabled" : "") + '>↓</button><button type="button" class="mini-btn del rp-del">✕</button></span>';
+      row.querySelector(".rp-en input").addEventListener("change", function () { entry.enabled = this.checked; renderReaderPlan(); planDirty(); });
+      row.querySelector(".rp-ref").addEventListener("change", function () { entry.ref = this.value; planDirty(); });
+      row.querySelector(".rp-layout").addEventListener("change", function () { entry.layout = this.value; planDirty(); });
+      row.querySelector(".rp-cap").addEventListener("input", function () { entry.caption = this.value; planDirty(); });
+      row.querySelector(".rp-after").addEventListener("input", function () { var v = parseInt(this.value, 10); entry.after = isNaN(v) ? undefined : Math.max(0, v - 1); planDirty(); });
+      row.querySelector(".rp-up").addEventListener("click", function () { if (i > 0) { state.readerPlan.splice(i - 1, 0, state.readerPlan.splice(i, 1)[0]); renderReaderPlan(); planDirty(); } });
+      row.querySelector(".rp-down").addEventListener("click", function () { if (i < state.readerPlan.length - 1) { state.readerPlan.splice(i + 1, 0, state.readerPlan.splice(i, 1)[0]); renderReaderPlan(); planDirty(); } });
+      row.querySelector(".rp-del").addEventListener("click", function () { state.readerPlan.splice(i, 1); renderReaderPlan(); planDirty(); });
+      list.appendChild(row);
+    });
+  }
+  function planDirty() { markDirty(); }
+  $("rp-auto").addEventListener("click", function () {
+    if (state.selectedId == null) { toast("Save the memory first to compute its automatic picks.", "err"); return; }
+    api("GET", "/api/reader-plan/" + state.selectedId).then(function (r) { state.readerPlan = (r.plan || []).slice(); state.readerManual = true; renderReaderPlan(); markDirty(); toast("Loaded automatic picks — tweak away.", "ok"); }).catch(function (e) { toast("Could not load picks: " + e.message, "err"); });
+  });
+  $("rp-add").addEventListener("click", function () { var refs = availableRefs(); state.readerManual = true; state.readerPlan.push({ ref: refs[0] ? refs[0].ref : "", layout: "", caption: "", enabled: true }); renderReaderPlan(); markDirty(); });
+  $("rp-reset").addEventListener("click", function () { state.readerManual = false; state.readerPlan = []; renderReaderPlan(); markDirty(); toast("Reset to automatic placement.", "ok"); });
 })();

@@ -505,3 +505,52 @@ html.hl-enh img.hl-fade.is-in{ opacity: 1; filter: blur(0); transition: opacity 
   .desktop-nav ul{ gap: clamp(1.1rem, 1.9vw, 1.9rem); align-items: center; }
   .desktop-nav a{ line-height: 1; display: inline-flex; align-items: center; }
 }
+
+/* =========================================================
+   PHASE 11A.75 — MOBILE POLISH (shared, every public page)
+   Intentional mobile design: device safe-areas, thumb-friendly
+   touch targets, zoom-proof forms, calmer type & rhythm, and
+   scrollable filter chips. Additive; refines existing responsive
+   rules without altering desktop.
+   ========================================================= */
+
+/* No blue tap-flash; steadier touch feel. */
+a, button, summary, label, .chip, .card-catalogue, input, textarea, select{ -webkit-tap-highlight-color: transparent; }
+
+/* Respect device safe-areas (notches / rounded corners) on the chrome. */
+@supports (padding: max(0px)){
+  .site-header > .container, footer > .container, .mobile-panel{
+    padding-left: max(var(--sp-3), env(safe-area-inset-left));
+    padding-right: max(var(--sp-3), env(safe-area-inset-right)); }
+  .mobile-panel{ padding-top: max(var(--sp-4), env(safe-area-inset-top));
+    padding-bottom: max(var(--sp-4), env(safe-area-inset-bottom)); }
+  .hl-toast{ bottom: max(1.4rem, env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 640px){
+  /* Thumb-friendly, comfortable touch targets. */
+  .btn{ min-height: 46px; }
+  .chip{ min-height: 42px; display: inline-flex; align-items: center; }
+  .mobile-panel nav a{ min-height: 48px; display: flex; align-items: center; }
+  .footer-col a{ display: inline-flex; align-items: center; min-height: 40px; }
+  .theme-toggle, .nav-toggle, .search-clear{ min-width: 44px; min-height: 44px; }
+
+  /* Forms never trigger iOS zoom and fill the width. */
+  input[type="text"], textarea, select{ font-size: 16px; }
+  #hl-search-input{ min-height: 48px; }
+  .marginalia-form{ flex-direction: column; align-items: stretch; }
+  .marginalia-form input[type="text"]{ width: 100%; min-height: 46px; }
+  .marginalia-form .btn{ width: 100%; }
+
+  /* Calmer, intentional rhythm on small screens. */
+  .container{ padding-inline: 1.15rem; }
+  .hero-ctas{ gap: 0.7rem; }
+  .hero-ctas .btn{ flex: 1 1 auto; justify-content: center; }
+
+  /* Filter chips scroll horizontally (iOS-style) instead of stacking tall. */
+  .chip-row{ flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; scroll-snap-type: x proximity; padding-bottom: 0.35rem;
+    margin-inline: calc(-1 * var(--sp-1)); padding-inline: var(--sp-1); }
+  .chip-row::-webkit-scrollbar{ display: none; }
+  .chip-row .chip{ flex: 0 0 auto; scroll-snap-align: start; }
+}

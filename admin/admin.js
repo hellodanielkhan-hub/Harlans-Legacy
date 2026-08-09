@@ -82,16 +82,56 @@
     });
   }
 
+  /* ---------------- unsaved-changes guard (Save draft / Discard / Cancel) ---------------- */
+  function currentDraftKey() { return state.isNew ? "new" : state.selectedId; }
+  function discardCurrent() { clearDraft(currentDraftKey()); state.dirty = false; }
+  // Run `proceed` after resolving any unsaved changes. Never blocks creating a
+  // separate memory: Save-as-draft persists this one, Discard drops only its
+  // local draft, Cancel aborts.
+  function unsavedGuard(proceed) {
+    if (!state.dirty) { proceed(); return; }
+    showChoice("Unsaved changes", "This memory has changes you haven't saved yet.", [
+      { label: "Save as draft", kind: "btn-primary", act: function () { setStatus("draft"); save(false, proceed); } },
+      { label: "Discard", kind: "btn-danger", act: function () { discardCurrent(); proceed(); } },
+      { label: "Cancel", kind: "btn-ghost", act: null }
+    ]);
+  }
+
   /* ---------------- select / new ---------------- */
-  function attemptSelect(id) { if (state.dirty && !confirm("You have unsaved changes. Discard them and open another memory?")) return; select(id); }
+  function attemptSelect(id) { unsavedGuard(function () { select(id); }); }
   function select(id) { var s = state.stories.filter(function (x) { return x.id === id; })[0]; if (!s) return; state.selectedId = id; state.isNew = false; fill(s); renderList(); restoreDraft(id); }
-  function newStory() {
-    if (state.dirty && !confirm("Discard the current unsaved memory?")) return;
-    state.selectedId = null; state.isNew = true;
+  function newStory() { unsavedGuard(freshStory); }
+  // Always a completely fresh editor — never restores an old in-progress draft.
+  function freshStory() {
+    clearDraft("new");
+    state.selectedId = null; state.isNew = true; state.dirty = false;
     var nextId = state.stories.reduce(function (m, s) { return Math.max(m, s.id); }, 0) + 1;
     fill({ id: nextId, title: "", slug: "", status: "draft", featured: false, theme: "ordinary", publishedISO: "", dateLong: "", dateLabel: "", memoryDate: "", summary: "", description: "", ogDescription: "", lead: "", body: [], people: [], places: [], objects: [], events: [], bookPart: "", keywords: [], echoStories: [], readingTime: "" }, true);
-    renderList(); restoreDraft("new"); $("f-title").focus();
+    renderList(); $("f-title").focus();
   }
+
+  /* Lightweight modal for a 3-way choice (built once). */
+  function showChoice(title, msg, buttons) {
+    var ov = $("hl-modal");
+    if (!ov) {
+      ov = document.createElement("div"); ov.id = "hl-modal"; ov.className = "hl-modal-overlay"; ov.hidden = true;
+      ov.innerHTML = '<div class="hl-modal" role="dialog" aria-modal="true" aria-labelledby="hl-modal-title"><h3 id="hl-modal-title"></h3><p id="hl-modal-msg"></p><div class="hl-modal-actions" id="hl-modal-actions"></div></div>';
+      document.body.appendChild(ov);
+      ov.addEventListener("mousedown", function (e) { if (e.target === ov) closeModal(); });
+    }
+    $("hl-modal-title").textContent = title; $("hl-modal-msg").textContent = msg;
+    var acts = $("hl-modal-actions"); acts.innerHTML = "";
+    buttons.forEach(function (b) {
+      var el = document.createElement("button"); el.type = "button"; el.className = "btn " + (b.kind || "btn-ghost"); el.textContent = b.label;
+      el.addEventListener("click", function () { closeModal(); if (b.act) b.act(); });
+      acts.appendChild(el);
+    });
+    ov.hidden = false;
+    ov._key = function (e) { if (e.key === "Escape") closeModal(); };
+    document.addEventListener("keydown", ov._key);
+    var first = acts.querySelector("button"); if (first) first.focus();
+  }
+  function closeModal() { var ov = $("hl-modal"); if (!ov) return; ov.hidden = true; if (ov._key) document.removeEventListener("keydown", ov._key); }
 
   /* ---------------- fill form ---------------- */
   function isoToDateInput(iso) { return /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? String(iso).slice(0, 10) : ""; }
@@ -236,7 +276,7 @@
   }
 
   /* ---------------- save / delete ---------------- */
-  function save(publish) {
+  function save(publish, done) {
     if (publish) setStatus("published");
     var rec = collect();
     var errs = validate(rec);
@@ -244,15 +284,16 @@
     var exists = state.stories.some(function (s) { return s.id === rec.id; });
     [$("save-btn"), $("save-btn-2")].forEach(function (b) { b.disabled = true; }); status("Rebuilding the archive…");
     var req = (!state.isNew && exists) ? api("PUT", "/api/stories/" + state.selectedId, rec) : api("POST", "/api/stories", rec);
+    var ok = false;
     req.then(function (res) {
       var b = res.build || {};
       toast(exists && !state.isNew ? "Saved & rebuilt." : "Created & rebuilt.", "ok");
       status(b.summary ? ("Live · This week = " + b.summary.featured + " · " + b.summary.published + " published") : "Rebuilt.");
-      state.selectedId = rec.id; state.isNew = false; clearDraft(rec.id); clearDraft("new"); state.dirty = false;
+      state.selectedId = rec.id; state.isNew = false; clearDraft(rec.id); clearDraft("new"); state.dirty = false; ok = true;
       return loadAll();
-    }).then(function () { var s = state.stories.filter(function (x) { return x.id === rec.id; })[0]; if (s) fill(s); })
+    }).then(function () { var s = state.stories.filter(function (x) { return x.id === rec.id; })[0]; if (s && !done) fill(s); })
       .catch(function (err) { toast("Save failed: " + err.message, "err"); status(""); })
-      .then(function () { [$("save-btn"), $("save-btn-2")].forEach(function (b) { b.disabled = false; }); });
+      .then(function () { [$("save-btn"), $("save-btn-2")].forEach(function (b) { b.disabled = false; }); if (ok && done) done(); });
   }
   function del() {
     if (state.selectedId == null || state.isNew) return;

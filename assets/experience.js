@@ -10,6 +10,26 @@
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  /* ---- Reveal safety net (reusable, every page) ----
+     Reveal animations hide content until an IntersectionObserver adds
+     `.is-visible`. If any element in/above the viewport is still hidden shortly
+     after load — e.g. an element taller than several viewports whose threshold
+     can never be met, or an observer that failed — force it visible so a story
+     can NEVER render blank. Below-the-fold elements are left to reveal on scroll. */
+  (function revealSafetyNet() {
+    function sweep() {
+      var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+      var els = document.querySelectorAll(".reveal:not(.is-visible), .resolve:not(.is-visible)");
+      Array.prototype.forEach.call(els, function (el) {
+        var r = el.getBoundingClientRect();
+        if (r.top < vh + 1) el.classList.add("is-visible");
+      });
+    }
+    window.addEventListener("load", function () { setTimeout(sweep, 200); });
+    window.addEventListener("scroll", sweep, { passive: true });
+    if (document.readyState === "complete") setTimeout(sweep, 200);
+  })();
+
   /* ---- View Transitions: opt into richer styling where supported ---- */
   if (document.startViewTransition) {
     document.documentElement.classList.add("hl-vt");

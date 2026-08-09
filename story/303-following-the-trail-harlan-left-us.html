@@ -403,7 +403,11 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
 .story-byline .sm-by{ color: var(--ink-secondary); }
 
 /* --- Reading rhythm --- */
-.story-body{ font-size: clamp(1.18rem, 1.08rem + 0.4vw, 1.36rem); line-height: 1.85; color: var(--ink-primary); }
+.story-body{ font-size: clamp(1.18rem, 1.08rem + 0.4vw, 1.36rem); line-height: 1.85; color: var(--ink-primary);
+  /* How far a full-bleed image may break past the text column — never more than
+     the actual margin beside the 44rem story column, so it can never overflow
+     the viewport at tablet widths. */
+  --bleed: clamp(0px, calc((100vw - 44rem) / 2 - 1rem), 130px); }
 .story-body::after{ content: ""; display: block; clear: both; }
 .story-body > p{ margin: 0 0 1.4em; max-width: 62ch; }
 .story-body > p > em{ font-style: italic; }
@@ -435,7 +439,7 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
 
 /* --- Full-width memory photograph (landscape breaks out; portrait is a plate) --- */
 .mem-photo{ clear: both; margin: clamp(var(--sp-5), 6vw, var(--sp-7)) 0;
-  width: calc(100% + 2 * clamp(0px, 8vw, 130px)); margin-inline: calc(-1 * clamp(0px, 8vw, 130px)); }
+  width: calc(100% + 2 * var(--bleed)); margin-inline: calc(-1 * var(--bleed)); }
 .mem-photo.is-portrait{ width: min(100%, 460px); margin-inline: auto; }
 .mem-photo .mph-frame{ overflow: hidden; border-radius: 2px; background: var(--paper-deep);
   box-shadow: 0 3px 8px rgba(60,40,20,0.10), 0 44px 90px -46px rgba(60,40,20,0.5); }
@@ -517,7 +521,7 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
 
 /* Diptych — two moments held side by side. */
 .mem-diptych{ clear: both; margin: clamp(var(--sp-5), 6vw, var(--sp-7)) 0; display: grid; grid-template-columns: 1fr 1fr;
-  gap: clamp(0.5rem, 1.6vw, 1.1rem); width: calc(100% + 2 * clamp(0px, 6vw, 90px)); margin-inline: calc(-1 * clamp(0px, 6vw, 90px)); }
+  gap: clamp(0.5rem, 1.6vw, 1.1rem); width: calc(100% + 2 * min(var(--bleed), 90px)); margin-inline: calc(-1 * min(var(--bleed), 90px)); }
 .mem-diptych .dp-cell{ margin: 0; }
 .mem-diptych .dp-frame{ display: block; aspect-ratio: 4/5; overflow: hidden; background: var(--paper-deep);
   box-shadow: 0 2px 6px rgba(60,40,20,0.08), 0 30px 60px -34px rgba(60,40,20,0.45); }
@@ -1267,7 +1271,7 @@ and an old photograph someone finds eighty years from now.</p>
       entries.forEach(function(entry){
         if (entry.isIntersecting) { entry.target.classList.add("is-visible"); io.unobserve(entry.target); }
       });
-    }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
+    }, { threshold: 0, rootMargin: "0px 0px -40px 0px" });
     revealEls.forEach(function(el){ io.observe(el); });
   }
 

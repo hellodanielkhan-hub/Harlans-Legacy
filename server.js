@@ -22,8 +22,13 @@ const { build, loadData } = require("./build.js");
 const { processPhotos, processStoryPhotos } = require("./lib/photos.js");
 const { buildGraph } = require("./lib/graph.js");
 const { autoPlan } = require("./lib/reader.js");
+const paths = require("./lib/paths.js");
 
-const ROOT = __dirname;
+// Writable root (app dir locally; a writable dir on read-only hosts). Seed it
+// once from the bundle so data + pages + uploads all live somewhere writable.
+paths.ensureSeed();
+const ROOT = paths.ROOT;
+const APP_ROOT = paths.APP_ROOT;
 const DATA = path.join(ROOT, "data");
 const STORIES = path.join(DATA, "stories.json");
 const SITE = path.join(DATA, "site.json");
@@ -146,15 +151,26 @@ function serveStatic(req, res, pathname) {
   if (rel === "") rel = "index.html";
   if (rel.endsWith("/")) rel += "index.html";
 
-  // Prevent path traversal outside ROOT.
+  // Prevent path traversal outside either root.
   const abs = path.normalize(path.join(ROOT, rel));
   if (!abs.startsWith(ROOT)) return send(res, 403, "Forbidden", "text/plain");
-
-  fs.stat(abs, (err, st) => {
-    if (err || !st.isFile()) return send(res, 404, "Not found: " + rel, "text/plain; charset=utf-8");
-    const ext = path.extname(abs).toLowerCase();
+  // Serve from the writable root first (freshly generated pages + new uploads);
+  // fall back to the read-only bundle for anything not (yet) copied there.
+  const bundled = path.normalize(path.join(APP_ROOT, rel));
+  const stream = target => {
+    const ext = path.extname(target).toLowerCase();
     res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream", "Cache-Control": "no-cache" });
-    fs.createReadStream(abs).pipe(res);
+    fs.createReadStream(target).pipe(res);
+  };
+  fs.stat(abs, (err, st) => {
+    if (!err && st.isFile()) return stream(abs);
+    if (APP_ROOT !== ROOT && bundled.startsWith(APP_ROOT)) {
+      return fs.stat(bundled, (e2, s2) => {
+        if (!e2 && s2.isFile()) return stream(bundled);
+        return send(res, 404, "Not found: " + rel, "text/plain; charset=utf-8");
+      });
+    }
+    return send(res, 404, "Not found: " + rel, "text/plain; charset=utf-8");
   });
 }
 
@@ -338,6 +354,11 @@ async function handleApi(req, res, url) {
     if (resource === "story-photos") {
       const sid = parts[2] ? decodeURIComponent(parts[2]) : null;
       const photoId = parts[3] ? decodeURIComponent(parts[3]) : null;
+      // Hard separation from family galleries: a story gallery id must be a
+      // positive integer (a real story id). Anything else is rejected, so a
+      // stray/blank id can never create a mystery directory or collide with the
+      // family photo system, which lives in an entirely different tree.
+      if (sid != null && !/^[0-9]+$/.test(sid)) return sendJSON(res, 400, { error: "Invalid story id for gallery" });
       const key = sid != null ? storyKey(sid) : null;
       const manifest = fs.existsSync(STORY_PHOTOS_JSON) ? readJSON(STORY_PHOTOS_JSON) : {};
 

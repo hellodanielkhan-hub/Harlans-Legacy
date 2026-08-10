@@ -69,7 +69,17 @@ async function saveStory(story) {
 module.exports = async (req, res) => {
   try {
     const url = new URL(req.url, "http://localhost");
-    const parts = url.pathname.split("/").filter(Boolean);   // ["api","stories","214"]
+    // Resolve path segments robustly. Vercel routes every /api/* depth here via a
+    // rewrite (see vercel.json) and populates req.query.path with the segments
+    // after /api ("stories/302" or ["stories","302"]); fall back to the URL
+    // pathname otherwise. We normalise to ["api", …segments] so the routing below
+    // (parts[1]=resource, parts[2]=id, …) is unchanged and nested routes such as
+    // /api/stories/302 and /api/story-photos/5 are always reachable.
+    const q = req.query && req.query.path;
+    let parts = Array.isArray(q) ? q.slice()
+      : (typeof q === "string" && q) ? q.split("/").filter(Boolean)
+      : url.pathname.split("/").filter(Boolean);
+    if (parts[0] !== "api") parts = ["api"].concat(parts);
     const resource = parts[1];
     const idParam = parts[2] != null && /^\d+$/.test(parts[2]) ? Number(parts[2]) : null;
     const method = req.method;

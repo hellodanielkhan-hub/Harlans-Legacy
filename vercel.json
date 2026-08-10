@@ -8,6 +8,9 @@
   "redirects": [
     { "source": "/admin", "destination": "/admin/", "permanent": true }
   ],
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/[...path]" }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

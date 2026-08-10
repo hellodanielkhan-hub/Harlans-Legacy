@@ -5,6 +5,9 @@
   "functions": {
     "api/[...path].js": { "maxDuration": 30, "memory": 1024 }
   },
+  "redirects": [
+    { "source": "/admin", "destination": "/admin/", "permanent": true }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

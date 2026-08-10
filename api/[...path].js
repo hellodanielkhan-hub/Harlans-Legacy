@@ -150,6 +150,19 @@ module.exports = async (req, res) => {
       }
       if (method === "DELETE" && idParam != null) {
         await store.deleteStory(idParam);
+        // Cascade: remove the story's editorial gallery (manifest entry + stored
+        // originals) so deleting a memory never leaves orphaned story images.
+        try {
+          const key = records.storyKey(idParam);
+          const manifest = await store.getStoryPhotos();
+          if (manifest[key]) {
+            for (const it of (manifest[key].items || [])) {
+              try { await store.removeObject(store.BUCKET_STORY, key + "/" + it.file); } catch (e) {}
+            }
+            delete manifest[key];
+            await store.putStoryPhotos(manifest);
+          }
+        } catch (e) { /* non-fatal: the story row is already gone */ }
         return json(res, 200, { ok: true, deleted: idParam, build: await triggerRebuild() });
       }
     }

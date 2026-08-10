@@ -238,6 +238,20 @@ async function handleApi(req, res, url) {
         stories = stories.filter(s => s.id !== idParam);
         if (stories.length === before) return sendJSON(res, 404, { error: "No story " + idParam });
         writeJSON(STORIES, stories);
+        // Cascade: drop the story's editorial gallery (manifest + originals +
+        // derivatives) so deleting a memory never leaves orphaned story images.
+        try {
+          const key = storyKey(idParam);
+          const manifest = fs.existsSync(STORY_PHOTOS_JSON) ? readJSON(STORY_PHOTOS_JSON) : {};
+          if (manifest[key]) {
+            (manifest[key].items || []).forEach(it => {
+              try { fs.unlinkSync(path.join(STORY_PHOTOS_SRC, key, it.file)); } catch (e) {}
+              rmStoryDerivatives(key, it.id);
+            });
+            delete manifest[key];
+            writeJSON(STORY_PHOTOS_JSON, manifest);
+          }
+        } catch (e) { /* non-fatal */ }
         return sendJSON(res, 200, { ok: true, deleted: idParam, build: rebuild() });
       }
     }

@@ -115,22 +115,18 @@ function renderThisWeekTitle(s) {
   return `            <h2 class="story-title">${text(s.title)}</h2>`;
 }
 
+// The homepage is an introduction, not the reader: show the lead as a teaser and
+// send "Continue reading" to the story's own canonical page (its immersive
+// reader), rather than expanding the full text inline. The link reuses the
+// existing .story-toggle affordance so the look is unchanged.
 function renderThisWeekBody(s) {
-  const more = (s.body || []).map(p => `              <p>${p}</p>`).join("\n");
   return [
     `            <p class="dropcap">${s.lead || ""}</p>`,
     ``,
-    `            <details class="story-details">`,
-    `              <summary class="story-toggle">`,
-    `                <span class="label-closed">Continue reading</span>`,
-    `                <span class="label-open">Close this story</span>`,
-    `                <svg class="toggle-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-    `              </summary>`,
-    `              <div class="story-more">`,
-    more,
-    `                <div class="ending-mark" aria-hidden="true"></div>`,
-    `              </div>`,
-    `            </details>`
+    `            <a class="story-toggle story-continue" href="${s.url}">`,
+    `              <span class="label-closed">Continue reading</span>`,
+    `              <svg class="toggle-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    `            </a>`
   ].join("\n");
 }
 
@@ -1319,7 +1315,12 @@ function buildExploreData(graph) {
 
 /* ---------- orchestrator ---------- */
 function build() {
-  const { site, stories, entities } = loadData();
+  const { site, stories: allStories, entities } = loadData();
+  // Drafts are private work-in-progress: they live in the store/CMS but must never
+  // reach the public site — no story page, and excluded from the archive, search,
+  // knowledge graph, journeys and the "coming soon" lists. Only published and
+  // coming-soon memories are public. (The admin API still sees every story.)
+  const stories = allStories.filter(s => s.status !== "draft");
   const featured = pickFeatured(stories);
   const graph = buildGraph(stories, entities);
   const journeys = journeysLib.buildJourneyData(site, stories, entities, graph);

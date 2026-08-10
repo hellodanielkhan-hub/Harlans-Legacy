@@ -15,7 +15,7 @@
   var MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   var THREADS = { funny: "var(--thread-funny,#8f9a80)", momdad: "#A8735A", toledo: "#6B7A8C", shabbat: "#B8964F", grief: "#B99189", ordinary: "#5F8A82" };
 
-  var state = { stories: [], site: null, entities: null, selectedId: null, filter: "", status: "coming-soon", dirty: false, isNew: false, lastSuggestions: null, readerPlan: [], readerManual: false, storyGallery: { primary: null, items: [] } };
+  var state = { stories: [], site: null, entities: null, selectedId: null, filter: "", status: "coming-soon", dirty: false, isNew: false, saving: false, creating: null, lastSuggestions: null, readerPlan: [], readerManual: false, storyGallery: { primary: null, items: [] } };
 
   /* ---------------- api ----------------
      Sends the admin token (production auth) when one is stored. On 401 it
@@ -308,23 +308,40 @@
 
   /* ---------------- save / delete ---------------- */
   function save(publish, done) {
+    if (state.saving) return;                       // guard: double-clicking Save/Publish never double-writes
     if (publish) setStatus("published");
     var rec = collect();
     var errs = validate(rec);
-    if (errs.length) { toast(errs[0], "err"); return; }
-    var exists = state.stories.some(function (s) { return s.id === rec.id; });
-    [$("save-btn"), $("save-btn-2")].forEach(function (b) { b.disabled = true; }); status("Rebuilding the archive…");
-    var req = (!state.isNew && exists) ? api("PUT", "/api/stories/" + state.selectedId, rec) : api("POST", "/api/stories", rec);
-    var ok = false;
+    if (errs.length) { toast(errs[0], "err"); updateSaveState(true, "Unsaved changes"); return; }
+    // Update when we already hold a persistent id (incl. an auto-created draft);
+    // create otherwise. This does NOT depend on the local list being in sync, so
+    // a save immediately after a draft is created still PUTs (never a duplicate POST).
+    var isUpdate = (!state.isNew && state.selectedId != null);
+    state.saving = true;
+    [$("save-btn"), $("save-btn-2")].forEach(function (b) { b.disabled = true; });
+    updateSaveState(true, "Saving…"); status("Saving to the archive…");
+    var req = isUpdate ? api("PUT", "/api/stories/" + state.selectedId, rec) : api("POST", "/api/stories", rec);
+    var ok = false, savedId = rec.id;
     req.then(function (res) {
+      var saved = res.story || rec; savedId = saved.id;
       var b = res.build || {};
-      toast(exists && !state.isNew ? "Saved & rebuilt." : "Created & rebuilt.", "ok");
-      status(b.summary ? ("Live · This week = " + b.summary.featured + " · " + b.summary.published + " published") : "Rebuilt.");
-      state.selectedId = rec.id; state.isNew = false; clearDraft(rec.id); clearDraft("new"); state.dirty = false; ok = true;
+      toast(isUpdate ? "Saved & rebuilt." : "Created & rebuilt.", "ok");
+      status(b.summary ? ("Live · This week = " + b.summary.featured + " · " + b.summary.published + " published") : "Saved.");
+      state.selectedId = savedId; state.isNew = false; clearDraft(savedId); clearDraft("new"); state.dirty = false; ok = true;
       return loadAll();
-    }).then(function () { var s = state.stories.filter(function (x) { return x.id === rec.id; })[0]; if (s && !done) fill(s); })
-      .catch(function (err) { toast("Save failed: " + err.message, "err"); status(""); })
-      .then(function () { [$("save-btn"), $("save-btn-2")].forEach(function (b) { b.disabled = false; }); if (ok && done) done(); });
+    }).then(function () {
+      if (!ok) return;
+      var s = state.stories.filter(function (x) { return x.id === savedId; })[0];
+      if (s && !done) fill(s);
+      updateSaveState(false, "Saved · " + clock());
+    })
+      .catch(function (err) {
+        // Never destroy the user's work: the form is untouched on failure and we say so plainly.
+        toast("Save failed: " + err.message, "err");
+        status("Save failed — your changes are still here.");
+        updateSaveState(true, "Save failed — your changes are still here");
+      })
+      .then(function () { state.saving = false; [$("save-btn"), $("save-btn-2")].forEach(function (b) { b.disabled = false; }); if (ok && done) done(); });
   }
   function del() {
     if (state.selectedId == null || state.isNew) return;
@@ -589,8 +606,7 @@
   function renderStoryGrid() {
     var grid = $("si-grid"); if (!grid) return; grid.innerHTML = "";
     var g = state.storyGallery;
-    if (state.selectedId == null) { grid.innerHTML = '<li class="list-empty">Save the memory first, then add its images.</li>'; return; }
-    if (!g.items.length) { grid.innerHTML = '<li class="list-empty">No editorial images yet — drop some above.</li>'; return; }
+    if (!g.items.length) { grid.innerHTML = '<li class="list-empty">No editorial images yet — drop some above. A draft is created automatically so nothing is lost.</li>'; return; }
     g.items.forEach(function (it, idx) {
       var li = document.createElement("li"); li.className = "photo-card" + (it.id === g.primary ? " is-primary" : "");
       var src = siThumb(it); var f = it.focus || { x: 50, y: 50 };
@@ -619,24 +635,49 @@
     status("Deleting…");
     api("DELETE", "/api/story-photos/" + state.selectedId + "/" + encodeURIComponent(pid)).then(function (r) { state.storyGallery = r.gallery; toast("Deleted & rebuilt.", "ok"); renderStoryGrid(); renderReaderPlan(); }).catch(function (e) { toast("Delete failed: " + e.message, "err"); });
   }
+  /* Guarantee the open memory has a persistent id, creating a DRAFT on the fly
+     when it is still new — so the editor never forces a manual "save first"
+     before images (or any id-addressed action). Auto-drafts are never published.
+     Concurrent callers fold into one in-flight creation. Resolves with the id. */
+  function ensureStoryId() {
+    if (state.selectedId != null && !state.isNew) return Promise.resolve(state.selectedId);
+    if (state.creating) return state.creating;
+    var rec = collect(); rec.status = "draft"; rec.featured = false;
+    state.creating = api("POST", "/api/stories", rec).then(function (res) {
+      var created = res.story || rec;
+      state.selectedId = created.id; state.isNew = false; state.status = "draft"; setStatus("draft");
+      clearDraft("new");
+      $("f-id").value = created.id;
+      $("editor-eyebrow").textContent = "Editing Story No. " + created.id;
+      $("delete-btn").hidden = false;
+      updateOpenLink(created, false);
+      updateSaveState(false, "Draft saved · " + clock());
+      state.creating = null;
+      toast("Draft started — add images and keep writing.", "ok");
+      return loadAll().then(function () { renderList(); return created.id; });
+    }, function (err) { state.creating = null; throw err; });
+    return state.creating;
+  }
   function uploadStoryFiles(files) {
-    if (state.selectedId == null) { toast("Save the memory first.", "err"); return; }
     files = Array.prototype.slice.call(files || []).filter(function (f) { return /image\/(jpeg|png)/.test(f.type); });
     if (!files.length) return;
-    var prog = $("si-progress"); prog.hidden = false; var done = 0, total = files.length;
-    function next(i) {
-      if (i >= total) { prog.textContent = "Uploaded " + done + " of " + total + " — rebuilt."; return loadStoryImages(state.selectedId); }
-      prog.textContent = "Uploading " + (i + 1) + " of " + total + "…";
-      var reader = new FileReader();
-      reader.onload = function () { api("POST", "/api/story-photos/" + state.selectedId, { filename: files[i].name, data: reader.result }).then(function () { done++; next(i + 1); }).catch(function (e) { toast("Upload failed: " + e.message, "err"); next(i + 1); }); };
-      reader.readAsDataURL(files[i]);
-    }
-    next(0);
+    ensureStoryId().then(function () {
+      var prog = $("si-progress"); prog.hidden = false; var done = 0, failed = 0, total = files.length;
+      function next(i) {
+        if (i >= total) { prog.textContent = failed ? ("Uploaded " + done + " of " + total + " · " + failed + " failed.") : ("Uploaded " + done + " of " + total + "."); return loadStoryImages(state.selectedId); }
+        prog.textContent = "Uploading " + (i + 1) + " of " + total + "…";
+        var reader = new FileReader();
+        reader.onload = function () { api("POST", "/api/story-photos/" + state.selectedId, { filename: files[i].name, data: reader.result }).then(function () { done++; next(i + 1); }).catch(function (e) { failed++; toast("Upload failed (" + files[i].name + "): " + e.message, "err"); next(i + 1); }); };
+        reader.onerror = function () { failed++; toast("Could not read " + files[i].name, "err"); next(i + 1); };
+        reader.readAsDataURL(files[i]);
+      }
+      next(0);
+    }).catch(function (e) { toast("Couldn't start a draft for the images: " + e.message, "err"); });
   }
   var siInput = $("si-upload"), siDrop = $("si-drop");
   if (siInput) siInput.addEventListener("change", function () { uploadStoryFiles(this.files); this.value = ""; });
   if (siDrop) {
-    siDrop.addEventListener("click", function () { if (state.selectedId == null) { toast("Save the memory first.", "err"); return; } siInput.click(); });
+    siDrop.addEventListener("click", function () { siInput.click(); });
     siDrop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); siDrop.click(); } });
     ["dragenter", "dragover"].forEach(function (ev) { siDrop.addEventListener(ev, function (e) { e.preventDefault(); siDrop.classList.add("drag"); }); });
     ["dragleave", "drop"].forEach(function (ev) { siDrop.addEventListener(ev, function (e) { e.preventDefault(); siDrop.classList.remove("drag"); }); });

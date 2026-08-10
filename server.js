@@ -23,6 +23,7 @@ const { processPhotos, processStoryPhotos } = require("./lib/photos.js");
 const { buildGraph } = require("./lib/graph.js");
 const { autoPlan } = require("./lib/reader.js");
 const paths = require("./lib/paths.js");
+const records = require("./lib/records.js");   // shared record logic (also used by the serverless API)
 
 // Writable root (app dir locally; a writable dir on read-only hosts). Seed it
 // once from the bundle so data + pages + uploads all live somewhere writable.
@@ -57,48 +58,8 @@ function send(res, code, body, type) {
 }
 function sendJSON(res, code, obj) { send(res, code, JSON.stringify(obj), "application/json; charset=utf-8"); }
 
-function slugify(str) {
-  return String(str).toLowerCase().trim()
-    .replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
-
-// A fresh story record with every field the model defines, so the editor
-// always round-trips the full schema even for a brand-new entry.
-function normalize(input, existing) {
-  const base = existing || {};
-  const s = Object.assign({}, base, input);
-  s.title = String(s.title || "Untitled").trim();
-  s.slug = (s.slug && slugify(s.slug)) || slugify(s.title);
-  s.status = ["published", "coming-soon", "draft"].includes(s.status) ? s.status : "coming-soon";
-  s.featured = !!s.featured;
-  s.theme = s.theme || "ordinary";
-  s.publishedISO = s.publishedISO || null;
-  s.dateLong = s.dateLong || "";
-  s.dateLabel = s.dateLabel || "";
-  s.memoryDate = s.memoryDate || null;
-  s.summary = s.summary || "";
-  s.description = s.description || null;
-  s.ogDescription = s.ogDescription || null;
-  s.lead = s.lead || null;
-  s.body = Array.isArray(s.body) ? s.body : [];
-  ["people", "places", "objects", "events", "echoStories", "keywords"].forEach(k => {
-    s[k] = Array.isArray(s[k]) ? s[k] : [];
-  });
-  s.bookPart = s.bookPart || null;
-  s.readingTime = (s.readingTime === 0 || s.readingTime) ? s.readingTime : null;
-  // Manual reader-image override plan (empty = automatic composition).
-  s.readerImages = Array.isArray(s.readerImages) ? s.readerImages : [];
-  return s;
-}
-
-function nextId(stories) {
-  return stories.reduce((m, s) => Math.max(m, Number(s.id) || 0), 0) + 1;
-}
-
-// A published story must be the only featured one. Enforce single-featured.
-function enforceSingleFeatured(stories, featuredId) {
-  stories.forEach(s => { s.featured = (s.id === featuredId); });
-}
+// Shared record logic (lib/records.js) — one implementation for local + serverless.
+const { slugify, normalize, nextId, enforceSingleFeatured } = records;
 
 function rebuild() {
   try { return { ok: true, summary: build() }; }
@@ -119,17 +80,9 @@ function readBody(req) {
 }
 
 /* ---------- photos ---------- */
-function photoSlug(s) {
-  return String(s).toLowerCase().replace(/\.[a-z0-9]+$/, "")
-    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
+const { photoSlug } = records;
 // person id -> display name, from the family data
-function personNames() {
-  const ents = readJSON(ENTITIES);
-  const map = {};
-  ((ents.family && ents.family.people) || []).forEach(p => { map[p.id] = p.name; });
-  return map;
-}
+function personNames() { return records.personNames(readJSON(ENTITIES)); }
 function rmDerivatives(personId, photoId) {
   const dir = path.join(PHOTOS_OUT, personId);
   if (!fs.existsSync(dir)) return;
@@ -142,8 +95,8 @@ function rmStoryDerivatives(key, photoId) {
   fs.readdirSync(dir).filter(f => f.indexOf(photoId + ".") === 0)
     .forEach(f => { try { fs.unlinkSync(path.join(dir, f)); } catch (e) {} });
 }
-// A safe story-gallery directory key derived from the story id.
-function storyKey(id) { return "story-" + String(id).replace(/[^0-9a-zA-Z-]/g, ""); }
+// A safe story-gallery directory key derived from the story id (shared).
+const { storyKey } = records;
 
 /* ---------- static files ---------- */
 function serveStatic(req, res, pathname) {
@@ -179,6 +132,13 @@ async function handleApi(req, res, url) {
   const parts = url.pathname.split("/").filter(Boolean); // ["api", "stories", "214"]
   const resource = parts[1];
   const idParam = parts[2] ? Number(parts[2]) : null;
+
+  // Optional auth (off by default for local dev). If ADMIN_TOKEN is set it is
+  // required — matching the production serverless API in api/[...path].js.
+  if (process.env.ADMIN_TOKEN) {
+    const got = req.headers["x-admin-token"] || url.searchParams.get("token");
+    if (got !== process.env.ADMIN_TOKEN) return sendJSON(res, 401, { error: "Unauthorized — admin token required." });
+  }
 
   try {
     if (resource === "site") {

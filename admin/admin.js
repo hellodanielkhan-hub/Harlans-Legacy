@@ -17,10 +17,28 @@
 
   var state = { stories: [], site: null, entities: null, selectedId: null, filter: "", status: "coming-soon", dirty: false, isNew: false, lastSuggestions: null, readerPlan: [], readerManual: false, storyGallery: { primary: null, items: [] } };
 
-  /* ---------------- api ---------------- */
+  /* ---------------- api ----------------
+     Sends the admin token (production auth) when one is stored. On 401 it
+     clears the token and prompts again, so an expired/wrong token is recoverable
+     without a blank screen. */
+  function adminToken() { try { return sessionStorage.getItem("hl-admin-token") || ""; } catch (e) { return ""; } }
+  function setAdminToken(t) { try { if (t) sessionStorage.setItem("hl-admin-token", t); else sessionStorage.removeItem("hl-admin-token"); } catch (e) {} }
+  function promptToken(msg) {
+    var t = window.prompt(msg || "Enter the admin token to manage this archive:", "");
+    if (t != null) setAdminToken(t.trim());
+    return adminToken();
+  }
   function api(method, path, body) {
-    return fetch(path, { method: method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || (r.status + " " + r.statusText)); return j; }); });
+    var headers = { "Content-Type": "application/json" };
+    var tok = adminToken(); if (tok) headers["x-admin-token"] = tok;
+    return fetch(path, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (r.status === 401) { var e = new Error(j.error || "Unauthorized"); e.status = 401; throw e; }
+          if (!r.ok) throw new Error(j.error || (r.status + " " + r.statusText));
+          return j;
+        });
+      });
   }
   function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function escAttr(s) { return esc(s).replace(/"/g, "&quot;"); }
@@ -45,11 +63,24 @@
   })();
 
   /* ---------------- load ---------------- */
-  function loadAll() {
+  function loadError(msg) {
+    var el = $("story-list");
+    if (el) el.innerHTML = '<li class="list-empty" style="color:var(--danger);line-height:1.5;">' + esc(msg) + '<br><br><button class="btn btn-ghost" id="retry-load" type="button">Retry</button></li>';
+    var btn = $("retry-load"); if (btn) btn.addEventListener("click", function () { status("Reconnecting…"); loadAll(); });
+    status("Could not reach the archive.");
+  }
+  function loadAll(retried) {
     return Promise.all([api("GET", "/api/stories"), api("GET", "/api/site"), api("GET", "/api/entities")]).then(function (res) {
       state.stories = res[0]; state.site = res[1]; state.entities = res[2];
       populateThemeSelect(); renderStats(); renderList();
-    }).catch(function (e) { toast("Load failed: " + e.message, "err"); });
+    }).catch(function (e) {
+      if (e.status === 401 && !retried) { promptToken("This archive is protected. Enter the admin token:"); return loadAll(true); }
+      // A real production failure — show a clear message, never a silent "0 memories".
+      loadError(e.status === 401
+        ? "Unauthorized — the admin token is missing or incorrect."
+        : "Could not load the archive from the server: " + e.message + ". Check that the API and Supabase are reachable.");
+      toast("Load failed: " + e.message, "err");
+    });
   }
   function populateThemeSelect() {
     var sel = $("f-theme"); sel.innerHTML = "";
@@ -465,7 +496,7 @@
   }
   function selectPerson(id) { photoState.personId = id; $("photo-empty").hidden = true; $("photo-panel").hidden = false; $("photo-person-name").textContent = photoState.names[id] || id; renderPeople(); renderPhotoGrid(); }
   function person() { return photoState.photos[photoState.personId] || { primary: null, items: [] }; }
-  function thumb(pid, it) { var w = (it.portrait && it.portrait[0]) || null; return w ? "/assets/photos/" + pid + "/" + it.id + ".portrait." + w + ".jpg" : ""; }
+  function thumb(pid, it) { var w = (it.portrait && it.portrait[0]) || null; if (w) return "/assets/photos/" + pid + "/" + it.id + ".portrait." + w + ".jpg"; return it.url || ""; }
 
   function renderPhotoGrid() {
     var pid = photoState.personId, p = person(), grid = $("photo-grid"); grid.innerHTML = "";
@@ -538,7 +569,7 @@
   dz.addEventListener("drop", function (e) { if (!photoState.personId) { toast("Choose a person first.", "err"); return; } uploadFiles(e.dataTransfer.files); });
 
   /* ====================== STORY IMAGES + READER PLACEMENT ====================== */
-  function siThumb(it) { var w = (it.portrait && it.portrait[0]) || (it.full && it.full[0]); return w ? "/assets/story-photos/" + storyKeyOf() + "/" + it.id + ".portrait." + w + ".jpg" : ((it.full && it.full[0]) ? "/assets/story-photos/" + storyKeyOf() + "/" + it.id + ".full." + it.full[0] + ".jpg" : ""); }
+  function siThumb(it) { var w = (it.portrait && it.portrait[0]); if (w) return "/assets/story-photos/" + storyKeyOf() + "/" + it.id + ".portrait." + w + ".jpg"; if (it.full && it.full[0]) return "/assets/story-photos/" + storyKeyOf() + "/" + it.id + ".full." + it.full[0] + ".jpg"; return it.url || ""; }
   function storyKeyOf() { return "story-" + state.selectedId; }
   function loadStoryImages(id) {
     if (id == null) { state.storyGallery = { primary: null, items: [] }; renderStoryGrid(); return; }

@@ -68,25 +68,19 @@ function injectRegion(html, name, inner) {
   return html.replace(re, body);
 }
 
-/* ---------- derived data ---------- */
-function loadData() {
-  const site = readJSON(path.join(DATA, "site.json"));
-  const stories = readJSON(path.join(DATA, "stories.json"));
-  const entities = readJSON(path.join(DATA, "entities.json"));
-  // Attach the photo data layer (data/photos.json) to each family member.
-  const photosPath = path.join(DATA, "photos.json");
-  const photos = fs.existsSync(photosPath) ? readJSON(photosPath) : {};
+/* ---------- derived data ----------
+   deriveData() is storage-agnostic: given the raw datasets (from local JSON OR
+   from Supabase), it attaches the photo layers and derives the computed fields.
+   loadData() is the local/file entry point used by the build + local server. */
+function deriveData(site, stories, entities, photos, storyPhotos) {
+  photos = photos || {};
+  storyPhotos = storyPhotos || {};
   if (entities.family && entities.family.people) {
     entities.family.people.forEach(p => { p.photos = photos[p.id] || { primary: null, items: [] }; });
   }
-  // Attach each story's own editorial image gallery (data/story-photos.json).
-  const storyPhotosPath = path.join(DATA, "story-photos.json");
-  const storyPhotos = fs.existsSync(storyPhotosPath) ? readJSON(storyPhotosPath) : {};
   stories.forEach(s => {
     s.storyPhotos = storyPhotos["story-" + s.id] || { primary: null, items: [] };
     s.readerImages = Array.isArray(s.readerImages) ? s.readerImages : [];
-  });
-  stories.forEach(s => {
     const t = site.themes[s.theme] || { label: "", thread: "#B8B4A8" };
     s.themeLabel = t.label;
     s.threadHex = t.thread;
@@ -94,6 +88,17 @@ function loadData() {
     s.url = s.published ? `story/${s.id}-${s.slug}.html` : null;
   });
   return { site, stories, entities };
+}
+
+function loadData() {
+  const site = readJSON(path.join(DATA, "site.json"));
+  const stories = readJSON(path.join(DATA, "stories.json"));
+  const entities = readJSON(path.join(DATA, "entities.json"));
+  const photosPath = path.join(DATA, "photos.json");
+  const photos = fs.existsSync(photosPath) ? readJSON(photosPath) : {};
+  const storyPhotosPath = path.join(DATA, "story-photos.json");
+  const storyPhotos = fs.existsSync(storyPhotosPath) ? readJSON(storyPhotosPath) : {};
+  return deriveData(site, stories, entities, photos, storyPhotos);
 }
 
 function pickFeatured(stories) {
@@ -1343,7 +1348,7 @@ function build() {
   return summary;
 }
 
-module.exports = { build, loadData, pickFeatured, storyPageHTML };
+module.exports = { build, loadData, deriveData, pickFeatured, storyPageHTML };
 
 /* Run directly: `node build.js` */
 if (require.main === module) {

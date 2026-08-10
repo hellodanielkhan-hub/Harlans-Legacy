@@ -1,0 +1,9 @@
+node_modules/
+public/
+.env
+.env.*
+!.env.example
+.vercel
+.tmptest/
+.qatest/
+*.log

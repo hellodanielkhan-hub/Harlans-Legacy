@@ -2,11 +2,20 @@
   {
     "type": "journey",
     "title": "Humor",
-    "subtitle": "2 memories · a journey",
+    "subtitle": "3 memories · a journey",
     "url": "journey/humor.html",
     "badge": "Journey",
-    "memories": 2,
-    "keywords": "humor funny harlan stories the stories that made everyone laugh, and a few that still do. some of what a person leaves behind is simply the way they made a room feel lighter. these are the fridays that begin with a straight face and end with the whole table laughing. journey discover hal harlan"
+    "memories": 3,
+    "keywords": "humor funny harlan stories the stories that made everyone laugh, and a few that still do. some of what a person leaves behind is simply the way they made a room feel lighter. these are the fridays that begin with a straight face and end with the whole table laughing. journey discover harlan hal"
+  },
+  {
+    "type": "journey",
+    "title": "Loss & Memory",
+    "subtitle": "3 memories · a journey",
+    "url": "journey/loss-memory.html",
+    "badge": "Journey",
+    "memories": 3,
+    "keywords": "loss & memory grief and memory what remains after someone is gone — and how the remembering keeps going. this is the quietest part of the archive. not the ending, but everything that keeps on after one — the chair no one could sit in, and the fridays that kept coming anyway. journey discover harlan hal"
   },
   {
     "type": "journey",
@@ -37,15 +46,6 @@
   },
   {
     "type": "journey",
-    "title": "Loss & Memory",
-    "subtitle": "2 memories · a journey",
-    "url": "journey/loss-memory.html",
-    "badge": "Journey",
-    "memories": 2,
-    "keywords": "loss & memory grief and memory what remains after someone is gone — and how the remembering keeps going. this is the quietest part of the archive. not the ending, but everything that keeps on after one — the chair no one could sit in, and the fridays that kept coming anyway. journey discover hal harlan"
-  },
-  {
-    "type": "journey",
     "title": "Objects & Places",
     "subtitle": "1 memory · a journey",
     "url": "journey/objects-places.html",
@@ -55,21 +55,30 @@
   },
   {
     "type": "story",
-    "title": "The Blue Chair",
-    "subtitle": "No. 214 · Mom and Dad Stories",
-    "url": "story/214-the-blue-chair.html",
+    "title": "Ten Cents at the Rialto",
+    "subtitle": "Coming soon · Toledo Childhood",
+    "url": "#archive",
     "badge": "Story",
-    "related": 5,
-    "keywords": "the blue chair he rescued that chair from the curb three times. mom and dad stories c. late 1990s–2010s — spans roughly two decades, no single date iii — mom, dad and home sep 2021 story no 214 214 harlan hal harlan's wife (unnamed in this telling) the den (family home, toledo, ohio) the blue recliner harlan's death (a tuesday in march, year unspecified) his wife sitting in the chair for the first time, about a year later"
+    "related": 3,
+    "keywords": "ten cents at the rialto the whole balcony smelled like popcorn and mischief. toledo childhood aug 2018 story no 88 88 harlan hal toledo"
   },
   {
     "type": "story",
-    "title": "Teaching Me to Drive Stick",
-    "subtitle": "Coming soon · Mom and Dad Stories",
+    "title": "The Argument About the Lawn",
+    "subtitle": "Coming soon · Funny Harlan Stories",
     "url": "#archive",
     "badge": "Story",
     "related": 2,
-    "keywords": "teaching me to drive stick third gear, he said, was where a man's patience really lived. mom and dad stories may 2021 story no 191 191 harlan hal"
+    "keywords": "the argument about the lawn nobody in toledo has ever cared this much about crabgrass. funny harlan stories jul 2019 story no 105 105 harlan hal"
+  },
+  {
+    "type": "story",
+    "title": "Shabbat With No Candles",
+    "subtitle": "Coming soon · Jewish Life / Shabbat",
+    "url": "#archive",
+    "badge": "Story",
+    "related": 2,
+    "keywords": "shabbat with no candles the year the power went out, and we lit the week anyway. jewish life / shabbat dec 2020 story no 122 122 harlan hal"
   },
   {
     "type": "story",
@@ -91,48 +100,21 @@
   },
   {
     "type": "story",
-    "title": "What the Radio Knew",
-    "subtitle": "Coming soon · Grief and Memory",
+    "title": "Teaching Me to Drive Stick",
+    "subtitle": "Coming soon · Mom and Dad Stories",
     "url": "#archive",
     "badge": "Story",
     "related": 2,
-    "keywords": "what the radio knew the station changed itself, or so he always swore. grief and memory jan 2022 story no 251 251 harlan hal"
+    "keywords": "teaching me to drive stick third gear, he said, was where a man's patience really lived. mom and dad stories may 2021 story no 191 191 harlan hal"
   },
   {
     "type": "story",
-    "title": "Ten Cents at the Rialto",
-    "subtitle": "Coming soon · Toledo Childhood",
-    "url": "#archive",
+    "title": "The Blue Chair",
+    "subtitle": "No. 214 · Mom and Dad Stories",
+    "url": "story/214-the-blue-chair.html",
     "badge": "Story",
-    "related": 3,
-    "keywords": "ten cents at the rialto the whole balcony smelled like popcorn and mischief. toledo childhood aug 2018 story no 88 88 harlan hal toledo"
-  },
-  {
-    "type": "story",
-    "title": "The Umbrella He Never Used",
-    "subtitle": "Coming soon · Ordinary Moments",
-    "url": "#archive",
-    "badge": "Story",
-    "related": 2,
-    "keywords": "the umbrella he never used rain or not, it rode in the trunk for thirty years. ordinary moments mar 2023 story no 302 302 harlan hal"
-  },
-  {
-    "type": "story",
-    "title": "Shabbat With No Candles",
-    "subtitle": "Coming soon · Jewish Life / Shabbat",
-    "url": "#archive",
-    "badge": "Story",
-    "related": 2,
-    "keywords": "shabbat with no candles the year the power went out, and we lit the week anyway. jewish life / shabbat dec 2020 story no 122 122 harlan hal"
-  },
-  {
-    "type": "story",
-    "title": "The Argument About the Lawn",
-    "subtitle": "Coming soon · Funny Harlan Stories",
-    "url": "#archive",
-    "badge": "Story",
-    "related": 2,
-    "keywords": "the argument about the lawn nobody in toledo has ever cared this much about crabgrass. funny harlan stories jul 2019 story no 105 105 harlan hal"
+    "related": 5,
+    "keywords": "the blue chair he rescued that chair from the curb three times. mom and dad stories c. late 1990s–2010s — spans roughly two decades, no single date iii — mom, dad and home sep 2021 story no 214 214 harlan hal harlan's wife (unnamed in this telling) the den (family home, toledo, ohio) the blue recliner harlan's death (a tuesday in march, year unspecified) his wife sitting in the chair for the first time, about a year later"
   },
   {
     "type": "story",
@@ -145,12 +127,48 @@
   },
   {
     "type": "story",
+    "title": "What the Radio Knew",
+    "subtitle": "Coming soon · Grief and Memory",
+    "url": "#archive",
+    "badge": "Story",
+    "related": 2,
+    "keywords": "what the radio knew the station changed itself, or so he always swore. grief and memory jan 2022 story no 251 251 harlan hal"
+  },
+  {
+    "type": "story",
+    "title": "The Umbrella He Never Used",
+    "subtitle": "Coming soon · Ordinary Moments",
+    "url": "#archive",
+    "badge": "Story",
+    "related": 2,
+    "keywords": "the umbrella he never used rain or not, it rode in the trunk for thirty years. ordinary moments mar 2023 story no 302 302 harlan hal"
+  },
+  {
+    "type": "story",
     "title": "Following the Trail Harlan Left Us",
     "subtitle": "No. 303 · Jewish Life / Shabbat",
     "url": "story/303-following-the-trail-harlan-left-us.html",
     "badge": "Story",
     "related": 2,
     "keywords": "following the trail harlan left us six months ago, we shared a shabbat shalom post about the yaffe family tree and opened it with three simple words: six… jewish life / shabbat jewish life / shabbat jul 2026 story no 303 303 harlan toledo, ohio family harlan julius yaffe tree father harry born toledo ohio"
+  },
+  {
+    "type": "story",
+    "title": "The Red Suitcase",
+    "subtitle": "No. 304 · Grief and Memory",
+    "url": "story/304-the-red-suitcase.html",
+    "badge": "Story",
+    "related": 1,
+    "keywords": "the red suitcase harlan and i were old enough to remember hard-sided samsonite suitcases from before rolling wheels and extendable… grief and memory aug 2026 story no 304 304 harlan harlan’s suitcase carried state harlan days remember something"
+  },
+  {
+    "type": "story",
+    "title": "The Tattoo That Wasn’t",
+    "subtitle": "No. 305 · Funny Harlan Stories",
+    "url": "story/305-the-tattoo-that-wasnt.html",
+    "badge": "Story",
+    "related": 1,
+    "keywords": "the tattoo that wasn’t this week’s memorial blog is number 388, and as we look at this week’s torah portion, shoftim, we are given a powerful… funny harlan stories aug 2026 story no 305 305 harlan harlan justice lesson ourselves uncle look childhood ever"
   },
   {
     "type": "person",
@@ -180,7 +198,7 @@
     "subtitle": "The subject of every story",
     "url": "family/harlan.html",
     "badge": "Person",
-    "memories": 11,
+    "memories": 13,
     "related": 5,
     "portrait": "assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg",
     "keywords": "harlan harlan blaine yaffe the subject of every story person family"

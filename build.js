@@ -120,29 +120,100 @@ function renderThisWeekTitle(s) {
 // reader), rather than expanding the full text inline. The link reuses the
 // existing .story-toggle affordance so the look is unchanged.
 function renderThisWeekBody(s) {
+  const pic = storyPhotoPicture(s, "(max-width:900px) 92vw, 760px");
+  const p = primaryStoryPhoto(s);
+  const capText = p ? (p.it.caption || "") : "";
+  const plate = pic ? [
+    `            <figure class="tw-plate reveal">`,
+    `              <span class="tw-frame">${pic}</span>`,
+    capText ? `              <figcaption>${text(capText)}</figcaption>` : "",
+    `            </figure>`
+  ].filter(Boolean).join("\n") : "";
   return [
+    plate,
     `            <p class="dropcap">${s.lead || ""}</p>`,
     ``,
     `            <a class="story-toggle story-continue" href="${s.url}">`,
     `              <span class="label-closed">Continue reading</span>`,
     `              <svg class="toggle-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     `            </a>`
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
+// The memory's primary editorial photograph (with generated derivatives), or null.
+function primaryStoryPhoto(s) {
+  const sp = s && s.storyPhotos;
+  if (!sp || !sp.items || !sp.items.length) return null;
+  const it = sp.items.find(x => x.id === sp.primary) || sp.items[0];
+  const kind = (it.portrait && it.portrait.length) ? "portrait" : ((it.full && it.full.length) ? "full" : null);
+  return kind ? { it, kind } : null;
+}
+// A responsive <picture> for that photograph. `prefix` roots the asset path
+// ("" for homepage surfaces, "../" for a story page).
+function storyPhotoPicture(s, sizes, prefix) {
+  prefix = prefix || "";
+  const p = primaryStoryPhoto(s);
+  if (!p) return "";
+  const { it, kind } = p;
+  const widths = kind === "portrait" ? it.portrait : it.full;
+  const largest = widths[widths.length - 1];
+  const dir = `${prefix}assets/story-photos/story-${s.id}/`;
+  const f = it.focus || { x: 50, y: 50 };
+  const set = ext => widths.map(w => `${dir}${it.id}.${kind}.${w}.${ext} ${w}w`).join(", ");
+  return `<picture><source type="image/webp" srcset="${set("webp")}" sizes="${sizes}"><img src="${dir}${it.id}.${kind}.${largest}.jpg" srcset="${set("jpg")}" sizes="${sizes}" width="${largest}" height="${largest}" style="object-position:${f.x}% ${f.y}%" alt="${attr(it.caption || s.title)}" loading="lazy" decoding="async"></picture>`;
+}
+// The memory's photograph as a large cinematic story cover — natural aspect
+// ratio, eager+high-priority (it is the above-the-fold hero of the page).
+function coverPicture(s, prefix) {
+  prefix = prefix || "";
+  const p = primaryStoryPhoto(s);
+  if (!p) return "";
+  const it = p.it;
+  // The cover shows the photograph at its natural ratio: prefer the larger,
+  // uncropped "full" derivatives; fall back to the portrait crop.
+  const kind = (it.full && it.full.length) ? "full" : "portrait";
+  const widths = kind === "full" ? it.full : it.portrait;
+  const largest = widths[widths.length - 1];
+  const dir = `${prefix}assets/story-photos/story-${s.id}/`;
+  const f = it.focus || { x: 50, y: 50 };
+  const w = it.width || largest, h = it.height || largest;
+  const sizes = "(max-width:800px) 94vw, 760px";
+  const set = ext => widths.map(x => `${dir}${it.id}.${kind}.${x}.${ext} ${x}w`).join(", ");
+  return `<picture><source type="image/webp" srcset="${set("webp")}" sizes="${sizes}"><img src="${dir}${it.id}.${kind}.${largest}.jpg" srcset="${set("jpg")}" sizes="${sizes}" width="${w}" height="${h}" style="object-position:${f.x}% ${f.y}%" alt="${attr(it.caption || s.title)}" loading="eager" fetchpriority="high" decoding="async"></picture>`;
+}
+// Provenance — the museum "wall text" for a memory: when, where, and by whom it
+// is kept. Built only from real fields; empty parts are simply omitted.
+function storyProvenance(s) {
+  const parts = [`<span>No.&nbsp;<b>${s.id}</b></span>`];
+  const when = (s.memoryDate && s.memoryDate.length <= 46) ? s.memoryDate
+    : (s.dateLong || "");
+  if (when) parts.push(`<span>${text(when)}</span>`);
+  const where = (s.places || []).slice(0, 2).map(text).join(" · ");
+  if (where) parts.push(`<span>${where}</span>`);
+  if (s.readingTime) parts.push(`<span>${s.readingTime}&nbsp;min</span>`);
+  parts.push(`<span>Kept by <b>Hal</b></span>`);
+  return parts.join("\n            ");
+}
+
+// An archive memory rendered as a framed exhibit on the gallery wall: a matted
+// photograph where the memory has one, a dignified "in words" plate where it
+// does not — so a memory without a surviving photograph never reads as empty.
 function renderArchiveCard(s) {
   const tab = `--tab-color:var(--thread-${s.theme})`;
   const dot = `background:var(--thread-${s.theme})`;
+  const plate = storyPhotoPicture(s, "(max-width:640px) 92vw, 340px");
+  const cls = "card-catalogue" + (plate ? "" : " is-words");
   const inner = [
-    `          <span class="stamp">Story No. ${s.id} &middot; ${text(s.dateLabel)}</span>`,
+    plate ? `          <span class="cc-plate">${plate}</span>` : `          <span class="cc-mark" aria-hidden="true"></span>`,
+    `          <span class="stamp">No. ${s.id} &middot; ${text(s.dateLabel)}</span>`,
     `          <h3>${text(s.title)}</h3>`,
     `          <p class="teaser">${text(s.summary)}</p>`,
     `          <span class="theme-label"><span class="dot" style="${dot}"></span>${text(s.themeLabel)}</span>`
   ].join("\n");
   if (s.published) {
-    return `        <a class="card-catalogue" data-theme="${s.theme}" style="${tab}" href="${s.url}">\n${inner}\n        </a>`;
+    return `        <a class="${cls}" data-theme="${s.theme}" style="${tab}" href="${s.url}">\n${inner}\n        </a>`;
   }
-  return `        <article class="card-catalogue" data-theme="${s.theme}" style="${tab}">\n${inner}\n        </article>`;
+  return `        <article class="${cls}" data-theme="${s.theme}" style="${tab}">\n${inner}\n        </article>`;
 }
 
 // The archive lists EVERY story — including This Week's featured one — so a
@@ -243,22 +314,23 @@ ${groups}
 
 function renderRelatedMemories(rels) {
   if (!rels || !rels.length) return "";
-  const cards = rels.slice(0, 4).map(r => {
-    const via = r.via.slice(0, 4).map(e => text(e.name)).join(", ");
-    const href = r.story.published ? `../${r.story.url}` : "../index.html#archive";
-    const meta = r.story.published ? `Story No. ${r.story.id}` : "Coming soon";
-    return `        <a class="related-card" href="${href}">
-          <span class="rc-title">${text(r.story.title)}</span>
-          <span class="rc-via">Shares ${via}</span>
-          <span class="rc-meta">${meta} →</span>
+  const cards = rels.slice(0, 3).map(r => {
+    const via = r.via.slice(0, 3).map(e => text(e.name)).join(" · ");
+    const pub = r.story.published;
+    const href = pub ? `../${r.story.url}` : "../index.html#archive";
+    const meta = pub ? `No.&nbsp;${r.story.id}` : "Coming soon";
+    return `        <a class="collection-piece" style="--tab-color:var(--thread-${r.story.theme})" href="${href}">
+          <span class="cp-label">${meta}${via ? ` &middot; shares ${via}` : ""}</span>
+          <span class="cp-title">${text(r.story.title)}</span>
+          <span class="cp-go" aria-hidden="true">Step into this memory →</span>
         </a>`;
   }).join("\n");
   return `
-  <section class="related-memories" aria-label="Related memories">
+  <section class="related-memories collection-onward" aria-label="Elsewhere in the collection">
     <div class="container reveal">
-      <p class="eyebrow">Threads that cross here</p>
-      <h2>Related memories</h2>
-      <div class="related-grid">
+      <p class="eyebrow">Follow the thread</p>
+      <h2>Elsewhere in the collection</h2>
+      <div class="collection-row">
 ${cards}
       </div>
     </div>
@@ -271,11 +343,23 @@ function storyPageHTML(s, site, graph, journey, journeys) {
   const titleTag = `${s.title} — Harlan's Legacy`;
   const desc = s.description || s.summary || "";
   const ogDesc = s.ogDescription || desc;
+  // Cinematic cover: the memory's photograph leads the page; the body excludes
+  // it so it is never shown twice. Photo-less memories open on a typographic cover.
+  const coverPhoto = primaryStoryPhoto(s);
+  const coverImg = coverPhoto ? coverPicture(s, "../") : "";
+  const coverCaption = coverPhoto ? (coverPhoto.it.caption || "") : "";
+  // Orientation drives the arrival composition: portrait/square → photo beside the
+  // identity (desktop); landscape → a contained banner above the identity.
+  const coverOrient = coverPhoto ? (function () {
+    const it = coverPhoto.it, w = it.width || 0, h = it.height || 0;
+    if (w && h) { if (w > h * 1.05) return "landscape"; if (h > w * 1.05) return "portrait"; return "square"; }
+    return "portrait";
+  })() : "none";
+  const provenance = storyProvenance(s);
   // Immersive reader: prose woven with data-driven photo & memory modules.
   const composedBody = graph
-    ? readerLib.composeBody(s, graph, "../")
+    ? readerLib.composeBody(s, graph, "../", { coverImageId: coverPhoto ? coverPhoto.it.id : null })
     : [s.lead, ...(s.body || [])].filter(Boolean).map(p => `          <p>${p}</p>`).join("\n\n");
-  const mastheadMeta = readerLib.mastheadMeta(s);
   const codaHTML = readerLib.endingCoda(s, site);
   const moreCount = Math.max(0, site.archiveTotal - 1);
   const connectionsHTML = graph ? renderStoryConnections(graph.storyConnections[s.id]) : "";
@@ -295,13 +379,14 @@ function storyPageHTML(s, site, graph, journey, journeys) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>
+/* Day-first: the memory opens in its warm, light identity. A returning visitor's
+   explicit choice (via the toggle → localStorage) always wins; a first-time
+   visitor is NOT auto-switched to Night by OS dark-mode. Night stays a toggle. */
 (function(){
   try {
     var saved = window.localStorage.getItem("hl-theme");
     if (saved === "night" || saved === "day") {
       document.documentElement.setAttribute("data-theme", saved);
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      document.documentElement.setAttribute("data-theme", "night");
     }
   } catch(e) {}
 })();
@@ -937,19 +1022,25 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
   <section id="story">
     <div class="container">
       <div class="story-card reveal" id="hl-story" data-story-id="${s.id}" data-theme="${attr(s.theme)}" data-reading-time="${s.readingTime || 0}" data-url="${attr(s.url)}">
-        <header class="story-masthead">
-          <div class="story-stamp">
-            <span class="thread-dot" aria-hidden="true"></span>
-            <span class="meta">Story No. ${s.id} &middot; ${text(s.themeLabel)}</span>
-            <button class="hl-bookmark" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
-              <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-              <span class="hl-bm-label">Save</span>
-            </button>
+        <header class="story-cover${coverImg ? " has-photo" : " no-photo"}" data-orient="${coverOrient}" style="--thread:${s.threadHex}">
+          <button class="hl-bookmark hl-bookmark-cover" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
+            <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            <span class="hl-bm-label">Save</span>
+          </button>
+          <div class="cover-arrival">
+            ${coverImg ? `<figure class="cover-photo">
+              <span class="cover-frame">${coverImg}</span>
+              ${coverCaption ? `<figcaption class="cover-cap">${text(coverCaption)}</figcaption>` : ""}
+            </figure>` : ""}
+            <div class="cover-identity">
+              <p class="cover-eyebrow">${text(s.themeLabel)}</p>
+              <h1 class="resolve">${text(s.title)}</h1>
+              <div class="story-provenance" role="group" aria-label="About this memory">
+                ${provenance}
+              </div>
+              ${coverImg ? "" : `<p class="cover-note"><span aria-hidden="true"></span>No photograph survives — this memory is kept in Hal's words.</p>`}
+            </div>
           </div>
-
-          <h1 class="resolve">${text(s.title)}</h1>
-
-          <p class="story-byline">${mastheadMeta}</p>
         </header>
 
         <div class="story-body">

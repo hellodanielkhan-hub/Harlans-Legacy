@@ -4,13 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script>
+/* Day-first: the memory opens in its warm, light identity. A returning visitor's
+   explicit choice (via the toggle → localStorage) always wins; a first-time
+   visitor is NOT auto-switched to Night by OS dark-mode. Night stays a toggle. */
 (function(){
   try {
     var saved = window.localStorage.getItem("hl-theme");
     if (saved === "night" || saved === "day") {
       document.documentElement.setAttribute("data-theme", saved);
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      document.documentElement.setAttribute("data-theme", "night");
     }
   } catch(e) {}
 })();
@@ -646,19 +647,26 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
   <section id="story">
     <div class="container">
       <div class="story-card reveal" id="hl-story" data-story-id="303" data-theme="shabbat" data-reading-time="7" data-url="story/303-following-the-trail-harlan-left-us.html">
-        <header class="story-masthead">
-          <div class="story-stamp">
-            <span class="thread-dot" aria-hidden="true"></span>
-            <span class="meta">Story No. 303 &middot; Jewish Life / Shabbat</span>
-            <button class="hl-bookmark" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
-              <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-              <span class="hl-bm-label">Save</span>
-            </button>
+        <header class="story-cover no-photo" data-orient="none" style="--thread:#B8964F">
+          <button class="hl-bookmark hl-bookmark-cover" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
+            <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            <span class="hl-bm-label">Save</span>
+          </button>
+          <div class="cover-arrival">
+            
+            <div class="cover-identity">
+              <p class="cover-eyebrow">Jewish Life / Shabbat</p>
+              <h1 class="resolve">Following the Trail Harlan Left Us</h1>
+              <div class="story-provenance" role="group" aria-label="About this memory">
+                <span>No.&nbsp;<b>303</b></span>
+            <span>July 31, 2026</span>
+            <span>Toledo, Ohio</span>
+            <span>7&nbsp;min</span>
+            <span>Kept by <b>Hal</b></span>
+              </div>
+              <p class="cover-note"><span aria-hidden="true"></span>No photograph survives — this memory is kept in Hal's words.</p>
+            </div>
           </div>
-
-          <h1 class="resolve">Following the Trail Harlan Left Us</h1>
-
-          <p class="story-byline"><span class="sm-read">7 min read</span><span class="sm-dot" aria-hidden="true">·</span><span class="sm-by">Remembered by Hal</span></p>
         </header>
 
         <div class="story-body">
@@ -722,6 +730,8 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
 
           <p>What did he tell you about the old country?</p>
 
+          <div class="mem-module mem-chapter reveal" aria-hidden="true"><span class="mc-rule"></span><span class="mc-mark"></span><span class="mc-rule"></span></div>
+
           <p>What did he do for a living?</p>
 
           <p>And we certainly couldn't ask Julius the questions that burn a little brighter now:</p>
@@ -779,6 +789,8 @@ AGE 78 YRS</p>
 
           <p>They knew stories about him that no census taker, immigration official, or newspaper could ever record.</p>
 
+          <div class="mem-module mem-chapter reveal" aria-hidden="true"><span class="mc-rule"></span><span class="mc-mark"></span><span class="mc-rule"></span></div>
+
           <p>And when it came time to summarize his life in stone, they didn't choose:</p>
 
           <p>Immigrant.
@@ -787,14 +799,6 @@ Lithuanian.
 Businessman.
 American.
 Successful.</p>
-
-          <figure class="mem-module mem-portrait pull-right reveal">
-            <span class="mp-frame"><picture>
-              <source type="image/webp" srcset="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.webp 176w, ../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.webp 352w, ../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.webp 528w" sizes="(max-width:640px) 60vw, 240px">
-              <img src="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg" srcset="../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg 176w, ../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.jpg 352w, ../assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg 528w" sizes="(max-width:640px) 60vw, 240px" width="528" height="528" style="object-position:57% 42%" alt="Harlan" loading="lazy" decoding="async">
-            </picture></span>
-            <figcaption><span class="mp-name">Harlan</span><span class="mp-role">The subject of every story</span></figcaption>
-          </figure>
 
           <p>They chose:</p>
 
@@ -847,11 +851,11 @@ Harlan and me</p>
 
           <p>Sometimes the pieces fit perfectly.</p>
 
+          <div class="mem-module mem-chapter reveal" aria-hidden="true"><span class="mc-rule"></span><span class="mc-mark"></span><span class="mc-rule"></span></div>
+
           <p>Sometimes they argue with each other.</p>
 
           <p>And almost every answer creates two new questions.</p>
-
-          <div class="mem-module mem-pause reveal" aria-hidden="true"><span></span><span></span><span></span></div>
 
           <p>But the fog is clearing.</p>
 
@@ -901,6 +905,8 @@ Harlan and me</p>
 
           <p>And he lived just long enough to see America enter World War II after Pearl Harbor.</p>
 
+          <div class="mem-module mem-chapter reveal" aria-hidden="true"><span class="mc-rule"></span><span class="mc-mark"></span><span class="mc-rule"></span></div>
+
           <p>Julius died on March 17, 1942.</p>
 
           <p>Imagine the distance between the world into which that little Jewish boy was born in the Russian Empire and the America in which that old man closed his eyes.</p>
@@ -910,14 +916,6 @@ Harlan and me</p>
           <p>Letters crossing oceans would give way to voices traveling through the air.</p>
 
           <p>Entire countries would disappear and borders would be redrawn.</p>
-
-          <figure class="mem-module mem-photo is-wide reveal">
-            <div class="mph-frame"><picture>
-              <source type="image/webp" srcset="../assets/photos/harlan/hal-and-harlan.full.640.webp 640w" sizes="(max-width:900px) 100vw, 860px">
-              <img src="../assets/photos/harlan/hal-and-harlan.full.640.jpg" srcset="../assets/photos/harlan/hal-and-harlan.full.640.jpg 640w" sizes="(max-width:900px) 100vw, 860px" width="1038" height="715" alt="Harlan" loading="lazy" decoding="async">
-            </picture></div>
-            <figcaption><span class="mph-cap">Harlan</span></figcaption>
-          </figure>
 
           <p>And somewhere in the middle of that enormous changing world...</p>
 
@@ -961,9 +959,9 @@ Harlan and me</p>
 
           <p>And somehow kept the next generation moving forward.</p>
 
-          <p>Eventually...</p>
+          <div class="mem-module mem-chapter reveal" aria-hidden="true"><span class="mc-rule"></span><span class="mc-mark"></span><span class="mc-rule"></span></div>
 
-          <div class="mem-module mem-pause reveal" aria-hidden="true"><span></span><span></span><span></span></div>
+          <p>Eventually...</p>
 
           <p>there was us.</p>
 
@@ -1006,14 +1004,6 @@ and an old photograph someone finds eighty years from now.</p>
 
           <p>We cannot ask Grandpa Harry.</p>
 
-          <figure class="mem-module mem-photo is-square reveal">
-            <div class="mph-frame"><picture>
-              <source type="image/webp" srcset="../assets/photos/harlan/514971227-10228374019524920-4169024737502312036-n.full.358.webp 358w" sizes="(max-width:900px) 100vw, 860px">
-              <img src="../assets/photos/harlan/514971227-10228374019524920-4169024737502312036-n.full.358.jpg" srcset="../assets/photos/harlan/514971227-10228374019524920-4169024737502312036-n.full.358.jpg 358w" sizes="(max-width:900px) 100vw, 860px" width="358" height="358" alt="Harlan" loading="lazy" decoding="async">
-            </picture></div>
-            <figcaption><span class="mph-cap">Harlan</span></figcaption>
-          </figure>
-
           <p>We cannot ask Julius.</p>
 
           <p>And now we cannot ask Harlan.</p>
@@ -1027,6 +1017,8 @@ and an old photograph someone finds eighty years from now.</p>
           <p>He searched.</p>
 
           <p>He called.</p>
+
+          <div class="mem-module mem-chapter reveal" aria-hidden="true"><span class="mc-rule"></span><span class="mc-mark"></span><span class="mc-rule"></span></div>
 
           <p>He connected cousins.</p>
 
@@ -1045,14 +1037,6 @@ and an old photograph someone finds eighty years from now.</p>
           <p>Harlan didn't finish the family tree.</p>
 
           <p>He made sure the tree was still alive.</p>
-
-          <figure class="mem-module mem-photo is-square reveal">
-            <div class="mph-frame"><picture>
-              <source type="image/webp" srcset="../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.640.webp 640w, ../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.1280.webp 1280w" sizes="(max-width:900px) 100vw, 860px">
-              <img src="../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.1280.jpg" srcset="../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.640.jpg 640w, ../assets/photos/harlan/harlan-yaffe-with-mother-and-father.full.1280.jpg 1280w" sizes="(max-width:900px) 100vw, 860px" width="1530" height="1530" alt="Harlan" loading="lazy" decoding="async">
-            </picture></div>
-            <figcaption><span class="mph-cap">Harlan</span></figcaption>
-          </figure>
 
           <p>He gave us a trail.</p>
 
@@ -1137,30 +1121,25 @@ and an old photograph someone finds eighty years from now.</p>
       </div>
     </div>
   </section>
-  <section class="related-memories" aria-label="Related memories">
+  <section class="related-memories collection-onward" aria-label="Elsewhere in the collection">
     <div class="container reveal">
-      <p class="eyebrow">Threads that cross here</p>
-      <h2>Related memories</h2>
-      <div class="related-grid">
-        <a class="related-card" href="../index.html#archive">
-          <span class="rc-title">Ten Cents at the Rialto</span>
-          <span class="rc-via">Shares Harlan, Toledo, Ohio</span>
-          <span class="rc-meta">Coming soon →</span>
+      <p class="eyebrow">Follow the thread</p>
+      <h2>Elsewhere in the collection</h2>
+      <div class="collection-row">
+        <a class="collection-piece" style="--tab-color:var(--thread-toledo)" href="../index.html#archive">
+          <span class="cp-label">Coming soon &middot; shares Harlan · Toledo, Ohio</span>
+          <span class="cp-title">Ten Cents at the Rialto</span>
+          <span class="cp-go" aria-hidden="true">Step into this memory →</span>
         </a>
-        <a class="related-card" href="../story/214-the-blue-chair.html">
-          <span class="rc-title">The Blue Chair</span>
-          <span class="rc-via">Shares Harlan</span>
-          <span class="rc-meta">Story No. 214 →</span>
+        <a class="collection-piece" style="--tab-color:var(--thread-momdad)" href="../story/214-the-blue-chair.html">
+          <span class="cp-label">No.&nbsp;214 &middot; shares Harlan</span>
+          <span class="cp-title">The Blue Chair</span>
+          <span class="cp-go" aria-hidden="true">Step into this memory →</span>
         </a>
-        <a class="related-card" href="../index.html#archive">
-          <span class="rc-title">Shabbat With No Candles</span>
-          <span class="rc-via">Shares Harlan</span>
-          <span class="rc-meta">Coming soon →</span>
-        </a>
-        <a class="related-card" href="../index.html#archive">
-          <span class="rc-title">Teaching Me to Drive Stick</span>
-          <span class="rc-via">Shares Harlan</span>
-          <span class="rc-meta">Coming soon →</span>
+        <a class="collection-piece" style="--tab-color:var(--thread-grief)" href="../story/304-the-red-suitcase.html">
+          <span class="cp-label">No.&nbsp;304 &middot; shares Harlan</span>
+          <span class="cp-title">The Red Suitcase</span>
+          <span class="cp-go" aria-hidden="true">Step into this memory →</span>
         </a>
       </div>
     </div>
@@ -1193,7 +1172,7 @@ and an old photograph someone finds eighty years from now.</p>
             <span class="xc-badge">Person</span>
             <span class="xc-title">Harlan</span>
             <span class="xc-desc">The subject of every story</span>
-            <span class="xc-meta">11 memories</span>
+            <span class="xc-meta">13 memories</span>
           </span>
         </a>
         <a class="explore-card ec-entity" data-entity-id="pl-toledo" data-kind="place" href="../place/toledo-ohio.html" style="--tab-color:#6B7A8C">
@@ -1211,6 +1190,22 @@ and an old photograph someone finds eighty years from now.</p>
             <span class="xc-title">Faith &amp; Traditions</span>
             <span class="xc-desc">Shabbat kept most Fridays — sometimes imperfectly, always on purpose.</span>
             <span class="xc-meta">3 memories</span>
+          </span>
+        </a>
+        <a class="explore-card ec-story" href="../story/304-the-red-suitcase.html" style="--tab-color:#B99189">
+          <span class="xc-body">
+            <span class="xc-badge">Story</span>
+            <span class="xc-title">The Red Suitcase</span>
+            <span class="xc-desc">Harlan and I were old enough to remember hard-sided Samsonite suitcases from before rolling wheels and extendable…</span>
+            <span class="xc-meta">Story No. 304</span>
+          </span>
+        </a>
+        <a class="explore-card ec-story" href="../story/305-the-tattoo-that-wasnt.html" style="--tab-color:#7C8471">
+          <span class="xc-body">
+            <span class="xc-badge">Story</span>
+            <span class="xc-title">The Tattoo That Wasn’t</span>
+            <span class="xc-desc">This week’s memorial blog is number 388, and as we look at this week’s Torah portion, Shoftim, we are given a powerful…</span>
+            <span class="xc-meta">Story No. 305</span>
           </span>
         </a>
       </div>

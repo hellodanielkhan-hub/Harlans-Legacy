@@ -554,3 +554,340 @@ a, button, summary, label, .chip, .card-catalogue, input, textarea, select{ -web
   .chip-row::-webkit-scrollbar{ display: none; }
   .chip-row .chip{ flex: 0 0 auto; scroll-snap-align: start; }
 }
+
+/* =========================================================
+   PHASE 13 — THE LIT ROOM
+   A museum layer over the existing paper-and-ember system:
+   a gallery wall, framed exhibits, museum labels, a cinematic
+   story masthead and a stronger "currently on view". Every
+   value is token-driven (day + night), every motion is gated
+   behind prefers-reduced-motion, and nothing here removes an
+   existing behaviour — it restyles existing hooks and adds new
+   exhibit primitives. experience.css loads last, so this leads.
+   ========================================================= */
+
+/* ---- new tokens: the wall, the mat, the frame, the label ---- */
+:root{
+  --wall:        #EAE1D0;   /* gallery wall — exhibits sit lit upon it */
+  --mat:         #FCFAF4;   /* matting behind a framed piece */
+  --frame-line:  #D3C9B5;   /* hairline frame */
+  --label-ink:   #6E6656;   /* museum-label taupe — clears AA on the wall */
+  --exhibit-shadow:    0 1px 1px rgba(46,34,18,.05), 0 26px 46px -30px rgba(46,34,18,.42);
+  --exhibit-shadow-hi: 0 2px 5px rgba(46,34,18,.09), 0 46px 74px -34px rgba(46,34,18,.52);
+  --grain-ink:   46,34,18;
+}
+html[data-theme="night"]{
+  --wall:        #0F131A;   /* the room dims; the exhibits keep the light */
+  --mat:         #212A37;
+  --frame-line:  #333D4C;
+  --label-ink:   #9A9080;
+  --exhibit-shadow:    0 1px 2px rgba(0,0,0,.32), 0 30px 54px -30px rgba(0,0,0,.72);
+  --exhibit-shadow-hi: 0 3px 8px rgba(0,0,0,.42), 0 52px 82px -34px rgba(0,0,0,.82);
+  --grain-ink:   0,0,0;
+}
+
+/* ---- the archival hand: a museum label ---- */
+.hl-mlabel{ font-family: var(--font-voice); text-transform: uppercase;
+  letter-spacing: .2em; font-size: .68rem; line-height: 1.5; color: var(--label-ink);
+  font-feature-settings: normal; }
+.hl-mlabel--row{ display: flex; flex-wrap: wrap; align-items: baseline; gap: .25rem .85rem; }
+.hl-mlabel--row > span{ position: relative; }
+.hl-mlabel--row > span + span::before{ content: ""; position: absolute; left: -.48rem; top: 50%;
+  width: 3px; height: 3px; margin-top: -1.5px; border-radius: 50%;
+  background: color-mix(in srgb, var(--label-ink) 60%, transparent); }
+.hl-mlabel b{ color: var(--ink-secondary); font-weight: 400; }
+
+/* faint paper grain on the deepest grounds, so a wall is never a flat fill */
+.this-week, #archive{ background-image:
+  repeating-linear-gradient(0deg, transparent 0 3px, rgba(var(--grain-ink), var(--g,.02)) 3px 4px); }
+html[data-theme="night"] .this-week, html[data-theme="night"] #archive{ --g:.05; }
+
+/* =========================================================
+   THE GALLERY WALL  (homepage archive)
+   Framed memories hung on a warm wall — not a grid of cards.
+   ========================================================= */
+#archive{ background-color: var(--wall); }
+#archive .section-head .eyebrow{ color: var(--ember-core); }
+/* a single warm pool of light falls across the top of the wall */
+#archive > .container{ position: relative; }
+
+.catalogue-grid{ gap: clamp(1.25rem, 2.6vw, 2.4rem); }
+
+/* Each memory becomes a framed exhibit: a mat, a hairline, a thread spine,
+   a museum label, and the title set as the artifact. Overrides the flat card. */
+.card-catalogue{
+  position: relative; isolation: isolate;
+  background: var(--mat);
+  border: 1px solid var(--frame-line);
+  border-radius: 2px;
+  box-shadow: var(--exhibit-shadow);
+  padding: clamp(1.15rem, 2vw, 1.7rem);
+  padding-top: calc(clamp(1.15rem, 2vw, 1.7rem) + 6px);
+  overflow: hidden;
+}
+/* the thread spine — the exhibit's tab, top edge */
+.card-catalogue::before{ content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: var(--tab-color, var(--thread, var(--ink-whisper))); z-index: 2; }
+.card-catalogue .stamp{
+  font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .18em;
+  font-size: .66rem; color: var(--label-ink); margin-bottom: .55rem; }
+.card-catalogue h3{
+  font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(1.35rem, 1.15rem + .8vw, 1.72rem); line-height: 1.12;
+  letter-spacing: -.012em; margin: 0 0 .5rem; text-wrap: balance; }
+.card-catalogue .teaser{ color: var(--ink-secondary); font-size: .96rem; line-height: 1.55; }
+.card-catalogue .theme-label{ margin-top: 1rem; padding-top: .85rem;
+  border-top: 1px solid color-mix(in srgb, var(--frame-line) 70%, transparent);
+  font-family: var(--font-voice); letter-spacing: .08em; font-size: .64rem;
+  text-transform: uppercase; color: var(--label-ink); }
+/* published exhibits get a whisper of ember on the title as you approach */
+a.card-catalogue h3{ transition: color var(--dur-quiet) var(--ease-settle); }
+a.card-catalogue:hover h3{ color: var(--ember-core); }
+/* photo exhibit: a matted photograph mounted above the label */
+.card-catalogue .cc-plate{ display: block; margin: -6px calc(-1 * clamp(1.15rem,2vw,1.7rem)) 1.1rem;
+  border-bottom: 1px solid var(--frame-line); background: var(--wall); overflow: hidden; }
+.card-catalogue .cc-plate img{ display: block; width: 100%; height: 100%;
+  aspect-ratio: 5 / 4; object-fit: cover; }
+/* word exhibit: no photograph survives — the mark is intentional, quiet, dignified */
+.card-catalogue.is-words{ background:
+  linear-gradient(var(--mat), var(--mat)) padding-box,
+  var(--mat); }
+.card-catalogue.is-words .stamp{ margin-bottom: .8rem; }
+.card-catalogue .cc-mark{ display: inline-flex; align-items: center; gap: .5rem;
+  margin-bottom: .9rem; font-family: var(--font-voice); font-size: .58rem;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--label-ink);
+  opacity: .82; }
+.card-catalogue .cc-mark::before{ content: ""; width: 16px; height: 1px;
+  background: color-mix(in srgb, var(--tab-color, var(--label-ink)) 70%, transparent); }
+/* with no photograph, the title carries the exhibit — set it larger, give it air */
+.card-catalogue.is-words h3{ font-size: clamp(1.5rem, 1.22rem + 1.05vw, 2.05rem); margin-top: .15rem; }
+.card-catalogue.is-words .teaser{ font-size: 1rem; color: var(--ink-secondary); }
+
+@media (prefers-reduced-motion: no-preference){
+  .card-catalogue{ transition: transform 520ms var(--ease-settle), box-shadow 520ms var(--ease-settle),
+    border-color 520ms var(--ease-settle); }
+  .card-catalogue:hover{ transform: translateY(-5px); box-shadow: var(--exhibit-shadow-hi);
+    border-color: color-mix(in srgb, var(--tab-color, var(--frame-line)) 40%, var(--frame-line)); }
+}
+
+/* =========================================================
+   CURRENTLY ON VIEW  (This Week's Story, homepage)
+   The Friday memory presented as the current exhibition.
+   ========================================================= */
+#this-week-card{
+  background: var(--mat);
+  border: 1px solid var(--frame-line);
+  border-radius: 2px;
+  box-shadow: var(--exhibit-shadow-hi);
+  padding: clamp(1.6rem, 4vw, 3.2rem);
+  position: relative; overflow: hidden;
+}
+#this-week-card::before{ content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: linear-gradient(90deg, var(--ember-deep), var(--ember-core), var(--ember-glow)); }
+#friday-eyebrow{ font-family: var(--font-voice); text-transform: uppercase;
+  letter-spacing: .22em; font-size: .72rem; color: var(--ember-core);
+  display: inline-flex; align-items: center; gap: .6rem; }
+#friday-eyebrow::before{ content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ember-core); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ember-core) 55%, transparent); }
+@media (prefers-reduced-motion: no-preference){
+  #friday-eyebrow::before{ animation: hl-onview 2.8s ease-out infinite; }
+  @keyframes hl-onview{ 0%{ box-shadow: 0 0 0 0 color-mix(in srgb, var(--ember-core) 45%, transparent); }
+    100%{ box-shadow: 0 0 0 13px transparent; } }
+}
+#this-week-card .story-title{
+  font-family: var(--font-display); font-weight: 340;
+  font-size: clamp(2.1rem, 1.5rem + 3vw, 3.8rem); line-height: 1.04;
+  letter-spacing: -.02em; margin: 1rem 0 1.2rem; text-wrap: balance; }
+#this-week-card .dropcap{ font-size: clamp(1.12rem, 1.05rem + .4vw, 1.32rem);
+  color: var(--ink-secondary); max-width: 54ch; }
+#this-week-card .story-continue{ margin-top: 1.6rem; font-family: var(--font-voice);
+  text-transform: uppercase; letter-spacing: .16em; font-size: .74rem; }
+/* the featured photograph, matted, at the head of the exhibit */
+.tw-plate{ margin: 0 0 1.8rem; }
+.tw-plate .tw-frame{ display: block; background: var(--wall); border: 1px solid var(--frame-line);
+  padding: 10px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--frame-line) 50%, transparent); }
+.tw-plate img{ display: block; width: 100%; height: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+.tw-plate figcaption{ margin-top: .7rem; font-family: var(--font-voice);
+  letter-spacing: .1em; font-size: .64rem; text-transform: uppercase; color: var(--label-ink); }
+
+/* =========================================================
+   THE EXHIBIT MASTHEAD  (individual story page)
+   ========================================================= */
+.story-masthead .story-stamp .meta{
+  font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .2em;
+  font-size: .72rem; color: var(--label-ink); }
+.story-masthead h1{
+  font-family: var(--font-display); font-weight: 340;
+  font-size: clamp(2.3rem, 1.5rem + 3.6vw, 4.4rem); line-height: 1.02;
+  letter-spacing: -.022em; margin: var(--sp-3) 0 var(--sp-3); text-wrap: balance; }
+.story-masthead .story-byline{ font-family: var(--font-voice); text-transform: uppercase;
+  letter-spacing: .14em; font-size: .7rem; color: var(--ink-muted); }
+.story-masthead::after{ background: var(--ember-core) !important; opacity: .9; }
+
+/* ---- reader modules: photographs as artifacts on the wall ---- */
+.mem-photo .mph-frame, .mem-portrait .mp-frame, .mem-diptych .dp-frame{
+  background: var(--mat); border: 1px solid var(--frame-line); padding: 10px;
+  box-shadow: var(--exhibit-shadow); }
+.mem-photo figcaption, .mem-portrait figcaption, .mem-diptych figcaption{
+  font-family: var(--font-voice); letter-spacing: .06em; }
+.mem-photo .mph-cap, .mem-diptych figcaption{ color: var(--ink-secondary); }
+.mem-photo .mph-meta{ text-transform: uppercase; letter-spacing: .14em; font-size: .62rem;
+  color: var(--label-ink); }
+.mem-portrait .mp-name{ font-family: var(--font-display); }
+.mem-portrait .mp-role{ font-family: var(--font-voice); text-transform: uppercase;
+  letter-spacing: .12em; font-size: .6rem; color: var(--label-ink); }
+
+/* pull quote — a held breath, large and centred */
+.mem-pullquote{ margin: clamp(2.4rem, 6vw, 4.2rem) auto; max-width: 30ch; text-align: center; border: 0; }
+.mem-pullquote blockquote{ font-family: var(--font-display); font-weight: 340; font-style: italic;
+  font-size: clamp(1.55rem, 1.2rem + 1.7vw, 2.5rem); line-height: 1.26; color: var(--ink-primary);
+  margin: 0; position: relative; }
+.mem-pullquote blockquote::before{ content: ""; display: block; width: 34px; height: 1px;
+  background: var(--ember-core); margin: 0 auto 1.3rem; }
+
+/* entity callout — a small museum plaque set into the reading */
+.mem-callout{ background: var(--mat); border: 1px solid var(--frame-line);
+  border-left: 3px solid var(--tab, var(--ember-core)); border-radius: 2px;
+  box-shadow: var(--exhibit-shadow); padding: 1.1rem 1.25rem; }
+.mem-callout .mc-kind{ font-family: var(--font-voice); text-transform: uppercase;
+  letter-spacing: .16em; font-size: .6rem; color: var(--label-ink); }
+.mem-callout .mc-name{ font-family: var(--font-display); }
+
+/* a typographic chapter break for long passages that carry no photograph */
+.story-coda .coda-line{ font-family: var(--font-display); font-style: italic; }
+
+/* honour reduced motion for every new flourish */
+@media (prefers-reduced-motion: reduce){
+  .card-catalogue, .card-catalogue:hover{ transition: none; transform: none; }
+  #friday-eyebrow::before{ animation: none; }
+}
+
+/* =========================================================
+   PHASE 13 — MOBILE (the wall, designed for the hand)
+   ========================================================= */
+@media (max-width: 640px){
+  #this-week-card{ padding: clamp(1.3rem, 6vw, 1.9rem); }
+  .card-catalogue{ padding: 1.2rem; padding-top: calc(1.2rem + 6px); }
+  .card-catalogue h3{ font-size: 1.42rem; }
+  .mem-pullquote{ margin-block: 2.4rem; }
+  .tw-plate img{ aspect-ratio: 4 / 3; }
+}
+
+/* =========================================================
+   PHASE 13 — THE STORY EXHIBIT (individual memory page)
+   From "article" to "preserved memory": a cinematic cover, museum
+   provenance (wall text), chapter rests that let long memories
+   breathe, and an onward path presented as discovery, not "related
+   posts". Editorial scale — the cover breaks wider than the calm
+   reading column. Token-driven, both themes, reduced-motion-safe.
+   ========================================================= */
+#story{ padding-top: clamp(var(--sp-4), 5vw, var(--sp-6)); }
+.story-card{ --bleed: clamp(0px, calc((100vw - 44rem) / 2 - 1rem), 150px); }
+
+/* ---- THE ARRIVAL — cover + identity composed as one preserved-memory opening ----
+   Centred stack by default (mobile / tablet / no-photo). On desktop a portrait
+   photograph sits BESIDE the identity; a landscape photograph is a contained
+   banner above it. The photograph is ALWAYS height-capped so it can never fill
+   the first screen or push the memory's identity below the fold. */
+.story-cover{ position: relative; margin-bottom: clamp(var(--sp-5), 6vw, var(--sp-7)); overflow: clip; }
+.cover-arrival{ max-width: 44rem; margin-inline: auto; text-align: center; }
+.cover-identity{ display: flex; flex-direction: column; align-items: center; gap: .8rem; min-width: 0; }
+.story-cover .cover-eyebrow{ display: inline-block; margin: 0;
+  font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .24em;
+  font-size: .7rem; color: var(--thread); }
+/* Title is the anchor — calm authority, sized to be read, not to fill the screen. */
+.story-cover h1{ font-family: var(--font-display); font-weight: 380;
+  font-size: clamp(2.05rem, 1.5rem + 1.8vw, 3.05rem); line-height: 1.07; letter-spacing: -.016em;
+  margin: 0; max-width: 20ch; text-wrap: balance; color: var(--ink-primary); }
+
+/* museum wall text — supports the title immediately */
+.story-provenance{ display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline;
+  gap: .35rem 1.2rem; font-family: var(--font-voice); text-transform: uppercase;
+  letter-spacing: .16em; font-size: .66rem; color: var(--label-ink); }
+.story-provenance > span{ position: relative; }
+.story-provenance > span + span::before{ content: ""; position: absolute; left: -.66rem; top: .42em;
+  width: 3px; height: 3px; border-radius: 50%; background: color-mix(in srgb, var(--label-ink) 55%, transparent); }
+.story-provenance b{ color: var(--ink-secondary); font-weight: 400; }
+
+/* Opening testimony — the first paragraph reads as Hal beginning to speak. */
+.story-body > .lede-para{ font-size: clamp(1.2rem, 1.08rem + .55vw, 1.44rem); line-height: 1.7;
+  color: var(--ink-primary); margin-bottom: 1.9em; }
+.story-body > .lede-para::first-letter{ color: var(--ember-core); }
+
+/* the photograph: a matted plate. Height is capped by BOUNDING THE FRAME WIDTH
+   per orientation (deterministic — the image keeps its own aspect, never squished
+   or collapsed). Portrait/square get a narrow frame; landscape a contained banner. */
+.cover-photo{ margin: 0 auto var(--sp-4); width: 100%; }
+.cover-frame{ display: block; background: var(--mat);
+  border: 1px solid var(--frame-line); padding: clamp(7px, 1vw, 12px); box-shadow: var(--exhibit-shadow-hi); }
+.cover-frame img{ display: block; width: 100%; height: auto; }
+.cover-cap{ margin-top: .8rem; font-family: var(--font-reading); font-style: italic;
+  font-size: .9rem; color: var(--ink-secondary); text-align: center; }
+/* default (mobile / tablet) frame widths → keep the photo ~40–46vh tall */
+.story-cover[data-orient="portrait"] .cover-photo,
+.story-cover[data-orient="square"]   .cover-photo{ max-width: min(60vw, 280px); margin-inline: auto; }
+.story-cover[data-orient="landscape"] .cover-photo{ max-width: min(100%, 34rem); margin-inline: auto; }
+
+/* DESKTOP: portrait / square → photograph BESIDE the identity, one composed screen */
+@media (min-width: 861px){
+  .story-cover[data-orient="portrait"] .cover-arrival,
+  .story-cover[data-orient="square"] .cover-arrival{
+    max-width: 54rem; display: grid; grid-template-columns: minmax(0, 40%) 1fr;
+    gap: clamp(1.6rem, 3vw, 3.2rem); align-items: center; text-align: left; }
+  /* the grid column (≈40%) now bounds the portrait's width → ~55–58vh tall */
+  .story-cover[data-orient="portrait"] .cover-photo,
+  .story-cover[data-orient="square"] .cover-photo{ margin: 0; max-width: none; }
+  .story-cover[data-orient="portrait"] .cover-identity,
+  .story-cover[data-orient="square"] .cover-identity{ align-items: flex-start; text-align: left; }
+  .story-cover[data-orient="portrait"] .story-provenance,
+  .story-cover[data-orient="square"] .story-provenance{ justify-content: flex-start; }
+  /* landscape → a contained banner, with identity right below it */
+  .story-cover[data-orient="landscape"] .cover-arrival{ max-width: 50rem; }
+  .story-cover[data-orient="landscape"] .cover-photo{ max-width: min(100%, 40rem); }
+}
+
+/* no-photograph cover — atmosphere + testimony carry it, never an empty box */
+.story-cover.no-photo{ padding-top: clamp(var(--sp-3), 5vw, var(--sp-6)); }
+.story-cover.no-photo h1{ font-size: clamp(2.3rem, 1.6rem + 2.4vw, 3.5rem); }
+.story-cover.no-photo::before{ content: ""; position: absolute; left: 50%; top: -1.5rem;
+  transform: translateX(-50%); width: min(120%, 900px); height: 320px; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse 50% 62% at 50% 34%, color-mix(in srgb, var(--thread) 15%, transparent), transparent 72%); }
+.cover-note{ display: inline-flex; align-items: center; gap: .6rem; margin: .4rem auto 0;
+  font-family: var(--font-voice); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); }
+.cover-note span{ width: 20px; height: 1px; background: color-mix(in srgb, var(--thread) 60%, transparent); }
+
+.hl-bookmark-cover{ position: absolute; top: 2px; right: 0; z-index: 3; }
+@media (max-width: 720px){ .hl-bookmark-cover{ position: static; margin: 0 auto var(--sp-3); } }
+
+/* ---- chapter rest — a held silence between passages of a long memory ---- */
+.mem-chapter{ display: flex; align-items: center; justify-content: center; gap: 1rem; clear: both;
+  margin: clamp(var(--sp-5), 7vw, var(--sp-7)) auto; max-width: 19rem; }
+.mem-chapter .mc-rule{ flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink-whisper) 95%, transparent), transparent); }
+.mem-chapter .mc-mark{ flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--thread); opacity: .8; }
+
+/* ---- elsewhere in the collection (replaces "related posts") ---- */
+.collection-onward .collection-row{ display: grid; gap: var(--sp-3); margin-top: var(--sp-4); }
+@media (min-width: 720px){ .collection-onward .collection-row{ grid-template-columns: repeat(3, 1fr); } }
+.collection-piece{ display: flex; flex-direction: column; gap: .55rem; text-decoration: none; color: var(--ink-primary);
+  background: var(--mat); border: 1px solid var(--frame-line); border-radius: 2px; box-shadow: var(--exhibit-shadow);
+  padding: clamp(1.15rem, 2vw, 1.55rem) clamp(1.15rem, 2vw, 1.55rem) clamp(1.15rem, 2vw, 1.55rem) calc(clamp(1.15rem, 2vw, 1.55rem) + 3px);
+  position: relative; overflow: hidden; }
+.collection-piece::before{ content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--tab-color, var(--thread)); }
+.collection-piece .cp-label{ font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .14em; font-size: .6rem; color: var(--label-ink); }
+.collection-piece .cp-title{ font-family: var(--font-display); font-weight: 400; font-size: clamp(1.3rem, 1.12rem + .6vw, 1.6rem); line-height: 1.14; }
+.collection-piece .cp-go{ margin-top: .25rem; font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .12em; font-size: .62rem; color: var(--ember-core); }
+@media (prefers-reduced-motion: no-preference){
+  .collection-piece{ transition: transform 480ms var(--ease-settle), box-shadow 480ms var(--ease-settle); }
+  .collection-piece:hover{ transform: translateY(-4px); box-shadow: var(--exhibit-shadow-hi); }
+  .collection-piece:hover .cp-go{ letter-spacing: .16em; }
+}
+
+@media (max-width: 640px){
+  .story-cover h1{ font-size: clamp(1.9rem, 1.55rem + 1.1vw, 2.2rem); max-width: none; }
+  .story-cover.no-photo h1{ font-size: clamp(2rem, 1.6rem + 1.4vw, 2.4rem); }
+  .story-cover[data-orient="portrait"] .cover-photo,
+  .story-cover[data-orient="square"] .cover-photo{ max-width: min(56vw, 240px); }
+  .story-provenance{ gap: .3rem .85rem; font-size: .62rem; }
+  .collection-onward .collection-row{ grid-template-columns: 1fr; }
+}

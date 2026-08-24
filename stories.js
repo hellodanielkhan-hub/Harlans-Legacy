@@ -2,51 +2,71 @@
    The canonical source of truth is data/stories.json. */
 window.HL_STORIES = [
   {
-    "id": 214,
-    "slug": "the-blue-chair",
-    "title": "The Blue Chair",
-    "published": true,
-    "status": "published",
-    "publishDate": "2021-09-03",
-    "memoryDate": "c. late 1990s–2010s — spans roughly two decades, no single date",
-    "summary": "He rescued that chair from the curb three times.",
-    "excerpt": "There was a recliner in the corner of the den that my father called his office, though as far as any of us could tell, the only business conducted there was arguing with the evening news and falling asleep before <em>Wheel of Fortune</em> finished. It was the color of a swimming pool on a postcard — a blue nobody would have chosen on purpose, which is probably why he loved it. My mother tried to replace it three times over twenty years. Three times it came back from the curb, carried in by my father like a man rescuing a dog from a shelter. The chair had a permanent dent shaped like him — a groove worn into the right armrest where his watch used to click against the wood trim while he read the paper.",
+    "id": 88,
+    "slug": "ten-cents-at-the-rialto",
+    "title": "Ten Cents at the Rialto",
+    "published": false,
+    "status": "coming-soon",
+    "publishDate": "Aug 2018",
+    "memoryDate": null,
+    "summary": "The whole balcony smelled like popcorn and mischief.",
+    "excerpt": null,
     "themes": [
-      "momdad"
+      "toledo"
     ],
     "people": [
       "Harlan",
-      "Hal",
-      "Harlan's wife (unnamed in this telling)"
+      "Hal"
     ],
     "places": [
-      "the den (family home, Toledo, Ohio)"
+      "Toledo"
     ],
-    "objects": [
-      "the blue recliner"
-    ],
-    "events": [
-      "Harlan's death (a Tuesday in March, year unspecified)",
-      "his wife sitting in the chair for the first time, about a year later"
-    ],
-    "bookPart": "III — Mom, Dad and Home",
+    "objects": [],
+    "events": [],
+    "bookPart": null,
     "echoStories": [],
-    "readingTime": 2,
+    "readingTime": null,
     "keywords": [],
-    "url": "story/214-the-blue-chair.html"
+    "url": null
   },
   {
-    "id": 191,
-    "slug": "teaching-me-to-drive-stick",
-    "title": "Teaching Me to Drive Stick",
+    "id": 105,
+    "slug": "the-argument-about-the-lawn",
+    "title": "The Argument About the Lawn",
     "published": false,
     "status": "coming-soon",
-    "publishDate": "May 2021",
+    "publishDate": "Jul 2019",
     "memoryDate": null,
-    "summary": "Third gear, he said, was where a man's patience really lived.",
+    "summary": "Nobody in Toledo has ever cared this much about crabgrass.",
     "excerpt": null,
     "themes": [
-      "momdad"
+      "funny"
+    ],
+    "people": [
+      "Harlan",
+      "Hal"
+    ],
+    "places": [],
+    "objects": [],
+    "events": [],
+    "bookPart": null,
+    "echoStories": [],
+    "readingTime": null,
+    "keywords": [],
+    "url": null
+  },
+  {
+    "id": 122,
+    "slug": "shabbat-with-no-candles",
+    "title": "Shabbat With No Candles",
+    "published": false,
+    "status": "coming-soon",
+    "publishDate": "Dec 2020",
+    "memoryDate": null,
+    "summary": "The year the power went out, and we lit the week anyway.",
+    "excerpt": null,
+    "themes": [
+      "shabbat"
     ],
     "people": [
       "Harlan",
@@ -114,6 +134,92 @@ window.HL_STORIES = [
     "url": null
   },
   {
+    "id": 191,
+    "slug": "teaching-me-to-drive-stick",
+    "title": "Teaching Me to Drive Stick",
+    "published": false,
+    "status": "coming-soon",
+    "publishDate": "May 2021",
+    "memoryDate": null,
+    "summary": "Third gear, he said, was where a man's patience really lived.",
+    "excerpt": null,
+    "themes": [
+      "momdad"
+    ],
+    "people": [
+      "Harlan",
+      "Hal"
+    ],
+    "places": [],
+    "objects": [],
+    "events": [],
+    "bookPart": null,
+    "echoStories": [],
+    "readingTime": null,
+    "keywords": [],
+    "url": null
+  },
+  {
+    "id": 214,
+    "slug": "the-blue-chair",
+    "title": "The Blue Chair",
+    "published": true,
+    "status": "published",
+    "publishDate": "2021-09-03",
+    "memoryDate": "c. late 1990s–2010s — spans roughly two decades, no single date",
+    "summary": "He rescued that chair from the curb three times.",
+    "excerpt": "There was a recliner in the corner of the den that my father called his office, though as far as any of us could tell, the only business conducted there was arguing with the evening news and falling asleep before <em>Wheel of Fortune</em> finished. It was the color of a swimming pool on a postcard — a blue nobody would have chosen on purpose, which is probably why he loved it. My mother tried to replace it three times over twenty years. Three times it came back from the curb, carried in by my father like a man rescuing a dog from a shelter. The chair had a permanent dent shaped like him — a groove worn into the right armrest where his watch used to click against the wood trim while he read the paper.",
+    "themes": [
+      "momdad"
+    ],
+    "people": [
+      "Harlan",
+      "Hal",
+      "Harlan's wife (unnamed in this telling)"
+    ],
+    "places": [
+      "the den (family home, Toledo, Ohio)"
+    ],
+    "objects": [
+      "the blue recliner"
+    ],
+    "events": [
+      "Harlan's death (a Tuesday in March, year unspecified)",
+      "his wife sitting in the chair for the first time, about a year later"
+    ],
+    "bookPart": "III — Mom, Dad and Home",
+    "echoStories": [],
+    "readingTime": 2,
+    "keywords": [],
+    "url": "story/214-the-blue-chair.html"
+  },
+  {
+    "id": 226,
+    "slug": "waiting-at-gate-14",
+    "title": "Waiting at Gate 14",
+    "published": false,
+    "status": "coming-soon",
+    "publishDate": "Apr 2021",
+    "memoryDate": null,
+    "summary": "He always came early. That part, at least, never changed.",
+    "excerpt": null,
+    "themes": [
+      "grief"
+    ],
+    "people": [
+      "Harlan",
+      "Hal"
+    ],
+    "places": [],
+    "objects": [],
+    "events": [],
+    "bookPart": null,
+    "echoStories": [],
+    "readingTime": null,
+    "keywords": [],
+    "url": null
+  },
+  {
     "id": 251,
     "slug": "what-the-radio-knew",
     "title": "What the Radio Knew",
@@ -140,34 +246,6 @@ window.HL_STORIES = [
     "url": null
   },
   {
-    "id": 88,
-    "slug": "ten-cents-at-the-rialto",
-    "title": "Ten Cents at the Rialto",
-    "published": false,
-    "status": "coming-soon",
-    "publishDate": "Aug 2018",
-    "memoryDate": null,
-    "summary": "The whole balcony smelled like popcorn and mischief.",
-    "excerpt": null,
-    "themes": [
-      "toledo"
-    ],
-    "people": [
-      "Harlan",
-      "Hal"
-    ],
-    "places": [
-      "Toledo"
-    ],
-    "objects": [],
-    "events": [],
-    "bookPart": null,
-    "echoStories": [],
-    "readingTime": null,
-    "keywords": [],
-    "url": null
-  },
-  {
     "id": 302,
     "slug": "the-umbrella-he-never-used",
     "title": "The Umbrella He Never Used",
@@ -179,84 +257,6 @@ window.HL_STORIES = [
     "excerpt": null,
     "themes": [
       "ordinary"
-    ],
-    "people": [
-      "Harlan",
-      "Hal"
-    ],
-    "places": [],
-    "objects": [],
-    "events": [],
-    "bookPart": null,
-    "echoStories": [],
-    "readingTime": null,
-    "keywords": [],
-    "url": null
-  },
-  {
-    "id": 122,
-    "slug": "shabbat-with-no-candles",
-    "title": "Shabbat With No Candles",
-    "published": false,
-    "status": "coming-soon",
-    "publishDate": "Dec 2020",
-    "memoryDate": null,
-    "summary": "The year the power went out, and we lit the week anyway.",
-    "excerpt": null,
-    "themes": [
-      "shabbat"
-    ],
-    "people": [
-      "Harlan",
-      "Hal"
-    ],
-    "places": [],
-    "objects": [],
-    "events": [],
-    "bookPart": null,
-    "echoStories": [],
-    "readingTime": null,
-    "keywords": [],
-    "url": null
-  },
-  {
-    "id": 105,
-    "slug": "the-argument-about-the-lawn",
-    "title": "The Argument About the Lawn",
-    "published": false,
-    "status": "coming-soon",
-    "publishDate": "Jul 2019",
-    "memoryDate": null,
-    "summary": "Nobody in Toledo has ever cared this much about crabgrass.",
-    "excerpt": null,
-    "themes": [
-      "funny"
-    ],
-    "people": [
-      "Harlan",
-      "Hal"
-    ],
-    "places": [],
-    "objects": [],
-    "events": [],
-    "bookPart": null,
-    "echoStories": [],
-    "readingTime": null,
-    "keywords": [],
-    "url": null
-  },
-  {
-    "id": 226,
-    "slug": "waiting-at-gate-14",
-    "title": "Waiting at Gate 14",
-    "published": false,
-    "status": "coming-soon",
-    "publishDate": "Apr 2021",
-    "memoryDate": null,
-    "summary": "He always came early. That part, at least, never changed.",
-    "excerpt": null,
-    "themes": [
-      "grief"
     ],
     "people": [
       "Harlan",
@@ -314,17 +314,97 @@ window.HL_STORIES = [
       "Ohio"
     ],
     "url": "story/303-following-the-trail-harlan-left-us.html"
+  },
+  {
+    "id": 304,
+    "slug": "the-red-suitcase",
+    "title": "The Red Suitcase",
+    "published": true,
+    "status": "published",
+    "publishDate": "2026-08-07",
+    "memoryDate": null,
+    "summary": "Harlan and I were old enough to remember hard-sided Samsonite suitcases from before rolling wheels and extendable…",
+    "excerpt": "Harlan and I were old enough to remember hard-sided Samsonite suitcases from before rolling wheels and extendable handles.",
+    "themes": [
+      "grief"
+    ],
+    "people": [
+      "Harlan"
+    ],
+    "places": [],
+    "objects": [],
+    "events": [],
+    "bookPart": null,
+    "echoStories": [
+      88,
+      105,
+      122,
+      137,
+      168
+    ],
+    "readingTime": 3,
+    "keywords": [
+      "harlan’s",
+      "suitcase",
+      "carried",
+      "state",
+      "harlan",
+      "days",
+      "remember",
+      "something"
+    ],
+    "url": "story/304-the-red-suitcase.html"
+  },
+  {
+    "id": 305,
+    "slug": "the-tattoo-that-wasnt",
+    "title": "The Tattoo That Wasn’t",
+    "published": true,
+    "status": "published",
+    "publishDate": "2026-08-14",
+    "memoryDate": null,
+    "summary": "This week’s memorial blog is number 388, and as we look at this week’s Torah portion, Shoftim, we are given a powerful…",
+    "excerpt": "This week’s memorial blog is number 388, and as we look at this week’s Torah portion, Shoftim, we are given a powerful command:",
+    "themes": [
+      "funny"
+    ],
+    "people": [
+      "Harlan"
+    ],
+    "places": [],
+    "objects": [],
+    "events": [],
+    "bookPart": null,
+    "echoStories": [
+      88,
+      105,
+      122,
+      137,
+      168
+    ],
+    "readingTime": 5,
+    "keywords": [
+      "harlan",
+      "justice",
+      "lesson",
+      "ourselves",
+      "uncle",
+      "look",
+      "childhood",
+      "ever"
+    ],
+    "url": "story/305-the-tattoo-that-wasnt.html"
   }
 ];
 window.HL_ARCHIVE = {
-  "total": 2,
-  "featured": 303,
+  "total": 4,
+  "featured": 305,
   "themes": {
     "funny": "Funny Harlan Stories",
+    "grief": "Grief and Memory",
     "momdad": "Mom and Dad Stories",
     "toledo": "Toledo Childhood",
     "shabbat": "Jewish Life / Shabbat",
-    "grief": "Grief and Memory",
     "ordinary": "Ordinary Moments"
   },
   "stories": [
@@ -339,7 +419,9 @@ window.HL_ARCHIVE = {
       "dateLabel": "Sep 2021",
       "readingTime": 2,
       "rec": [
-        303
+        303,
+        304,
+        305
       ]
     },
     {
@@ -353,7 +435,41 @@ window.HL_ARCHIVE = {
       "dateLabel": "Jul 2026",
       "readingTime": 7,
       "rec": [
-        214
+        214,
+        304,
+        305
+      ]
+    },
+    {
+      "id": 304,
+      "slug": "the-red-suitcase",
+      "title": "The Red Suitcase",
+      "url": "story/304-the-red-suitcase.html",
+      "theme": "grief",
+      "themeLabel": "Grief and Memory",
+      "summary": "Harlan and I were old enough to remember hard-sided Samsonite suitcases from before rolling wheels and extendable…",
+      "dateLabel": "Aug 2026",
+      "readingTime": 3,
+      "rec": [
+        303,
+        214,
+        305
+      ]
+    },
+    {
+      "id": 305,
+      "slug": "the-tattoo-that-wasnt",
+      "title": "The Tattoo That Wasn’t",
+      "url": "story/305-the-tattoo-that-wasnt.html",
+      "theme": "funny",
+      "themeLabel": "Funny Harlan Stories",
+      "summary": "This week’s memorial blog is number 388, and as we look at this week’s Torah portion, Shoftim, we are given a powerful…",
+      "dateLabel": "Aug 2026",
+      "readingTime": 5,
+      "rec": [
+        303,
+        214,
+        304
       ]
     }
   ]

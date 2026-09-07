@@ -522,52 +522,173 @@ body.panel-open{ overflow: hidden; }
 /* =========================================================
    HERO
    ========================================================= */
+/* =========================================================
+   HERO — the approved cinematic opening, integrated natively.
+   A dark cinematic STAGE in BOTH themes (by design, owner-approved),
+   independent of the site day/night toggle; it fills the viewport under
+   the header and hands off to the themed content below. Five discrete
+   data-scene states play ONCE then rest; only ambient motion (grain,
+   slow light, portrait breathing, looping atmosphere video) continues.
+   Verified copy only. Reduced-motion → static scene 5. Prototype:
+   hero-composition-final.html (backup: index.pre-cinematic-hero.backup.html).
+   ========================================================= */
+@property --titleRev{ syntax:'<number>'; inherits:false; initial-value:0; }
 .hero{
-  padding-block: var(--sp-8) var(--sp-7);
-  position: relative;
-  overflow: hidden;
+  position: relative; overflow: hidden; isolation: isolate;
+  padding: 0;                       /* full-bleed stage (overrides the base section padding) */
+  min-height: calc(100vh - var(--header-height));
+  min-height: calc(100svh - var(--header-height));
+  background: radial-gradient(150% 130% at 44% 38%, #171310, #080706 74%);
+  --v-ink:#F5EFE4; --v-ink2:#B6AE9A; --v-ink3:#6C6555; --v-ember:#E2A869;
+  --v-eL:cubic-bezier(.52,.06,.15,1); --v-eS:cubic-bezier(.4,0,.2,1);
 }
-.hero-grid{
-  display: grid;
-  grid-template-columns: 1.32fr 0.68fr;
-  gap: var(--sp-6);
-  align-items: center; /* the flame rests level with the heading, not pinned to the top */
-}
-.hero-flame-wrap{
-  justify-self: center;
-  align-self: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-3);
-  width: min(268px, 32vw); /* proportional to the display heading — a focal point, not an icon */
-  margin: 0;
-  position: relative;
-}
-/* The hero candle is a real looping video cinemagraph — its markup lives in
-   the hero below and its styling in assets/experience.css (.hero-candle). */
-.hero-flame-caption{
-  font-size: var(--text-caption);
-  color: var(--ink-secondary);
-  text-align: center;
-  margin: 0;
-}
-.hero h1{
-  font-size: var(--text-display);
-  margin-bottom: var(--sp-4);
-}
-.hero h1 em{ color: var(--ember-core); font-style: italic; }
-.hero .lede{
-  font-size: var(--text-body-lg);
-  color: var(--ink-secondary);
-  max-width: 46ch;
-  margin-bottom: var(--sp-5);
-}
-.hero-ctas{
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-  flex-wrap: wrap;
+.hero .stage{ position:absolute; inset:0; overflow:hidden; }
+
+/* atmosphere: real, locally-hosted dark analog-film clip. Pexels License (no
+   attribution required) — "vintage film" grain / warm light-burn by Dan Cristian
+   Pădureț (pexels.com/@paduret, id 12987891), 426×240, ~0.85 MB. mix-blend screen
+   + dark grade + centre mask → adds warm depth to the negative space only. */
+.hero .atmos-video{position:absolute; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; pointer-events:none;
+  opacity:0; mix-blend-mode:screen; filter:brightness(.5) saturate(.6) contrast(1.02) blur(1px);
+  -webkit-mask:radial-gradient(118% 96% at 50% 44%, rgba(0,0,0,0) 22%, #000 80%);
+          mask:radial-gradient(118% 96% at 50% 44%, rgba(0,0,0,0) 22%, #000 80%);
+  transition:opacity 1600ms ease;}
+.hero .atmos-video.on{ opacity:.20; }
+@media (max-width:1100px){ .hero .atmos-video.on{ opacity:.13; } }
+@media (max-width:600px){ .hero .atmos-video{ display:none; } }
+@media (prefers-reduced-motion:reduce){ .hero .atmos-video{ display:none; } }
+
+.hero .light{position:absolute; z-index:0; right:6%; top:6%; width:60%; height:76%; pointer-events:none;
+  background:radial-gradient(52% 52% at 50% 50%, color-mix(in srgb,var(--v-ember) 13%,transparent), transparent 68%); opacity:.55;
+  transition:opacity 1400ms ease;}
+@media (prefers-reduced-motion:no-preference){ .hero .light{ animation:hero-drift 34s ease-in-out infinite alternate; } }
+@keyframes hero-drift{ from{transform:translate(0,0);} to{transform:translate(-22vw,12vh);} }
+
+.hero .spot{position:absolute; z-index:2; left:53%; top:37%; width:24vw; height:31vw; transform:translate(-50%,-50%);
+  pointer-events:none; opacity:0; mix-blend-mode:screen;
+  background:radial-gradient(46% 42% at 50% 42%, color-mix(in srgb,var(--v-ember) 26%,transparent), transparent 66%);
+  transition:opacity 1500ms ease;}
+@media (prefers-reduced-motion:no-preference){ .hero .stage[data-scene="1"] .spot{ animation:hero-spotreveal 2600ms cubic-bezier(.4,.1,.2,1) both; } }
+@keyframes hero-spotreveal{ 0%{ transform:translate(-50%,-50%) translate(-7%,5%) scale(.86); opacity:.14; } 100%{ transform:translate(-50%,-50%) translate(0,0) scale(1); opacity:.95; } }
+
+/* ---- HARLAN: a soft feathered luminous presence, re-authored per scene ---- */
+.hero .harlan{position:absolute; z-index:1; left:50%; top:47%; width:30vw; aspect-ratio:72/100;
+  transform:translate(-50%,-50%); opacity:0; overflow:hidden;
+  -webkit-mask:radial-gradient(62% 58% at 50% 40%, #000 50%, transparent 86%);
+          mask:radial-gradient(62% 58% at 50% 40%, #000 50%, transparent 86%);
+  transition:left 1250ms var(--v-eL), top 1250ms var(--v-eL), width 1250ms var(--v-eL), opacity 1000ms ease;}
+.hero .harlan img{width:100%; height:100%; object-fit:cover; object-position:50% 17%; display:block;
+  filter:brightness(.5) contrast(1.05) saturate(.9) blur(4px);
+  transition:filter 1150ms ease, object-position 1250ms var(--v-eL);}
+@media (prefers-reduced-motion:no-preference){ .hero .harlan img{ animation:hero-breathe 10s ease-in-out infinite; } }
+@keyframes hero-breathe{ 0%,100%{transform:scale(1);} 50%{transform:scale(1.014);} }
+
+.hero .veil{position:absolute; z-index:2; inset:0; pointer-events:none; background:#080706; opacity:.45; transition:opacity 1200ms ease;}
+.hero .vignette{position:absolute; z-index:2; inset:0; pointer-events:none;
+  background:radial-gradient(155% 125% at 48% 42%, transparent 42%, color-mix(in srgb,#080706 76%,transparent) 100%);}
+
+/* ---- TYPOGRAPHY (weights limited to the site's loaded Fraunces cuts: 340 / 440) ---- */
+.hero .title{position:absolute; z-index:3; left:6vw; top:20%; margin:0; color:var(--v-ink); opacity:0;
+  font-family:var(--font-display); font-weight:340; font-size:3.6rem; line-height:0.92; letter-spacing:-0.032em;
+  -webkit-mask:linear-gradient(180deg, #000 calc(var(--titleRev)*128% - 28%), transparent calc(var(--titleRev)*128%));
+          mask:linear-gradient(180deg, #000 calc(var(--titleRev)*128% - 28%), transparent calc(var(--titleRev)*128%));
+  text-shadow:0 2px 40px color-mix(in srgb,#000 42%,transparent);
+  transition:left 1250ms var(--v-eL) 200ms, top 1250ms var(--v-eL) 200ms, font-size 1250ms var(--v-eL) 200ms,
+             opacity 850ms ease 220ms, --titleRev 1000ms var(--v-eS) 260ms;}
+.hero .ctx{position:absolute; z-index:3; left:6vw; top:33%; font-family:var(--font-reading); font-style:italic; color:var(--v-ink2);
+  font-size:clamp(1.05rem, 0.92rem + 0.55vw, 1.5rem); letter-spacing:0.004em; opacity:0; transform:translateY(10px);
+  text-shadow:0 1px 14px #000;
+  transition:left 1100ms var(--v-eL) 240ms, top 1100ms var(--v-eL) 240ms, opacity 850ms ease 280ms, transform 950ms var(--v-eL) 280ms;}
+.hero .orient{position:absolute; z-index:3; left:6vw; bottom:15vh; margin:0; max-width:min(48vw,640px);
+  font-family:var(--font-display); font-weight:440; font-style:italic; color:var(--v-ink); opacity:0;
+  font-size:clamp(1.7rem, 1rem + 2vw, 3rem); line-height:1.04; letter-spacing:-0.012em;
+  text-shadow:0 2px 34px #000, 0 1px 6px #000; transform:translateY(16px);
+  transition:opacity 900ms ease 240ms, transform 1000ms var(--v-eL) 240ms;}
+.hero .cadence{position:absolute; z-index:3; left:6vw; top:33%; margin:0; max-width:min(34vw,500px);
+  font-family:var(--font-reading); font-style:italic; color:var(--v-ink); opacity:0;
+  font-size:clamp(1.2rem, 0.92rem + 0.9vw, 1.85rem); line-height:1.32; letter-spacing:0.003em;
+  text-shadow:0 1px 18px #000; transform:translateY(12px);
+  transition:opacity 850ms ease 300ms, transform 950ms var(--v-eL) 300ms, top 1100ms var(--v-eL) 300ms;}
+.hero .keep{position:absolute; z-index:3; right:6vw; left:auto; top:auto; bottom:9vh; text-align:right; font-family:var(--font-voice); font-size:0.82rem; letter-spacing:0.22em; text-transform:uppercase; color:var(--v-ink2);
+  opacity:0; transform:translateY(8px); text-shadow:0 1px 14px #000;
+  transition:opacity 850ms ease 360ms, transform 950ms var(--v-eL) 360ms, right 1200ms var(--v-eL), bottom 1200ms var(--v-eL);}
+.hero .keep b{color:var(--v-ember); font-weight:400;}
+
+.hero .grain{position:absolute; inset:0; z-index:4; pointer-events:none; opacity:.045; mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>"); background-size:150px;}
+@media (prefers-reduced-motion:no-preference){ .hero .grain{ animation:hero-gm 1.15s steps(3) infinite; } }
+@keyframes hero-gm{ 0%{background-position:0 0;} 33%{background-position:-34px 22px;} 66%{background-position:24px -16px;} 100%{background-position:0 0;} }
+
+/* SCENE COMPOSITIONS — deltas kept large so scene N never looks like scene N+1 */
+.hero .stage[data-scene="1"] .harlan{ left:50%; top:39%; width:13.5vw; opacity:.42; }
+.hero .stage[data-scene="1"] .harlan img{ filter:brightness(.42) contrast(1.07) saturate(.85) blur(5px); object-position:50% 11%; }
+.hero .stage[data-scene="1"] .veil{ opacity:.62; }
+.hero .stage[data-scene="1"] .light{ opacity:.32; }
+.hero .stage[data-scene="1"] .spot{ opacity:.95; }
+.hero .stage[data-scene="2"] .harlan{ left:50%; top:49%; width:37vw; opacity:1; }
+.hero .stage[data-scene="2"] .harlan img{ filter:brightness(1) contrast(1.06) saturate(.94) blur(0); object-position:50% 17%; }
+.hero .stage[data-scene="2"] .veil{ opacity:.05; }
+.hero .stage[data-scene="2"] .light{ opacity:.5; }
+.hero .stage[data-scene="2"] .orient{ opacity:1; transform:none; }
+.hero .stage[data-scene="3"] .harlan{ left:17%; top:71%; width:12.5vw; opacity:.4; }
+.hero .stage[data-scene="3"] .harlan img{ filter:brightness(.6) contrast(1.05) saturate(.82) blur(2px); object-position:50% 15%; }
+.hero .stage[data-scene="3"] .veil{ opacity:.2; }
+.hero .stage[data-scene="3"] .title{ left:12vw; top:29%; font-size:clamp(4rem, 2rem + 6.2vw, 8.6rem); opacity:1; --titleRev:1; }
+.hero .stage[data-scene="4"] .harlan{ top:50%; width:28vw; opacity:.95; }
+.hero .stage[data-scene="4"] .harlan img{ filter:brightness(.94) contrast(1.06) saturate(.92) blur(0); object-position:50% 17%; }
+.hero .stage[data-scene="4"] .veil{ opacity:.08; }
+.hero .stage[data-scene="4"] .title{ left:6vw; top:16%; font-size:clamp(2.6rem, 1.6rem + 3vw, 4.6rem); opacity:1; --titleRev:1; }
+.hero .stage[data-scene="4"] .keep{ opacity:1; transform:none; }
+.hero .stage[data-scene="4"] .cadence{ left:6vw; top:calc(16% + clamp(60px,6.6vw,124px)); opacity:1; transform:none; }
+.hero .stage[data-scene="5"] .harlan{ top:47%; width:32.5vw; opacity:.98; }
+.hero .stage[data-scene="5"] .harlan img{ filter:brightness(.98) contrast(1.06) saturate(.94) blur(0); object-position:50% 17%; }
+.hero .stage[data-scene="5"] .veil{ opacity:.04; }
+.hero .stage[data-scene="5"] .light{ opacity:.85; }
+.hero .stage[data-scene="5"] .title{ left:6vw; top:16%; font-size:clamp(2.6rem, 1.6rem + 3vw, 4.6rem); opacity:1; --titleRev:1; }
+.hero .stage[data-scene="5"] .ctx{ left:6vw; top:calc(16% + clamp(58px,6.4vw,120px)); opacity:1; transform:none; }
+.hero .stage[data-scene="5"] .keep{ opacity:1; transform:none; }
+/* clearance: below ~1700px nudge the portrait right so it clears the masthead */
+.hero .stage[data-scene="4"] .harlan, .hero .stage[data-scene="5"] .harlan{ left:calc(50% + clamp(0px, (1700px - 100vw) * 0.14, 96px)); }
+
+/* discreet editorial REPLAY — appears only after the narrative rests (not dev chrome) */
+.hero-replay{position:absolute; z-index:6; left:50%; transform:translateX(-50%); bottom:3.2vh; text-align:center;
+  font-family:var(--font-voice); font-size:0.62rem; letter-spacing:0.28em; text-transform:uppercase; color:var(--v-ink3);
+  background:none; border:0; padding:6px 12px; border-radius:3px; cursor:pointer;
+  opacity:0; visibility:hidden; pointer-events:none; transition:opacity 1000ms ease, color .3s ease;}
+.hero-replay::before{ content:"↻"; margin-right:.6em; opacity:.8; }
+.hero.is-rested .hero-replay{ opacity:.42; visibility:visible; pointer-events:auto; }
+.hero-replay:hover{ color:var(--v-ember); opacity:.95; }
+.hero-replay:focus-visible{ opacity:1; color:var(--v-ember); outline:1px solid color-mix(in srgb,var(--v-ember) 55%,transparent); outline-offset:4px; }
+@media (prefers-reduced-motion:reduce){ .hero-replay{ display:none; } }
+
+/* ?motion=force — preview the hero motion even when the OS requests reduced motion. The site's
+   global reduced-motion guard (`*{transition-duration:.001ms!important}`) would otherwise flatten
+   the hero's scene transitions to instant, so restore them (and the ambient animations) for the
+   hero only. Inert unless html.force is present. */
+html.force .hero *, html.force .hero *::before, html.force .hero *::after{ transition-duration: 1200ms !important; }
+html.force .hero .light{ animation: hero-drift 34s ease-in-out infinite alternate !important; }
+html.force .hero .stage[data-scene="1"] .spot{ animation: hero-spotreveal 2600ms cubic-bezier(.4,.1,.2,1) both !important; }
+html.force .hero .harlan img{ animation: hero-breathe 10s ease-in-out infinite !important; }
+html.force .hero .grain{ animation: hero-gm 1.15s steps(3) infinite !important; }
+html.force .hero .atmos-video{ display: block !important; }
+html.force .hero-replay{ display: inline-block !important; }
+
+/* MOBILE / PORTRAIT-TABLET (≤860px) — bottom-anchored single column */
+@media (max-width:860px){
+  .hero .light{ right:auto; left:6%; width:76%; }
+  .hero .spot{ left:50%; top:36%; width:62vw; height:78vw; }
+  .hero .harlan{ transition:left 1150ms var(--v-eL), top 1150ms var(--v-eL), width 1150ms var(--v-eL), opacity 950ms ease; }
+  .hero .stage[data-scene="1"] .harlan{ left:50%; top:38%; width:48vw; }
+  .hero .stage[data-scene="2"] .harlan{ left:50%; top:40%; width:82vw; }
+  .hero .stage[data-scene="3"] .harlan{ left:50%; top:30%; width:52vw; }
+  .hero .stage[data-scene="3"] .title{ left:8vw; top:auto; bottom:26vh; font-size:clamp(3rem, 2rem + 8vw, 4.6rem); }
+  .hero .stage[data-scene="4"] .harlan, .hero .stage[data-scene="5"] .harlan{ left:50%; top:34%; width:76vw; }
+  .hero .stage[data-scene="4"] .title, .hero .stage[data-scene="5"] .title{ left:8vw; top:auto; bottom:clamp(118px,20vh,180px); font-size:clamp(2.6rem, 1.8rem + 6vw, 3.7rem); }
+  .hero .orient{ left:8vw; right:8vw; bottom:21vh; max-width:none; font-size:clamp(1.55rem, 1rem + 3.4vw, 2.35rem); }
+  .hero .cadence{ left:8vw; right:8vw; max-width:none; font-size:clamp(1.06rem, 0.9rem + 1.5vw, 1.4rem); }
+  .hero .stage[data-scene="4"] .cadence{ left:8vw; top:auto; bottom:clamp(184px,31vh,250px); opacity:1; }
+  .hero .stage[data-scene="5"] .ctx{ left:8vw; top:auto; bottom:clamp(94px,13vh,124px); }
+  .hero .keep{ left:8vw; right:auto; text-align:left; bottom:clamp(44px,8vh,80px); }
 }
 
 /* =========================================================
@@ -675,11 +796,9 @@ html[data-theme="night"] #archive{ --glow-a: 6%; }
 html[data-theme="night"] .book-section{ --glow-a: 14%; }
 html[data-theme="night"] .newsletter{ --glow-a: 5%; }
 
-.hero::before{
-  background:
-    radial-gradient(ellipse 55% 60% at 80% 30%, color-mix(in srgb, var(--ember-glow) var(--glow-a), transparent) 0%, transparent 70%),
-    radial-gradient(ellipse 130% 100% at 50% 50%, transparent 55%, color-mix(in srgb, var(--ink-primary) var(--glow-b), transparent) 100%);
-}
+/* The cinematic hero owns its own atmosphere (grain + light + video), so the shared
+   section-glow ::before is switched off for the hero (kept for other sections). */
+.hero::before{ display: none; }
 /* This Week's Story — close and intimate, gathered directly over the
    reading column; the faint cooling toward the edges is what makes
    the column itself feel like the safest point in the room. */
@@ -839,6 +958,13 @@ section{ padding-block: var(--sp-7); }
   color: var(--ink-secondary);
   margin-bottom: var(--sp-2);
 }
+.marginalia p.prompt-note{
+  font-size: var(--text-caption);
+  color: var(--ink-muted);
+  font-style: italic;
+  margin-bottom: var(--sp-3);
+}
+.marginalia p.prompt-note em{ font-style: normal; font-weight: 600; letter-spacing: 0.02em; }
 .marginalia-form{
   display:flex; gap: var(--sp-2); flex-wrap: wrap;
 }
@@ -1104,6 +1230,23 @@ section{ padding-block: var(--sp-7); }
   color: var(--ink-muted);
   margin-top: var(--sp-2);
 }
+.soon-badge{
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 0.5em;
+  padding: 0.15em 0.6em;
+  font-family: var(--font-reading);
+  font-size: 0.5em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+  background: color-mix(in srgb, var(--ink-secondary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ink-secondary) 28%, transparent);
+  border-radius: 999px;
+}
+.newsletter-form input[type="email"]:disabled{ opacity: 0.55; cursor: not-allowed; }
+.newsletter-form .btn:disabled{ opacity: 0.55; cursor: not-allowed; }
 .newsletter-success{
   display:none;
   margin-top: var(--sp-4);
@@ -1166,10 +1309,6 @@ footer{
    RESPONSIVE — TABLET
    ========================================================= */
 @media (max-width: 960px){
-  .hero-grid{ grid-template-columns: 1fr; gap: var(--sp-4); justify-items: center; text-align: center; }
-  .hero-flame-wrap{ justify-self: center; width: min(220px, 52vw); order: -1; }
-  .hero .lede{ margin-inline: auto; }
-  .hero-ctas{ justify-content: center; }
   .catalogue-grid{ grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -1181,7 +1320,6 @@ footer{
   .nav-toggle{ display:inline-flex; align-items:center; justify-content:center; }
   .catalogue-grid{ grid-template-columns: 1fr; }
   section{ padding-block: var(--sp-6); }
-  .hero{ padding-block: var(--sp-6) var(--sp-5); }
   .footer-grid{ flex-direction:column; gap: var(--sp-4); }
 }
 
@@ -1192,8 +1330,8 @@ footer{
   .site-header, .mobile-panel, .skip-link,
   .hero-ctas, .chip-row, .archive-cta,
   .newsletter-form, .newsletter-note,
-  .marginalia-form, .marginalia .prompt,
-  .theme-toggle, .candle-indicator, .hero-flame-wrap,
+  .marginalia-form, .marginalia .prompt, .marginalia .prompt-note,
+  .theme-toggle, .candle-indicator, .hero-replay,
   .story-toggle{
     display: none !important;
   }
@@ -1283,7 +1421,15 @@ footer{
    or gradient art), a warm scrim, and the invitation set over it.
    ========================================================= */
 .discover{
-  background: linear-gradient(to bottom, var(--paper-base) 0, var(--paper-raised) 140px, var(--paper-raised) calc(100% - 140px), var(--paper-base) 100%);
+  /* the first band eases the dark cinematic hero into the themed page (seamless in
+     night, a soft dark→cream handoff in day); the fade always ends above the section
+     padding so no content sits on the dark. */
+  background: linear-gradient(to bottom,
+    #080706 0,
+    var(--paper-base) clamp(40px, 6vh, 72px),
+    var(--paper-raised) calc(clamp(40px, 6vh, 72px) + 90px),
+    var(--paper-raised) calc(100% - 140px),
+    var(--paper-base) 100%);
 }
 .discover-grid{
   display: grid;
@@ -1423,41 +1569,36 @@ footer{
        HERO
        ========================================================= -->
   <section class="hero" id="hero">
-    <div class="container hero-grid">
-      <div>
-        <p class="eyebrow reveal pace-primary">A living archive of memory</p>
-        <h1 class="resolve">Every Friday, a story.<br>Every story, a piece of <em>who he was</em>.</h1>
-        <p class="lede reveal pace-primary">For seven years, without missing a week, Hal has written down one memory of his brother Harlan — gathered from a life in Toledo, told with the specific, ordinary, unrepeatable details that make a person a person. This is where those stories live.</p>
-        <div class="hero-ctas reveal pace-primary">
-          <a class="btn btn-primary" href="#this-week">Read this week's story</a>
-          <a class="btn btn-quiet" href="#archive">Explore the archive</a>
-        </div>
+    <!-- The approved cinematic opening (integrated from hero-composition-final.html).
+         A five-scene sequence that plays ONCE then rests on the identity lockup; only
+         ambient motion continues. Reduced-motion → static scene 5. Every visible line
+         is verified: "Every Friday, a story." (index hero-title), "Harlan's Legacy"
+         (site name), "A weekly act of remembering, kept alive one Friday at a time."
+         (footer colophon / build.js), "A living archive of memory" (index hero-label),
+         "Kept by Hal" (site provenance / build.js) · "Every Friday". -->
+    <div class="stage" id="hero-stage" data-scene="1">
+      <!-- environmental atmosphere: local, muted, looping (Pexels License; see .atmos-video CSS) -->
+      <video class="atmos-video" id="hero-atmos" muted loop playsinline preload="none" src="assets/video/atmos.mp4"></video>
+      <div class="light"></div>
+      <div class="harlan">
+        <picture>
+          <source type="image/webp" srcset="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.full.640.webp">
+          <img src="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.full.640.jpg" width="640" height="914" alt="Harlan Yaffe" fetchpriority="high" decoding="async">
+        </picture>
       </div>
-      <div class="hero-flame-wrap reveal pace-primary">
-        <!-- The candle is isolated with no rectangle: a real burning candle
-             recorded on a solid BLACK background is composited with
-             mix-blend-mode:screen (the black disappears) and a feathered radial
-             mask (the edges dissolve). If you instead have a TRUE-ALPHA
-             transparent video, set data-source="alpha" below and the blend +
-             light-theme seat switch off automatically. -->
-        <figure class="hero-candle" id="hero-candle" data-source="screen">
-          <div class="hero-candle-stage">
-            <!-- Static still (candle on black): shown before playback and if the video cannot load. -->
-            <img class="hero-candle-fallback" src="assets/candle-poster.svg" alt="" aria-hidden="true" width="600" height="800" decoding="async">
-            <!-- Real candle cinemagraph. Decorative (aria-hidden); autoplay, looped,
-                 muted, inline. Drop assets/candle.webm + candle.mp4 (candle on a
-                 black background) in to replace the still — no code change needed. -->
-            <video class="hero-candle-video" id="hero-candle-video"
-                   autoplay loop muted playsinline preload="metadata"
-                   poster="assets/candle-poster.svg" aria-hidden="true" tabindex="-1">
-              <source src="assets/candle.webm" type="video/webm">
-              <source src="assets/candle.mp4" type="video/mp4">
-            </video>
-          </div>
-          <figcaption class="hero-flame-caption" id="hero-flame-caption" role="status">A candle, always burning.</figcaption>
-        </figure>
-      </div>
+      <div class="veil"></div>
+      <div class="vignette"></div>
+      <div class="spot"></div>
+
+      <h1 class="title">Harlan's Legacy</h1>
+      <p class="orient">Every Friday, a story.</p>
+      <p class="cadence">A weekly act of remembering, kept alive one Friday at a time.</p>
+      <p class="ctx">A living archive of memory</p>
+      <p class="keep">Kept by <b>Hal</b> · Every Friday</p>
+
+      <div class="grain"></div>
     </div>
+    <button class="hero-replay" id="hero-replay" type="button" aria-label="Replay the opening sequence">Replay</button>
   </section>
 
   <!-- =========================================================
@@ -1475,39 +1616,29 @@ footer{
         <a class="topic-card reveal pace-quick" data-theme="funny" style="--tab-color:var(--thread-funny)" href="journey/humor.html">
           <span class="topic-cover"><span class="jc jc-photo"><picture><source type="image/webp" srcset="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.webp 176w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.webp 352w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.webp 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw"><img src="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg" srcset="assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg 176w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.352.jpg 352w, assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.528.jpg 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw" width="528" height="528" style="object-position:57% 42%" alt="" loading="lazy" decoding="async"></picture></span><span class="topic-scrim"></span></span>
           <span class="topic-overlay">
-            <span class="topic-kicker">3 memories</span>
+            <span class="topic-kicker">1 memory</span>
             <span class="topic-title">Humor</span>
             <span class="topic-desc">The stories that made everyone laugh, and a few that still do.</span>
-            <span class="topic-people">Harlan &middot; Hal</span>
+            <span class="topic-people">Harlan</span>
             <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
           </span>
         </a>
         <a class="topic-card reveal pace-quick" data-theme="grief" style="--tab-color:var(--thread-grief)" href="journey/loss-memory.html">
-          <span class="topic-cover"><span class="jc jc-photo"><picture><source type="image/webp" srcset="assets/photos/hal/hal.portrait.176.webp 176w, assets/photos/hal/hal.portrait.352.webp 352w, assets/photos/hal/hal.portrait.528.webp 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw"><img src="assets/photos/hal/hal.portrait.528.jpg" srcset="assets/photos/hal/hal.portrait.176.jpg 176w, assets/photos/hal/hal.portrait.352.jpg 352w, assets/photos/hal/hal.portrait.528.jpg 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw" width="528" height="528" style="object-position:48% 42%" alt="" loading="lazy" decoding="async"></picture></span><span class="topic-scrim"></span></span>
+          <span class="topic-cover"><span class="jc jc-art" style="--tab-color:var(--thread-grief)" aria-hidden="true"><span class="jc-ghost">Loss &amp; Memory</span></span><span class="topic-scrim"></span></span>
           <span class="topic-overlay">
-            <span class="topic-kicker">3 memories</span>
+            <span class="topic-kicker">1 memory</span>
             <span class="topic-title">Loss &amp; Memory</span>
             <span class="topic-desc">What remains after someone is gone — and how the remembering keeps going.</span>
-            <span class="topic-people">Harlan &middot; Hal</span>
+            <span class="topic-people">Harlan</span>
             <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
           </span>
         </a>
         <a class="topic-card reveal pace-quick" data-theme="momdad" style="--tab-color:var(--thread-momdad)" href="journey/family-home.html">
-          <span class="topic-cover"><span class="jc jc-motif" style="--tab-color:var(--thread-momdad)" aria-hidden="true"><span class="jc-ghost">The blue recliner</span></span><span class="topic-scrim"></span></span>
-          <span class="topic-overlay">
-            <span class="topic-kicker">2 memories</span>
-            <span class="topic-title">Family &amp; Home</span>
-            <span class="topic-desc">The people he came from, and the home they made together.</span>
-            <span class="topic-people">Hal &middot; Harlan</span>
-            <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
-          </span>
-        </a>
-        <a class="topic-card reveal pace-quick" data-theme="toledo" style="--tab-color:var(--thread-toledo)" href="journey/childhood.html">
-          <span class="topic-cover"><span class="jc jc-motif" style="--tab-color:var(--thread-toledo)" aria-hidden="true"><span class="jc-ghost">Toledo, Ohio</span></span><span class="topic-scrim"></span></span>
+          <span class="topic-cover"><span class="jc jc-photo"><picture><source type="image/webp" srcset="assets/photos/hal/hal.portrait.176.webp 176w, assets/photos/hal/hal.portrait.352.webp 352w, assets/photos/hal/hal.portrait.528.webp 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw"><img src="assets/photos/hal/hal.portrait.528.jpg" srcset="assets/photos/hal/hal.portrait.176.jpg 176w, assets/photos/hal/hal.portrait.352.jpg 352w, assets/photos/hal/hal.portrait.528.jpg 528w" sizes="(max-width:640px) 92vw, (max-width:960px) 44vw, 30vw" width="528" height="528" style="object-position:48% 42%" alt="" loading="lazy" decoding="async"></picture></span><span class="topic-scrim"></span></span>
           <span class="topic-overlay">
             <span class="topic-kicker">1 memory</span>
-            <span class="topic-title">Childhood</span>
-            <span class="topic-desc">Growing up in Toledo — the streets, the small adventures, the beginning of everything.</span>
+            <span class="topic-title">Family &amp; Home</span>
+            <span class="topic-desc">The people he came from, and the home they made together.</span>
             <span class="topic-people">Hal &middot; Harlan</span>
             <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
           </span>
@@ -1515,20 +1646,10 @@ footer{
         <a class="topic-card reveal pace-quick" data-theme="shabbat" style="--tab-color:var(--thread-shabbat)" href="journey/faith-traditions.html">
           <span class="topic-cover"><span class="jc jc-motif" style="--tab-color:var(--thread-shabbat)" aria-hidden="true"><span class="jc-ghost">Toledo, Ohio</span></span><span class="topic-scrim"></span></span>
           <span class="topic-overlay">
-            <span class="topic-kicker">3 memories</span>
+            <span class="topic-kicker">2 memories</span>
             <span class="topic-title">Faith &amp; Traditions</span>
             <span class="topic-desc">Shabbat kept most Fridays — sometimes imperfectly, always on purpose.</span>
             <span class="topic-people">Harlan &middot; Hal</span>
-            <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
-          </span>
-        </a>
-        <a class="topic-card reveal pace-quick" data-theme="ordinary" style="--tab-color:var(--thread-ordinary)" href="journey/objects-places.html">
-          <span class="topic-cover"><span class="jc jc-art" style="--tab-color:var(--thread-ordinary)" aria-hidden="true"><span class="jc-ghost">Objects &amp; Places</span></span><span class="topic-scrim"></span></span>
-          <span class="topic-overlay">
-            <span class="topic-kicker">1 memory</span>
-            <span class="topic-title">Objects &amp; Places</span>
-            <span class="topic-desc">The small, unremarkable things that turned out to hold a whole life.</span>
-            <span class="topic-people">Hal &middot; Harlan</span>
             <span class="topic-cta">Begin the journey <span aria-hidden="true">&rarr;</span></span>
           </span>
         </a>
@@ -1563,6 +1684,7 @@ footer{
             <!-- HL:TW_BODY:END -->
           <div class="marginalia" id="marginalia">
             <p class="prompt">Leave a line in the margin — what did this remind you of?</p>
+            <p class="prompt-note"><em>Coming soon</em> — notes aren't saved permanently yet; this reminder stays only in your own browser for now.</p>
             <form class="marginalia-form" id="marginalia-form">
               <label class="visually-hidden" for="marginalia-input">Your note</label>
               <input type="text" id="marginalia-input" maxlength="140" placeholder="This reminded me of…" required>
@@ -1580,14 +1702,14 @@ footer{
        (moved directly after This Week's Story — readers meet Harlan's
        own voice before anything else, per the First-Time Visitor Review)
        ========================================================= -->
-  <section class="featured-quote">
+  <!-- Hidden until Hal supplies a VERIFIED Harlan quotation. The unverified
+       placeholder quote was removed (owner decision). To restore: set
+       data/featuredQuote in site.json and remove the `hidden` attribute below. -->
+  <section class="featured-quote" hidden>
     <div class="container">
       <div class="quote-wrap">
         <h2 class="visually-hidden">In his own words</h2>
-        <!-- HL:QUOTE:START -->
-        <blockquote class="resolve quote-held">&ldquo;You don't have to win every argument, Hal. Sometimes you just let your mother be right, and you both get to eat dinner in peace.&rdquo;</blockquote>
-        <cite class="reveal pace-primary quote-held">— Harlan, as remembered by his brother</cite>
-            <!-- HL:QUOTE:END -->
+        <!-- HL:QUOTE:START --><!-- HL:QUOTE:END -->
       </div>
     </div>
   </section>
@@ -1611,7 +1733,7 @@ footer{
       <div class="about-wrap reveal">
         <p class="eyebrow">Who they were</p>
         <h2>About Harlan</h2>
-        <p class="measure">Harlan lived most of his life in Toledo, Ohio, where he helped run a small hardware store on the same street for over thirty years. He kept Shabbat most Fridays, sometimes imperfectly, always on purpose. His brother Hal has written down a memory of him every single Friday since he passed, without missing one.</p>
+        <p class="measure">Harlan Blaine Yaffe is remembered here through the weekly stories written by his brother, Hal. His full biography is being carefully assembled from family records, photographs, original writings and the memories of those who knew him.</p>
       </div>
     </div>
   </section>
@@ -1638,8 +1760,8 @@ footer{
 
       <div class="section-head reveal pace-quick">
         <p class="eyebrow">The archive</p>
-        <h2><span class="archive-fact-number"><!-- HL:ARCHIVE_COUNT:START -->378<!-- HL:ARCHIVE_COUNT:END --></span> Fridays, and&nbsp;counting.</h2>
-        <p class="archive-fragment">Somewhere in the middle of them is the one about the argument over a strip of dead grass that outlasted a few actual marriages in the neighborhood. Somewhere else is the one about two briskets and one oven, and exactly how close that particular Friday came to disaster. All 378 are kept the same way — completely, and on purpose.</p>
+        <h2>Every Friday, a story — kept.</h2>
+        <p class="archive-fragment">The complete Harlan's Legacy archive is being gathered and added progressively. Each memory is kept the same way — completely, and on purpose.</p>
         <p class="archive-fragment" style="margin-top: var(--sp-3);">If you came for this week's story, you've already had it — everything below is only for anyone who'd like to stay a little longer.</p>
       </div>
 
@@ -1659,7 +1781,7 @@ footer{
         <!-- HL:ARCHIVE_CARDS:START -->
         <a class="card-catalogue" data-theme="funny" style="--tab-color:var(--thread-funny)" href="story/305-the-tattoo-that-wasnt.html">
           <span class="cc-plate"><picture><source type="image/webp" srcset="assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.176.webp 176w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.352.webp 352w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.528.webp 528w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.768.webp 768w" sizes="(max-width:640px) 92vw, 340px"><img src="assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.768.jpg" srcset="assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.176.jpg 176w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.352.jpg 352w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.528.jpg 528w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.768.jpg 768w" sizes="(max-width:640px) 92vw, 340px" width="768" height="768" style="object-position:50% 50%" alt="The Tattoo That Wasn’t" loading="lazy" decoding="async"></picture></span>
-          <span class="stamp">No. 305 &middot; Aug 2026</span>
+          <span class="stamp">#388 &middot; Aug 2026</span>
           <h3>The Tattoo That Wasn’t</h3>
           <p class="teaser">This week’s memorial blog is number 388, and as we look at this week’s Torah portion, Shoftim, we are given a powerful…</p>
           <span class="theme-label"><span class="dot" style="background:var(--thread-funny)"></span>Funny Harlan Stories</span>
@@ -1667,7 +1789,7 @@ footer{
 
         <a class="card-catalogue" data-theme="grief" style="--tab-color:var(--thread-grief)" href="story/304-the-red-suitcase.html">
           <span class="cc-plate"><picture><source type="image/webp" srcset="assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.176.webp 176w, assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.352.webp 352w" sizes="(max-width:640px) 92vw, 340px"><img src="assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.352.jpg" srcset="assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.176.jpg 176w, assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.352.jpg 352w" sizes="(max-width:640px) 92vw, 340px" width="352" height="352" style="object-position:50% 50%" alt="The Red Suitcase" loading="lazy" decoding="async"></picture></span>
-          <span class="stamp">No. 304 &middot; Aug 2026</span>
+          <span class="stamp">Aug 2026</span>
           <h3>The Red Suitcase</h3>
           <p class="teaser">Harlan and I were old enough to remember hard-sided Samsonite suitcases from before rolling wheels and extendable…</p>
           <span class="theme-label"><span class="dot" style="background:var(--thread-grief)"></span>Grief and Memory</span>
@@ -1675,7 +1797,7 @@ footer{
 
         <a class="card-catalogue is-words" data-theme="shabbat" style="--tab-color:var(--thread-shabbat)" href="story/303-following-the-trail-harlan-left-us.html">
           <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 303 &middot; Jul 2026</span>
+          <span class="stamp">Jul 2026</span>
           <h3>Following the Trail Harlan Left Us</h3>
           <p class="teaser">Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple words: Six…</p>
           <span class="theme-label"><span class="dot" style="background:var(--thread-shabbat)"></span>Jewish Life / Shabbat</span>
@@ -1683,90 +1805,26 @@ footer{
 
         <a class="card-catalogue is-words" data-theme="momdad" style="--tab-color:var(--thread-momdad)" href="story/214-the-blue-chair.html">
           <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 214 &middot; Sep 2021</span>
+          <span class="stamp">Sep 2021</span>
           <h3>The Blue Chair</h3>
           <p class="teaser">He rescued that chair from the curb three times.</p>
           <span class="theme-label"><span class="dot" style="background:var(--thread-momdad)"></span>Mom and Dad Stories</span>
         </a>
 
-        <article class="card-catalogue is-words" data-theme="ordinary" style="--tab-color:var(--thread-ordinary)">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 302 &middot; Mar 2023</span>
-          <h3>The Umbrella He Never Used</h3>
-          <p class="teaser">Rain or not, it rode in the trunk for thirty years.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-ordinary)"></span>Ordinary Moments</span>
-        </article>
-
-        <article class="card-catalogue is-words" data-theme="grief" style="--tab-color:var(--thread-grief)">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 251 &middot; Jan 2022</span>
-          <h3>What the Radio Knew</h3>
-          <p class="teaser">The station changed itself, or so he always swore.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-grief)"></span>Grief and Memory</span>
-        </article>
-
-        <article class="card-catalogue is-words" data-theme="grief" style="--tab-color:var(--thread-grief)">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 226 &middot; Apr 2021</span>
-          <h3>Waiting at Gate 14</h3>
-          <p class="teaser">He always came early. That part, at least, never changed.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-grief)"></span>Grief and Memory</span>
-        </article>
-
-        <article class="card-catalogue is-words" data-theme="momdad" style="--tab-color:var(--thread-momdad)">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 191 &middot; May 2021</span>
-          <h3>Teaching Me to Drive Stick</h3>
-          <p class="teaser">Third gear, he said, was where a man's patience really lived.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-momdad)"></span>Mom and Dad Stories</span>
-        </article>
-
-        <article class="card-catalogue is-words" data-theme="funny" style="--tab-color:var(--thread-funny)">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 168 &middot; Jun 2020</span>
-          <h3>The Wrong Funeral</h3>
-          <p class="teaser">We were forty minutes in before anyone realized we didn't know the deceased.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-funny)"></span>Funny Harlan Stories</span>
-        </article>
-
         <article class="card-catalogue is-words" data-theme="shabbat" style="--tab-color:var(--thread-shabbat)">
           <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 137 &middot; Nov 2019</span>
-          <h3>Two Briskets, One Oven</h3>
-          <p class="teaser">The year the rabbi came early and the kitchen nearly caught fire.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-shabbat)"></span>Jewish Life / Shabbat</span>
-        </article>
-
-        <article class="card-catalogue is-words" data-theme="shabbat" style="--tab-color:var(--thread-shabbat)">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 122 &middot; Dec 2020</span>
+          <span class="stamp">Dec 2020</span>
           <h3>Shabbat With No Candles</h3>
           <p class="teaser">The year the power went out, and we lit the week anyway.</p>
           <span class="theme-label"><span class="dot" style="background:var(--thread-shabbat)"></span>Jewish Life / Shabbat</span>
-        </article>
-
-        <article class="card-catalogue is-words" data-theme="funny" style="--tab-color:var(--thread-funny)">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 105 &middot; Jul 2019</span>
-          <h3>The Argument About the Lawn</h3>
-          <p class="teaser">Nobody in Toledo has ever cared this much about crabgrass.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-funny)"></span>Funny Harlan Stories</span>
-        </article>
-
-        <article class="card-catalogue is-words" data-theme="toledo" style="--tab-color:var(--thread-toledo)">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">No. 88 &middot; Aug 2018</span>
-          <h3>Ten Cents at the Rialto</h3>
-          <p class="teaser">The whole balcony smelled like popcorn and mischief.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-toledo)"></span>Toledo Childhood</span>
         </article>
             <!-- HL:ARCHIVE_CARDS:END -->
       </div>
       <p class="catalogue-empty" id="catalogue-empty">No stories found for that thread yet — try a different one, or browse everything above.</p>
 
       <div class="archive-cta">
-        <span class="btn btn-quiet" aria-disabled="true">The full 378-story Archive is being built next →</span>
-        <small>Search above spans every story, person, place, object and event kept so far; full filtering across all 378 stories continues to grow.</small>
+        <span class="btn btn-quiet" aria-disabled="true">The full Archive is being gathered and added progressively →</span>
+        <small>Search above spans every story, person, place, object and event kept so far; filtering continues to grow as the archive is added.</small>
       </div>
     </div>
   </section>
@@ -1851,8 +1909,8 @@ footer{
       <div class="book-frame reveal">
         <p class="eyebrow">Further ahead</p>
         <h2>The Book</h2>
-        <p class="measure">Fifty stories, chosen from all 378, arranged into six parts — how these Fridays survive forever.</p>
-        <!-- HL:BOOK_PROGRESS:START -->        <p class="book-progress">The fifty are being chosen slowly and thoughtfully. A little more than half already have their place.</p><!-- HL:BOOK_PROGRESS:END -->
+        <p class="measure">One day, a book — fifty stories gathered into six parts, so these Fridays might survive forever. The stories are still being collected; none have been chosen yet.</p>
+        <!-- HL:BOOK_PROGRESS:START -->        <p class="book-progress">A book is a future hope for Harlan's Legacy. No stories have been chosen yet — first the archive is being gathered.</p><!-- HL:BOOK_PROGRESS:END -->
         <ol class="book-parts">
           <li><span class="num">I</span> Growing Up Harlan</li>
           <li><span class="num">II</span> Being Harlan</li>
@@ -1872,17 +1930,17 @@ footer{
     <div class="container">
       <div class="newsletter-inner reveal pace-quick">
         <p class="eyebrow">Every Friday</p>
-        <h2>Come back every Friday</h2>
+        <h2>Come back every Friday <span class="soon-badge">Coming soon</span></h2>
         <p class="measure" style="margin-inline:auto;">One new story, and one older one pulled back from the archive, delivered every Friday — nothing else.</p>
 
-        <form class="newsletter-form" id="newsletter-form" novalidate>
+        <form class="newsletter-form" id="newsletter-form" novalidate aria-describedby="newsletter-note">
           <label class="visually-hidden" for="newsletter-email">Email address</label>
-          <input type="email" id="newsletter-email" name="email" placeholder="you@example.com" required autocomplete="email">
-          <button class="btn btn-primary" type="submit" id="newsletter-submit">Join the Friday list</button>
+          <input type="email" id="newsletter-email" name="email" placeholder="you@example.com" autocomplete="email" disabled aria-disabled="true">
+          <button class="btn btn-primary" type="submit" id="newsletter-submit" disabled aria-disabled="true">Join the Friday list</button>
         </form>
-        <p class="newsletter-note">No spam, no selling your address. Just Fridays.</p>
+        <p class="newsletter-note" id="newsletter-note">The Friday email isn't live yet — sign-ups aren't being collected. Please check back soon.</p>
         <p class="newsletter-error" id="newsletter-error" role="alert">That doesn't look like a complete email address — mind trying again?</p>
-        <p class="newsletter-success" id="newsletter-success" role="status">Welcome. We'll see you Friday.</p>
+        <p class="newsletter-success" id="newsletter-success" role="status">The Friday email isn't collecting sign-ups yet — please check back soon.</p>
       </div>
     </div>
   </section>
@@ -1925,7 +1983,7 @@ footer{
 </footer>
 
 <!-- Search & Discovery index — generated from stories.json + entities.json by build.js. -->
-<!-- HL:SEARCH_INDEX:START --><script id="hl-search-index" type="application/json">[{"type":"journey","title":"Humor","subtitle":"3 memories · a journey","url":"journey/humor.html","badge":"Journey","memories":3,"keywords":"humor funny harlan stories the stories that made everyone laugh, and a few that still do. some of what a person leaves behind is simply the way they made a room feel lighter. these are the fridays that begin with a straight face and end with the whole table laughing. journey discover harlan hal"},{"type":"journey","title":"Loss & Memory","subtitle":"3 memories · a journey","url":"journey/loss-memory.html","badge":"Journey","memories":3,"keywords":"loss & memory grief and memory what remains after someone is gone — and how the remembering keeps going. this is the quietest part of the archive. not the ending, but everything that keeps on after one — the chair no one could sit in, and the fridays that kept coming anyway. journey discover harlan hal"},{"type":"journey","title":"Family & Home","subtitle":"2 memories · a journey","url":"journey/family-home.html","badge":"Journey","memories":2,"keywords":"family & home mom and dad stories the people he came from, and the home they made together. every family has a centre of gravity. walk into the rooms harlan grew up in and later kept — the parents, the chair, the ordinary devotions that hold a family together. journey discover hal harlan"},{"type":"journey","title":"Childhood","subtitle":"1 memory · a journey","url":"journey/childhood.html","badge":"Journey","memories":1,"keywords":"childhood toledo childhood growing up in toledo — the streets, the small adventures, the beginning of everything. before he was anyone's father, brother or husband, he was a boy in toledo. this is where the whole life starts — dimes, balconies, and afternoons that felt endless. journey discover hal harlan"},{"type":"journey","title":"Faith & Traditions","subtitle":"3 memories · a journey","url":"journey/faith-traditions.html","badge":"Journey","memories":3,"keywords":"faith & traditions jewish life / shabbat shabbat kept most fridays — sometimes imperfectly, always on purpose. faith here is less a doctrine than a rhythm: candles, a table, a week set down gently. follow the traditions that returned every friday, whatever else the year had done. journey discover harlan hal"},{"type":"journey","title":"Objects & Places","subtitle":"1 memory · a journey","url":"journey/objects-places.html","badge":"Journey","memories":1,"keywords":"objects & places ordinary moments the small, unremarkable things that turned out to hold a whole life. the umbrella that never opened. the things that rode along for decades, unremarked. these are the memories made of nothing much — which is exactly why they lasted. journey discover hal harlan"},{"type":"story","title":"Ten Cents at the Rialto","subtitle":"Coming soon · Toledo Childhood","url":"#archive","badge":"Story","related":3,"keywords":"ten cents at the rialto the whole balcony smelled like popcorn and mischief. toledo childhood aug 2018 story no 88 88 harlan hal toledo"},{"type":"story","title":"The Argument About the Lawn","subtitle":"Coming soon · Funny Harlan Stories","url":"#archive","badge":"Story","related":2,"keywords":"the argument about the lawn nobody in toledo has ever cared this much about crabgrass. funny harlan stories jul 2019 story no 105 105 harlan hal"},{"type":"story","title":"Shabbat With No Candles","subtitle":"Coming soon · Jewish Life / Shabbat","url":"#archive","badge":"Story","related":2,"keywords":"shabbat with no candles the year the power went out, and we lit the week anyway. jewish life / shabbat dec 2020 story no 122 122 harlan hal"},{"type":"story","title":"Two Briskets, One Oven","subtitle":"Coming soon · Jewish Life / Shabbat","url":"#archive","badge":"Story","related":2,"keywords":"two briskets, one oven the year the rabbi came early and the kitchen nearly caught fire. jewish life / shabbat nov 2019 story no 137 137 harlan hal"},{"type":"story","title":"The Wrong Funeral","subtitle":"Coming soon · Funny Harlan Stories","url":"#archive","badge":"Story","related":2,"keywords":"the wrong funeral we were forty minutes in before anyone realized we didn't know the deceased. funny harlan stories jun 2020 story no 168 168 harlan hal"},{"type":"story","title":"Teaching Me to Drive Stick","subtitle":"Coming soon · Mom and Dad Stories","url":"#archive","badge":"Story","related":2,"keywords":"teaching me to drive stick third gear, he said, was where a man's patience really lived. mom and dad stories may 2021 story no 191 191 harlan hal"},{"type":"story","title":"The Blue Chair","subtitle":"No. 214 · Mom and Dad Stories","url":"story/214-the-blue-chair.html","badge":"Story","related":5,"keywords":"the blue chair he rescued that chair from the curb three times. mom and dad stories c. late 1990s–2010s — spans roughly two decades, no single date iii — mom, dad and home sep 2021 story no 214 214 harlan hal harlan's wife (unnamed in this telling) the den (family home, toledo, ohio) the blue recliner harlan's death (a tuesday in march, year unspecified) his wife sitting in the chair for the first time, about a year later"},{"type":"story","title":"Waiting at Gate 14","subtitle":"Coming soon · Grief and Memory","url":"#archive","badge":"Story","related":2,"keywords":"waiting at gate 14 he always came early. that part, at least, never changed. grief and memory apr 2021 story no 226 226 harlan hal"},{"type":"story","title":"What the Radio Knew","subtitle":"Coming soon · Grief and Memory","url":"#archive","badge":"Story","related":2,"keywords":"what the radio knew the station changed itself, or so he always swore. grief and memory jan 2022 story no 251 251 harlan hal"},{"type":"story","title":"The Umbrella He Never Used","subtitle":"Coming soon · Ordinary Moments","url":"#archive","badge":"Story","related":2,"keywords":"the umbrella he never used rain or not, it rode in the trunk for thirty years. ordinary moments mar 2023 story no 302 302 harlan hal"},{"type":"story","title":"Following the Trail Harlan Left Us","subtitle":"No. 303 · Jewish Life / Shabbat","url":"story/303-following-the-trail-harlan-left-us.html","badge":"Story","related":2,"keywords":"following the trail harlan left us six months ago, we shared a shabbat shalom post about the yaffe family tree and opened it with three simple words: six… jewish life / shabbat jewish life / shabbat jul 2026 story no 303 303 harlan toledo, ohio family harlan julius yaffe tree father harry born toledo ohio"},{"type":"story","title":"The Red Suitcase","subtitle":"No. 304 · Grief and Memory","url":"story/304-the-red-suitcase.html","badge":"Story","related":1,"keywords":"the red suitcase harlan and i were old enough to remember hard-sided samsonite suitcases from before rolling wheels and extendable… grief and memory aug 2026 story no 304 304 harlan harlan’s suitcase carried state harlan days remember something"},{"type":"story","title":"The Tattoo That Wasn’t","subtitle":"No. 305 · Funny Harlan Stories","url":"story/305-the-tattoo-that-wasnt.html","badge":"Story","related":1,"keywords":"the tattoo that wasn’t this week’s memorial blog is number 388, and as we look at this week’s torah portion, shoftim, we are given a powerful… funny harlan stories aug 2026 story no 305 305 harlan harlan justice lesson ourselves uncle look childhood ever"},{"type":"person","title":"Marvin J. Yaffe","subtitle":"Father of Harlan and Hal","url":"family/marvin-yaffe.html","badge":"Person","memories":0,"related":0,"portrait":"assets/photos/marvin/516607523-10228458948408089-8744987781729357311-n.portrait.176.jpg","keywords":"marvin j. yaffe marvin j. yaffe father of harlan and hal person family"},{"type":"person","title":"Zandra L. Yaffe","subtitle":"Mother of Harlan and Hal","url":"family/zandra-yaffe.html","badge":"Person","memories":0,"related":0,"portrait":"assets/photos/zandra/464922816-10225644168720356-7727881483837371960-n-1.portrait.176.jpg","keywords":"zandra l. yaffe zandra l. yaffe (née levine) mother of harlan and hal person family"},{"type":"person","title":"Harlan","subtitle":"The subject of every story","url":"family/harlan.html","badge":"Person","memories":13,"related":5,"portrait":"assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg","keywords":"harlan harlan blaine yaffe the subject of every story person family"},{"type":"person","title":"Hal","subtitle":"Harlan's brother","url":"family/hal.html","badge":"Person","memories":10,"related":5,"portrait":"assets/photos/hal/hal.portrait.176.jpg","keywords":"hal hal f. yaffe harlan's brother person family"},{"type":"place","title":"The den","subtitle":"1 story","url":"place/the-den.html","badge":"Place","memories":1,"related":4,"keywords":"the den a family home in toledo, ohio the den (family home, toledo, ohio) the den place"},{"type":"place","title":"Toledo, Ohio","subtitle":"2 stories","url":"place/toledo-ohio.html","badge":"Place","memories":2,"related":2,"keywords":"toledo, ohio where the family's funeral arrangements were held toledo toledo, ohio place"},{"type":"object","title":"The blue recliner","subtitle":"1 story","url":"object/the-blue-recliner.html","badge":"Object","memories":1,"related":4,"keywords":"the blue recliner rescued from the curb three times over twenty years the blue recliner the blue chair object"},{"type":"event","title":"Harlan's passing","subtitle":"1 story","url":"event/harlans-death.html","badge":"Event","memories":1,"related":4,"keywords":"harlan's passing funeral arrangements were held in toledo, ohio. harlan's death (a tuesday in march, year unspecified) harlan's death harlan's passing event"}]</script><!-- HL:SEARCH_INDEX:END -->
+<!-- HL:SEARCH_INDEX:START --><script id="hl-search-index" type="application/json">[{"type":"journey","title":"Humor","subtitle":"1 memory · a journey","url":"journey/humor.html","badge":"Journey","memories":1,"keywords":"humor funny harlan stories the stories that made everyone laugh, and a few that still do. some of what a person leaves behind is simply the way they made a room feel lighter. these are the fridays that begin with a straight face and end with the whole table laughing. journey discover harlan"},{"type":"journey","title":"Loss & Memory","subtitle":"1 memory · a journey","url":"journey/loss-memory.html","badge":"Journey","memories":1,"keywords":"loss & memory grief and memory what remains after someone is gone — and how the remembering keeps going. this is the quietest part of the archive. not the ending, but everything that keeps on after one — the chair no one could sit in, and the fridays that kept coming anyway. journey discover harlan"},{"type":"journey","title":"Family & Home","subtitle":"1 memory · a journey","url":"journey/family-home.html","badge":"Journey","memories":1,"keywords":"family & home mom and dad stories the people he came from, and the home they made together. every family has a centre of gravity. walk into the rooms harlan grew up in and later kept — the parents, the chair, the ordinary devotions that hold a family together. journey discover hal harlan"},{"type":"journey","title":"Faith & Traditions","subtitle":"2 memories · a journey","url":"journey/faith-traditions.html","badge":"Journey","memories":2,"keywords":"faith & traditions jewish life / shabbat shabbat kept most fridays — sometimes imperfectly, always on purpose. faith here is less a doctrine than a rhythm: candles, a table, a week set down gently. follow the traditions that returned every friday, whatever else the year had done. journey discover harlan hal"},{"type":"story","title":"Shabbat With No Candles","subtitle":"Coming soon · Jewish Life / Shabbat","url":"#archive","badge":"Story","related":2,"keywords":"shabbat with no candles the year the power went out, and we lit the week anyway. jewish life / shabbat dec 2020 story harlan hal"},{"type":"story","title":"The Blue Chair","subtitle":"Mom and Dad Stories","url":"story/214-the-blue-chair.html","badge":"Story","related":5,"keywords":"the blue chair he rescued that chair from the curb three times. mom and dad stories c. late 1990s–2010s — spans roughly two decades, no single date iii — mom, dad and home sep 2021 story harlan hal harlan's wife (unnamed in this telling) the den (family home, toledo, ohio) the blue recliner harlan's death (a tuesday in march, year unspecified) his wife sitting in the chair for the first time, about a year later"},{"type":"story","title":"Following the Trail Harlan Left Us","subtitle":"Jewish Life / Shabbat","url":"story/303-following-the-trail-harlan-left-us.html","badge":"Story","related":2,"keywords":"following the trail harlan left us six months ago, we shared a shabbat shalom post about the yaffe family tree and opened it with three simple words: six… jewish life / shabbat jewish life / shabbat jul 2026 story harlan toledo, ohio family harlan julius yaffe tree father harry born toledo ohio"},{"type":"story","title":"The Red Suitcase","subtitle":"Grief and Memory","url":"story/304-the-red-suitcase.html","badge":"Story","related":1,"keywords":"the red suitcase harlan and i were old enough to remember hard-sided samsonite suitcases from before rolling wheels and extendable… grief and memory aug 2026 story harlan harlan’s suitcase carried state harlan days remember something"},{"type":"story","title":"The Tattoo That Wasn’t","subtitle":"#388 · Funny Harlan Stories","url":"story/305-the-tattoo-that-wasnt.html","badge":"Story","related":1,"keywords":"the tattoo that wasn’t this week’s memorial blog is number 388, and as we look at this week’s torah portion, shoftim, we are given a powerful… funny harlan stories aug 2026 story issue 388 blog issue 388 harlan harlan justice lesson ourselves uncle look childhood ever"},{"type":"person","title":"Marvin J. Yaffe","subtitle":"Father of Harlan and Hal","url":"family/marvin-yaffe.html","badge":"Person","memories":0,"related":0,"portrait":"assets/photos/marvin/516607523-10228458948408089-8744987781729357311-n.portrait.176.jpg","keywords":"marvin j. yaffe marvin j. yaffe father of harlan and hal person family"},{"type":"person","title":"Zandra L. Yaffe","subtitle":"Mother of Harlan and Hal","url":"family/zandra-yaffe.html","badge":"Person","memories":0,"related":0,"portrait":"assets/photos/zandra/464922816-10225644168720356-7727881483837371960-n-1.portrait.176.jpg","keywords":"zandra l. yaffe zandra l. yaffe (née levine) mother of harlan and hal person family"},{"type":"person","title":"Harlan","subtitle":"The subject of every story","url":"family/harlan.html","badge":"Person","memories":5,"related":5,"portrait":"assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg","keywords":"harlan harlan blaine yaffe the subject of every story person family"},{"type":"person","title":"Hal","subtitle":"Harlan's brother","url":"family/hal.html","badge":"Person","memories":2,"related":4,"portrait":"assets/photos/hal/hal.portrait.176.jpg","keywords":"hal hal f. yaffe harlan's brother person family"},{"type":"place","title":"The den","subtitle":"1 story","url":"place/the-den.html","badge":"Place","memories":1,"related":4,"keywords":"the den a family home in toledo, ohio the den (family home, toledo, ohio) the den place"},{"type":"place","title":"Toledo, Ohio","subtitle":"1 story","url":"place/toledo-ohio.html","badge":"Place","memories":1,"related":1,"keywords":"toledo, ohio where the family's funeral arrangements were held toledo toledo, ohio place"},{"type":"object","title":"The blue recliner","subtitle":"1 story","url":"object/the-blue-recliner.html","badge":"Object","memories":1,"related":4,"keywords":"the blue recliner rescued from the curb three times over twenty years the blue recliner the blue chair object"},{"type":"event","title":"Harlan's passing","subtitle":"1 story","url":"event/harlans-death.html","badge":"Event","memories":1,"related":4,"keywords":"harlan's passing funeral arrangements were held in toledo, ohio. harlan's death (a tuesday in march, year unspecified) harlan's death harlan's passing event"}]</script><!-- HL:SEARCH_INDEX:END -->
 
 <script>
 (function(){
@@ -1938,13 +1996,64 @@ footer{
     document.body.classList.add("is-ready");
   });
 
-  /* ---------- Sticky header shadow on scroll ---------- */
+  /* ---------- Sticky header shadow on scroll (rAF-throttled, change-only) ----------
+     Reads scrollY inside a single rAF and toggles the class ONLY when the state
+     actually flips — so a backdrop-filter header is never restyled every scroll
+     event (a prior source of scroll jank). */
   var header = document.getElementById("site-header");
-  var lastY = window.scrollY;
-  window.addEventListener("scroll", function(){
-    header.classList.toggle("is-scrolled", window.scrollY > 8);
-    lastY = window.scrollY;
-  }, { passive: true });
+  var headerScrolled = false, headerTick = false;
+  function onHeaderScroll(){
+    if (headerTick) return;
+    headerTick = true;
+    requestAnimationFrame(function(){
+      headerTick = false;
+      var s = window.scrollY > 8;
+      if (s !== headerScrolled){ headerScrolled = s; if (header) header.classList.toggle("is-scrolled", s); }
+    });
+  }
+  window.addEventListener("scroll", onHeaderScroll, { passive: true });
+
+  /* ---------- Hero: the approved cinematic sequence (plays ONCE, then rests) ----------
+     Five discrete data-scene states with native CSS transitions between them. It never
+     auto-loops (a cinematic arrival, not a screensaver); a discreet Replay restarts it.
+     The atmosphere <video> is environmental — it loops independently, pauses off-screen,
+     and is silent if the file is missing or autoplay is blocked. Reduced-motion holds the
+     resolved final frame with no narrative and no replay. */
+  (function heroCinematic(){
+    var stage = document.getElementById("hero-stage");
+    var heroEl = document.getElementById("hero");
+    if (!stage || !heroEl) return;
+    var forced = new URLSearchParams(location.search).get("motion") === "force";  // preview the motion under OS reduced-motion
+    if (forced) document.documentElement.classList.add("force");
+    var animate = !reduceMotion || forced;            // whether the narrative actually runs
+    var N = 5, cur = 1, playing = false, timer = null;
+    var DWELL = [0, 2000, 2200, 2300, 2100];          // ms held in scenes 1..4 before advancing (move + a hold to read)
+    function setScene(n){ cur = Math.max(1, Math.min(N, n)); stage.setAttribute("data-scene", cur); }
+    function step(){ clearTimeout(timer); if (!playing) return;
+      if (cur >= N){ rest(); return; }
+      timer = setTimeout(function(){ setScene(cur + 1); step(); }, DWELL[cur]); }
+    function play(){ heroEl.classList.remove("is-rested"); playing = true; if (cur >= N) setScene(1); step(); }
+    function rest(){ playing = false; heroEl.classList.add("is-rested"); }   // the arrival holds
+
+    var av = document.getElementById("hero-atmos");
+    if (av){
+      av.addEventListener("playing", function(){ av.classList.add("on"); });
+      av.addEventListener("error", function(){ av.classList.remove("on"); });
+      var tryPlay = function(){ var pr = av.play && av.play(); if (pr && pr.catch) pr.catch(function(){}); };
+      if (animate){
+        if ("IntersectionObserver" in window){
+          new IntersectionObserver(function(e){ if (e[0].isIntersecting) tryPlay(); else { try { av.pause(); } catch(x){} } }, { threshold: 0.01 }).observe(heroEl);
+        } else { tryPlay(); }
+        document.addEventListener("visibilitychange", function(){ if (!document.hidden) tryPlay(); });
+      }
+    }
+
+    var replay = document.getElementById("hero-replay");
+    if (replay) replay.addEventListener("click", function(){ play(); });
+
+    if (!animate){ setScene(5); }   // reduced-motion (not forced) → dignified static lockup, no narrative, no replay
+    else { setScene(1); setTimeout(play, 650); }   // plays once → rests. Plain timer (rAF pauses in background tabs).
+  })();
 
   /* ---------- Scroll reveal (respects reduced motion) ---------- */
   var revealEls = document.querySelectorAll(".reveal, .resolve");
@@ -2009,15 +2118,6 @@ footer{
     if (eyebrow) {
       eyebrow.textContent = isLit ? "This week · Friday" : "This week's story (published each Friday)";
     }
-
-    // The hero candle burns the same way all week; only its caption carries
-    // the weekly signal, so a first-time visitor reads it wherever they look.
-    var heroCaption = document.getElementById("hero-flame-caption");
-    if (heroCaption) {
-      heroCaption.textContent = isLit
-        ? "Lit today — this week's story just went up."
-        : "Still burning — " + label.replace("New story in ", "next story in ") + ".";
-    }
   }
   updateCandle();
 
@@ -2072,10 +2172,9 @@ footer{
   });
 
   /* ---------- Archive Catalogue: filter, don't render ----------
-     NOTE(Daniel): The 9 cards above are real static HTML — written to the
-     Editorial Bible's spec as representative sample content, standing in
-     for the real 378-story archive until that data is supplied. This
-     script never creates or removes them; it only shows/hides the
+     The cards above are injected by the build (HL:ARCHIVE_CARDS) from the
+     current story data — the archive is being gathered and added progressively.
+     This script never creates or removes them; it only shows/hides the
      existing markup via the native `hidden` attribute, so the section
      is fully present and readable even with JavaScript disabled. */
   var catalogueCards = Array.prototype.slice.call(document.querySelectorAll(".card-catalogue"));

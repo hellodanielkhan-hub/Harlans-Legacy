@@ -164,7 +164,7 @@
 
   --radius-card: 3px;
   --radius-soft: 6px;
-  --header-height: 72px;
+  --header-height: 76px;  /* matches the real one-line header height (brand no longer wraps) */
 
   color-scheme: light;
 }
@@ -379,6 +379,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visibl
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex-shrink: 0;          /* never let the header row squeeze the wordmark... */
+  white-space: nowrap;     /* ...so "Harlan's Legacy" always stays on one line */
   text-decoration: none;
   color: var(--ink-primary);
   font-family: var(--font-display);
@@ -714,22 +716,47 @@ html.rm .hero .stage[data-rm="5"] .veil{ opacity:.04; }
 html.rm .hero .stage[data-rm="5"] .light{ opacity:.85; }
 html.rm .hero .stage[data-rm="5"] .title, html.rm .hero .stage[data-rm="5"] .ctx, html.rm .hero .stage[data-rm="5"] .keep{ opacity:1; }
 
-/* MOBILE / PORTRAIT-TABLET (≤860px) — bottom-anchored single column */
+/* MOBILE / PORTRAIT-TABLET (≤860px) — bottom-anchored single column.
+   A SINGLE content inset (--hpad) aligns every text role to one left edge (sentences also
+   bound the right, so nothing approaches the viewport edge or wraps awkwardly). Vertical
+   rhythm is tuned as a composition: generous, even gaps between distinct text roles.
+   Mobile-only — the approved desktop/tablet composition (>860px) is untouched. */
 @media (max-width:860px){
+  .hero{ --hpad: clamp(26px, 8vw, 40px); }
   .hero .light{ right:auto; left:6%; width:76%; }
   .hero .spot{ left:50%; top:36%; width:62vw; height:78vw; }
   .hero .harlan{ transition:left 1150ms var(--v-eL), top 1150ms var(--v-eL), width 1150ms var(--v-eL), opacity 950ms ease; }
   .hero .stage[data-scene="1"] .harlan{ left:50%; top:38%; width:48vw; }
   .hero .stage[data-scene="2"] .harlan{ left:50%; top:40%; width:82vw; }
   .hero .stage[data-scene="3"] .harlan{ left:50%; top:30%; width:52vw; }
-  .hero .stage[data-scene="3"] .title{ left:8vw; top:auto; bottom:26vh; font-size:clamp(3rem, 2rem + 8vw, 4.6rem); }
   .hero .stage[data-scene="4"] .harlan, .hero .stage[data-scene="5"] .harlan{ left:50%; top:34%; width:76vw; }
-  .hero .stage[data-scene="4"] .title, .hero .stage[data-scene="5"] .title{ left:8vw; top:auto; bottom:clamp(118px,20vh,180px); font-size:clamp(2.6rem, 1.8rem + 6vw, 3.7rem); }
-  .hero .orient{ left:8vw; right:8vw; bottom:21vh; max-width:none; font-size:clamp(1.55rem, 1rem + 3.4vw, 2.35rem); }
-  .hero .cadence{ left:8vw; right:8vw; max-width:none; font-size:clamp(1.06rem, 0.9rem + 1.5vw, 1.4rem); }
-  .hero .stage[data-scene="4"] .cadence{ left:8vw; top:auto; bottom:clamp(184px,31vh,250px); opacity:1; }
-  .hero .stage[data-scene="5"] .ctx{ left:8vw; top:auto; bottom:clamp(94px,13vh,124px); }
-  .hero .keep{ left:8vw; right:auto; text-align:left; bottom:clamp(44px,8vh,80px); }
+  /* sentence roles fill the inset column (wrap within it); short roles share its left edge */
+  .hero .orient{ left:var(--hpad); right:var(--hpad); max-width:none; bottom:21vh; font-size:clamp(1.55rem, 1rem + 3.4vw, 2.35rem); }
+  .hero .cadence{ left:var(--hpad); right:var(--hpad); max-width:none; font-size:clamp(1.06rem, 0.9rem + 1.5vw, 1.4rem); }
+  .hero .keep{ left:var(--hpad); right:auto; text-align:left; bottom:clamp(52px,8.5vh,84px); }
+  .hero .stage[data-scene="3"] .title{ left:var(--hpad); right:var(--hpad); top:auto; bottom:26vh; font-size:clamp(3rem, 2rem + 8vw, 4.6rem); }
+  .hero .stage[data-scene="4"] .title, .hero .stage[data-scene="5"] .title{ left:var(--hpad); right:var(--hpad); top:auto; bottom:clamp(164px,26.5vh,240px); font-size:clamp(2.6rem, 1.8rem + 6vw, 3.7rem); }
+  .hero .stage[data-scene="4"] .cadence{ left:var(--hpad); top:auto; bottom:clamp(120px,18.5vh,158px); opacity:1; }  /* keeper sentence below the masthead, as on desktop */
+  .hero .stage[data-scene="5"] .ctx{ left:var(--hpad); top:auto; bottom:clamp(112px,17.5vh,148px); }
+  .hero-replay{ left:var(--hpad); transform:none; text-align:left; bottom:clamp(18px,3vh,28px); }  /* aligned to the content inset, not centred */
+}
+
+/* SHORT MOBILE VIEWPORTS (≤860w AND ≤670h) — e.g. iPhone SE (320×568 / 375×667),
+   compact Androids (360×640). The portrait (sized in vw) grows too tall for a short
+   screen and the bottom-anchored text stack has no room, so title/ctx would collide.
+   Here we lift the portrait up, shrink it, ease the masthead size, and compress the
+   bottom offsets — keeping the same composition, just fitted to the shorter frame.
+   Horizontal inset (--hpad) is inherited unchanged; taller phones keep the values above. */
+@media (max-width:860px) and (max-height:620px){
+  .hero .stage[data-scene="2"] .harlan{ width:64vw; top:36%; }
+  .hero .stage[data-scene="3"] .harlan{ width:46vw; top:27%; }
+  .hero .stage[data-scene="4"] .harlan, .hero .stage[data-scene="5"] .harlan{ width:56vw; top:28%; }
+  .hero .stage[data-scene="3"] .title{ bottom:23vh; font-size:clamp(2.6rem, 1.9rem + 5vw, 3.6rem); }
+  .hero .stage[data-scene="4"] .title, .hero .stage[data-scene="5"] .title{ bottom:clamp(168px,27vh,192px); font-size:clamp(2.1rem, 1.6rem + 3vw, 2.7rem); }
+  .hero .stage[data-scene="4"] .cadence{ bottom:clamp(116px,18.5vh,140px); }
+  .hero .stage[data-scene="5"] .ctx{ bottom:clamp(100px,15.5vh,120px); }
+  .hero .keep{ bottom:clamp(46px,7vh,64px); }
+  .hero-replay{ bottom:clamp(13px,2.2vh,20px); }
 }
 
 /* =========================================================
@@ -1499,13 +1526,20 @@ footer{
 .topic-cover .jc-photo img, .topic-cover .jc-photo picture{ width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; display: block;
   transition: transform 1100ms var(--ease-settle); }
 @media (prefers-reduced-motion: no-preference){ .topic-card:hover .topic-cover .jc-photo img{ transform: scale(1.06); } }
-.topic-cover .jc-motif, .topic-cover .jc-art{ width:100%; height:100%; display:flex; align-items:center; justify-content:center;
-  background:
-    radial-gradient(120% 90% at 28% 18%, color-mix(in srgb,var(--tab-color) 54%, transparent) 0%, transparent 58%),
-    radial-gradient(130% 110% at 82% 92%, color-mix(in srgb,var(--tab-color) 36%, transparent) 0%, transparent 55%),
-    linear-gradient(150deg, color-mix(in srgb,var(--tab-color) 24%, var(--paper-deep)) 0%, var(--paper-deep) 100%); }
-.topic-cover .jc-ghost{ font-family: var(--font-display); font-weight: 560; font-size: clamp(1.5rem, 1rem + 2.2vw, 2.8rem);
-  color: color-mix(in srgb, var(--tab-color) 62%, var(--ink-primary)); opacity: 0.30; text-transform: uppercase; text-align: center; padding: 0 1rem; line-height: 1.04; }
+/* Non-photographic covers — an AUTHORED warm, dim, atmospheric plate that shares the
+   photographic cards' tonality (a deep warm ground lit by a soft thread-coloured glow),
+   with the topic set as a tracked archival stamp. A deliberate typographic plate for the
+   journeys with no portrait of their own — not a placeholder, and consistent in both themes. */
+.topic-cover .jc-motif, .topic-cover .jc-art{ width:100%; height:100%; position:relative; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  background: radial-gradient(120% 88% at 50% 26%, color-mix(in srgb, var(--tab-color) 42%, #23180d) 0%, #180f08 56%, #0d0805 100%); }
+.topic-cover .jc-motif::before, .topic-cover .jc-art::before{ content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+  background: radial-gradient(56% 40% at 50% 28%, color-mix(in srgb, var(--tab-color) 50%, transparent) 0%, transparent 60%);
+  mix-blend-mode:screen; opacity:.7; }
+.topic-cover .jc-ghost{ position:relative; z-index:1; font-family: var(--font-display); font-weight: 400;
+  font-size: clamp(1.35rem, 0.9rem + 1.9vw, 2.1rem); line-height: 1.1; letter-spacing: 0.06em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--tab-color) 28%, #F2E7D3); opacity: 0.6; text-align: center; padding: 0 1.2rem;
+  transform: translateY(-14%); text-shadow: 0 2px 22px rgba(0,0,0,.55); }
 /* warm cinematic scrim so the type reads over any cover */
 .topic-scrim{ position: absolute; inset: 0; z-index: 1; pointer-events: none;
   background:
@@ -2114,20 +2148,32 @@ footer{
     }
   })();
 
-  /* ---------- Scroll reveal (respects reduced motion) ---------- */
+  /* ---------- Scroll reveal — coordinated at the SECTION level ----------
+     One motion system, section-aware: when a section enters, its .reveal elements
+     settle in a short ordered cascade (heading first, then content) instead of every
+     element independently firing the same fade on scroll. Reduced motion / no-IO:
+     everything is shown immediately, no transforms. */
   var revealEls = document.querySelectorAll(".reveal, .resolve");
   if (reduceMotion || !("IntersectionObserver" in window)) {
     revealEls.forEach(function(el){ el.classList.add("is-visible"); });
   } else {
+    var revealGroups = new Map();
+    revealEls.forEach(function(el){
+      var key = el.closest("section, footer") || document.body;
+      if (!revealGroups.has(key)) revealGroups.set(key, []);
+      revealGroups.get(key).push(el);
+    });
     var io = new IntersectionObserver(function(entries){
       entries.forEach(function(entry){
-        if (entry.isIntersecting) {
-          entry.target.classList.add("is-visible");
-          io.unobserve(entry.target);
-        }
+        if (!entry.isIntersecting) return;
+        (revealGroups.get(entry.target) || []).forEach(function(el, i){
+          el.style.transitionDelay = (Math.min(i, 5) * 70) + "ms";  // gentle ordered cascade, capped
+          el.classList.add("is-visible");
+        });
+        io.unobserve(entry.target);
       });
-    }, { threshold: 0, rootMargin: "0px 0px -40px 0px" });
-    revealEls.forEach(function(el){ io.observe(el); });
+    }, { threshold: 0, rootMargin: "0px 0px -12% 0px" });
+    revealGroups.forEach(function(els, key){ io.observe(key); });
   }
 
   /* ---------- Night reading toggle (desktop nav + mobile panel, kept in sync) ---------- */

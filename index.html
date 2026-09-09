@@ -659,7 +659,7 @@ body.panel-open{ overflow: hidden; }
 .hero.is-rested .hero-replay{ opacity:.42; visibility:visible; pointer-events:auto; }
 .hero-replay:hover{ color:var(--v-ember); opacity:.95; }
 .hero-replay:focus-visible{ opacity:1; color:var(--v-ember); outline:1px solid color-mix(in srgb,var(--v-ember) 55%,transparent); outline-offset:4px; }
-@media (prefers-reduced-motion:reduce){ .hero-replay{ display:none; } }
+/* replay is shown after the sequence rests (via .is-rested) in BOTH full and reduced-motion modes */
 
 /* ?motion=force — preview the hero motion even when the OS requests reduced motion. The site's
    global reduced-motion guard (`*{transition-duration:.001ms!important}`) would otherwise flatten
@@ -672,6 +672,47 @@ html.force .hero .harlan img{ animation: hero-breathe 10s ease-in-out infinite !
 html.force .hero .grain{ animation: hero-gm 1.15s steps(3) infinite !important; }
 html.force .hero .atmos-video{ display: block !important; }
 html.force .hero-replay{ display: inline-block !important; }
+
+/* ===== REDUCED-MOTION — a gentle, low-intensity version of the same arc (html.rm) =====
+   Reduced-motion users keep the approved final LAYOUT the whole time (the JS holds data-scene=5,
+   so there are NO translations, scaling, crop jumps or camera-like moves — the accessibility win),
+   and the layers are revealed in five calm steps via data-rm using opacity + gentle focus/brightness
+   only. The atmosphere video stays off (media query above); drift/grain/breathe/spot animations stay
+   off. These transitions must survive the site's global reduced-motion guard, so they are restored
+   for the hero only — and restricted to opacity/filter (never position/size). */
+html.rm .hero .harlan{ transition: opacity 1500ms ease, filter 1500ms ease !important; }
+html.rm .hero .harlan img{ transition: filter 1500ms ease !important; }
+html.rm .hero .veil, html.rm .hero .light{ transition: opacity 1500ms ease !important; }
+html.rm .hero .title, html.rm .hero .ctx, html.rm .hero .keep{ transition: opacity 1300ms ease !important; transform: none !important; }
+html.rm .hero-replay{ transition: opacity 1200ms ease !important; }
+/* the five gentle steps — opacity / brightness / focus only (positions come from scene 5) */
+html.rm .hero .stage[data-rm="1"] .harlan{ opacity:.30; }
+html.rm .hero .stage[data-rm="1"] .harlan img{ filter:brightness(.5) contrast(1.05) saturate(.9) blur(2px); }
+html.rm .hero .stage[data-rm="1"] .veil{ opacity:.5; }
+html.rm .hero .stage[data-rm="1"] .light{ opacity:.4; }
+html.rm .hero .stage[data-rm="1"] .title, html.rm .hero .stage[data-rm="1"] .ctx, html.rm .hero .stage[data-rm="1"] .keep{ opacity:0; }
+html.rm .hero .stage[data-rm="2"] .harlan{ opacity:.98; }
+html.rm .hero .stage[data-rm="2"] .harlan img{ filter:brightness(.96) contrast(1.06) saturate(.93) blur(0); }
+html.rm .hero .stage[data-rm="2"] .veil{ opacity:.08; }
+html.rm .hero .stage[data-rm="2"] .light{ opacity:.55; }
+html.rm .hero .stage[data-rm="2"] .title, html.rm .hero .stage[data-rm="2"] .ctx, html.rm .hero .stage[data-rm="2"] .keep{ opacity:0; }
+html.rm .hero .stage[data-rm="3"] .harlan{ opacity:.98; }
+html.rm .hero .stage[data-rm="3"] .harlan img{ filter:brightness(.96) contrast(1.06) saturate(.93) blur(0); }
+html.rm .hero .stage[data-rm="3"] .veil{ opacity:.06; }
+html.rm .hero .stage[data-rm="3"] .light{ opacity:.6; }
+html.rm .hero .stage[data-rm="3"] .title{ opacity:1; }
+html.rm .hero .stage[data-rm="3"] .ctx{ opacity:1; }
+html.rm .hero .stage[data-rm="3"] .keep{ opacity:0; }
+html.rm .hero .stage[data-rm="4"] .harlan{ opacity:.98; }
+html.rm .hero .stage[data-rm="4"] .harlan img{ filter:brightness(.96) contrast(1.06) saturate(.93) blur(0); }
+html.rm .hero .stage[data-rm="4"] .veil{ opacity:.05; }
+html.rm .hero .stage[data-rm="4"] .light{ opacity:.7; }
+html.rm .hero .stage[data-rm="4"] .title, html.rm .hero .stage[data-rm="4"] .ctx, html.rm .hero .stage[data-rm="4"] .keep{ opacity:1; }
+html.rm .hero .stage[data-rm="5"] .harlan{ opacity:.98; }
+html.rm .hero .stage[data-rm="5"] .harlan img{ filter:brightness(.98) contrast(1.06) saturate(.94) blur(0); }
+html.rm .hero .stage[data-rm="5"] .veil{ opacity:.04; }
+html.rm .hero .stage[data-rm="5"] .light{ opacity:.85; }
+html.rm .hero .stage[data-rm="5"] .title, html.rm .hero .stage[data-rm="5"] .ctx, html.rm .hero .stage[data-rm="5"] .keep{ opacity:1; }
 
 /* MOBILE / PORTRAIT-TABLET (≤860px) — bottom-anchored single column */
 @media (max-width:860px){
@@ -2023,24 +2064,37 @@ footer{
     var stage = document.getElementById("hero-stage");
     var heroEl = document.getElementById("hero");
     if (!stage || !heroEl) return;
-    var forced = new URLSearchParams(location.search).get("motion") === "force";  // preview the motion under OS reduced-motion
+    var forced = new URLSearchParams(location.search).get("motion") === "force";  // preview full motion under OS reduced-motion
     if (forced) document.documentElement.classList.add("force");
-    var animate = !reduceMotion || forced;            // whether the narrative actually runs
-    var N = 5, cur = 1, playing = false, timer = null;
-    var DWELL = [0, 2000, 2200, 2300, 2100];          // ms held in scenes 1..4 before advancing (move + a hold to read)
+    var lowMotion = reduceMotion && !forced;          // reduced-motion → gentle low-intensity sequence
+    var playing = false, timer = null;
+
+    /* FULL cinematic sequence (normal + force) — unchanged */
+    var N = 5, cur = 1, DWELL = [0, 2000, 2200, 2300, 2100];
     function setScene(n){ cur = Math.max(1, Math.min(N, n)); stage.setAttribute("data-scene", cur); }
     function step(){ clearTimeout(timer); if (!playing) return;
       if (cur >= N){ rest(); return; }
       timer = setTimeout(function(){ setScene(cur + 1); step(); }, DWELL[cur]); }
     function play(){ heroEl.classList.remove("is-rested"); playing = true; if (cur >= N) setScene(1); step(); }
-    function rest(){ playing = false; heroEl.classList.add("is-rested"); }   // the arrival holds
+
+    /* LOW-MOTION sequence (reduced-motion): the SAME final layout (scene 5) is held throughout — no
+       translations/scaling — with a calm five-step opacity/focus reveal driven by data-rm. */
+    var rmcur = 1, RMDWELL = [0, 1700, 1800, 1700, 1600];
+    function setRM(n){ rmcur = Math.max(1, Math.min(5, n)); stage.setAttribute("data-rm", rmcur); }
+    function stepRM(){ clearTimeout(timer); if (!playing) return;
+      if (rmcur >= 5){ rest(); return; }
+      timer = setTimeout(function(){ setRM(rmcur + 1); stepRM(); }, RMDWELL[rmcur]); }
+    function playRM(){ heroEl.classList.remove("is-rested"); playing = true; if (rmcur >= 5) setRM(1); stepRM(); }
+
+    function rest(){ playing = false; heroEl.classList.add("is-rested"); }   // the arrival holds (both modes)
+    function begin(){ if (lowMotion) playRM(); else play(); }                // replay restarts the active mode
 
     var av = document.getElementById("hero-atmos");
     if (av){
       av.addEventListener("playing", function(){ av.classList.add("on"); });
       av.addEventListener("error", function(){ av.classList.remove("on"); });
       var tryPlay = function(){ var pr = av.play && av.play(); if (pr && pr.catch) pr.catch(function(){}); };
-      if (animate){
+      if (!lowMotion){   // atmosphere video runs only in full-motion modes; reduced-motion keeps a static field
         if ("IntersectionObserver" in window){
           new IntersectionObserver(function(e){ if (e[0].isIntersecting) tryPlay(); else { try { av.pause(); } catch(x){} } }, { threshold: 0.01 }).observe(heroEl);
         } else { tryPlay(); }
@@ -2049,10 +2103,15 @@ footer{
     }
 
     var replay = document.getElementById("hero-replay");
-    if (replay) replay.addEventListener("click", function(){ play(); });
+    if (replay) replay.addEventListener("click", function(){ begin(); });
 
-    if (!animate){ setScene(5); }   // reduced-motion (not forced) → dignified static lockup, no narrative, no replay
-    else { setScene(1); setTimeout(play, 650); }   // plays once → rests. Plain timer (rAF pauses in background tabs).
+    if (lowMotion){
+      document.documentElement.classList.add("rm");
+      stage.setAttribute("data-scene", "5");   // approved final LAYOUT, held throughout (no camera-like motion)
+      setRM(1); setTimeout(playRM, 650);        // gentle opacity/focus reveal, then rests
+    } else {
+      setScene(1); setTimeout(play, 650);        // full cinematic sequence — plays once → rests
+    }
   })();
 
   /* ---------- Scroll reveal (respects reduced motion) ---------- */

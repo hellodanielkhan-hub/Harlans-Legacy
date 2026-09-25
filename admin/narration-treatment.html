@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Narration Treatment — Harlan's Legacy Admin</title>
+<style>
+  :root{color-scheme:dark}
+  body{font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:1080px;margin:0 auto;padding:20px;color:#e9e3d6;background:#14120f}
+  h1{font-size:20px;margin:0 0 4px} .sub{opacity:.7;font-size:13px;margin-bottom:16px}
+  .card{background:#1d1a16;border:1px solid #332e26;border-radius:10px;padding:14px 16px;margin-bottom:14px}
+  .arc{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+  .chip{background:#2a2620;border:1px solid #3d372c;border-radius:999px;padding:4px 10px;font-size:12px}
+  .zone{font-weight:600}
+  table{border-collapse:collapse;width:100%;font-size:13px} th,td{border-bottom:1px solid #2c2820;padding:6px 8px;text-align:left;vertical-align:top}
+  th{opacity:.7;font-weight:600} td.txt{max-width:420px;opacity:.85}
+  select,input{background:#14120f;color:#e9e3d6;border:1px solid #3d372c;border-radius:6px;padding:4px 6px;font-size:13px}
+  input[type=number]{width:66px}
+  .btn{border:0;border-radius:8px;padding:9px 14px;font:600 13px system-ui;cursor:pointer;margin-right:8px}
+  .save{background:#8fd6a6;color:#0e2a17} .revert{background:transparent;color:#e9e3d6;border:1px solid #5a5347} .close{background:transparent;color:#9a9384;border:1px solid #3d372c}
+  .range{opacity:.6;font-size:12px} .banner{background:#243726;border:1px solid #395;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:12px}
+  .over{background:#3a2f1d;border-color:#7a5} #msg{margin-left:8px;font-size:13px}
+  .tokbar{background:#241d1d;border:1px solid #533;border-radius:8px;padding:10px;margin-bottom:12px}
+</style></head>
+<body>
+  <h1>Narration Treatment <span id="sid" class="range"></span></h1>
+  <div class="sub">Golden technical recipe is FIXED for every story. Only the emotional map below is story-specific. Edits are clamped into the approved ranges. Generation still requires human Preview → Approve.</div>
+  <div id="tokbar" class="tokbar" hidden>Admin token required: <input id="tok" type="password" placeholder="admin token"> <button class="btn save" id="toksave">Use</button></div>
+  <div id="banner" class="banner"></div>
+  <div class="card">
+    <div><b>Arc:</b> <span id="arc"></span></div>
+    <div><b>Dominant:</b> <span id="dom"></span> · <b>Avg intensity:</b> <span id="avg"></span> · <b>Delivery:</b> <span id="style"></span></div>
+    <div class="range">Golden ranges — exaggeration <b id="rEx"></b> · cfg <b id="rCf"></b> · temperature <b id="rTp"></b>. Pause: 6ms fades, 1.5s end silence.</div>
+  </div>
+  <div class="card" style="overflow:auto">
+    <table id="tbl"><thead><tr><th>#</th><th>Zone</th><th>Intensity</th><th>Exag</th><th>CFG</th><th>Temp</th><th>Gap(s)</th><th>Chunk text</th></tr></thead><tbody id="rows"></tbody></table>
+  </div>
+  <div>
+    <button class="btn save" id="save">Save Override</button>
+    <button class="btn revert" id="revert">Revert to Auto</button>
+    <button class="btn close" id="close" onclick="window.close()">Close</button>
+    <span id="msg"></span>
+  </div>
+<script>
+(function(){
+  var ZONES=["conversational","warmth","tenderness","reflection","grief","grace","acceptance","levity","wonder"];
+  var qs=new URLSearchParams(location.search), ID=qs.get("story");
+  var R={exaggeration:[0.40,0.52],cfg_weight:[0.28,0.30],temperature:[0.72,0.80]};
+  var current=null;
+  function tok(){ try{return sessionStorage.getItem("hl-admin-token")||"";}catch(e){return"";} }
+  function api(method,path,body){ var h={"Content-Type":"application/json"};var t=tok();if(t)h["x-admin-token"]=t;
+    return fetch(path,{method:method,headers:h,body:body?JSON.stringify(body):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||("HTTP "+r.status));return j;});}); }
+  function el(id){return document.getElementById(id);}
+  function num(v,r){v=parseFloat(v);if(isNaN(v))v=r[0];return Math.max(r[0],Math.min(r[1],v));}
+  el("sid").textContent="· Story "+ID;
+  el("rEx").textContent=R.exaggeration.join("–");el("rCf").textContent=R.cfg_weight.join("–");el("rTp").textContent=R.temperature.join("–");
+
+  function render(resp){
+    current=resp.treatment;
+    var t=current;
+    el("banner").className="banner"+(resp.effective==="admin-override"?" over":"");
+    el("banner").textContent=resp.effective==="admin-override"?"Showing a saved ADMIN OVERRIDE (source of truth for the next generation).":"Showing the AUTO-derived treatment. Edit + Save to override, or generate as-is.";
+    el("arc").innerHTML=(t.arc||[]).map(function(z){return '<span class="chip zone">'+z+'</span>';}).join(" ")||"—";
+    el("dom").textContent=t.dominantEmotion||"—";el("avg").textContent=t.avgIntensity!=null?t.avgIntensity:"—";el("style").textContent=t.deliveryStyle||"—";
+    el("rows").innerHTML="";
+    (t.chunks||[]).forEach(function(c,i){
+      var tr=document.createElement("tr");
+      tr.innerHTML='<td>'+i+'</td>'+
+        '<td><select data-k="zone">'+ZONES.map(function(z){return '<option'+(z===c.zone?" selected":"")+'>'+z+'</option>';}).join("")+'</select></td>'+
+        '<td><input type="number" step="0.05" min="0" max="1" data-k="intensity" value="'+(c.intensity!=null?c.intensity:0.5)+'"></td>'+
+        '<td><input type="number" step="0.01" data-k="exaggeration" value="'+c.exaggeration+'"></td>'+
+        '<td><input type="number" step="0.01" data-k="cfg_weight" value="'+c.cfg_weight+'"></td>'+
+        '<td><input type="number" step="0.01" data-k="temperature" value="'+c.temperature+'"></td>'+
+        '<td><input type="number" step="0.02" data-k="gap_before_s" value="'+(c.gap_before_s||0)+'"></td>'+
+        '<td class="txt">'+(c.text||"").replace(/</g,"&lt;")+'</td>';
+      el("rows").appendChild(tr);
+    });
+  }
+  function collect(){
+    var chunks=[].map.call(el("rows").querySelectorAll("tr"),function(tr,i){
+      var g={i:i,text:current.chunks[i].text};
+      tr.querySelectorAll("[data-k]").forEach(function(inp){var k=inp.getAttribute("data-k");g[k]=inp.value;});
+      g.exaggeration=num(g.exaggeration,R.exaggeration);g.cfg_weight=num(g.cfg_weight,R.cfg_weight);g.temperature=num(g.temperature,R.temperature);
+      g.intensity=parseFloat(g.intensity)||0.5;g.gap_before_s=parseFloat(g.gap_before_s)||0;g.zone=g.zone||"conversational";
+      return g;
+    });
+    return Object.assign({},current,{chunks:chunks});
+  }
+  function load(){ api("GET","/api/narration/"+ID+"/treatment").then(render).catch(function(e){ if(/Unauthorized/i.test(e.message)){el("tokbar").hidden=false;} el("msg").textContent=e.message; }); }
+  el("save").onclick=function(){ el("msg").textContent="saving…"; api("PUT","/api/narration/"+ID+"/treatment",{treatment:collect()}).then(function(r){el("msg").textContent="Saved override.";load();}).catch(function(e){el("msg").textContent="Save failed: "+e.message;}); };
+  el("revert").onclick=function(){ if(!confirm("Discard the admin override and revert to the auto-derived treatment?"))return; api("DELETE","/api/narration/"+ID+"/treatment").then(function(){el("msg").textContent="Reverted to auto.";load();}).catch(function(e){el("msg").textContent=e.message;}); };
+  el("toksave").onclick=function(){try{sessionStorage.setItem("hl-admin-token",el("tok").value.trim());}catch(e){}el("tokbar").hidden=true;load();};
+  if(!ID){el("banner").textContent="No ?story=<id> specified.";}else load();
+})();
+</script>
+</body></html>

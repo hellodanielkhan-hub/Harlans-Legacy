@@ -24,6 +24,12 @@ const { buildGraph } = require("./lib/graph.js");
 const { autoPlan } = require("./lib/reader.js");
 const paths = require("./lib/paths.js");
 const records = require("./lib/records.js");   // shared record logic (also used by the serverless API)
+const narrationApi = require("./lib/narration/api.js");     // voice-narration routes (shared with the serverless API)
+const narrationWorker = require("./lib/narration/worker.js"); // in-process job pump for local dev
+const narrationSvc = require("./lib/narration/service.js");   // publish contract (§4/§5)
+const identity = require("./lib/narration/identity.js");     // per-moderator auth + attribution
+const audit = require("./lib/narration/audit.js");           // moderator action audit log
+const staticGuard = require("./lib/static-guard.js");         // refuses .env/dotfiles, traversal, bad encoding
 
 // Writable root (app dir locally; a writable dir on read-only hosts). Seed it
 // once from the bundle so data + pages + uploads all live somewhere writable.
@@ -41,6 +47,9 @@ const STORY_PHOTOS_JSON = path.join(DATA, "story-photos.json");
 const STORY_PHOTOS_SRC = path.join(ROOT, "story-photos");
 const STORY_PHOTOS_OUT = path.join(ROOT, "assets", "story-photos");
 const PORT = process.env.PORT || 4317;
+// Loopback only by default: the dev server holds admin routes and sits next to .env.
+// Set HOST=0.0.0.0 deliberately (e.g. a container host) to listen on other interfaces.
+const HOST = process.env.HOST || "127.0.0.1";
 
 const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -100,13 +109,13 @@ const { storyKey } = records;
 
 /* ---------- static files ---------- */
 function serveStatic(req, res, pathname) {
-  let rel = decodeURIComponent(pathname.replace(/^\/+/, ""));
-  if (rel === "") rel = "index.html";
-  if (rel.endsWith("/")) rel += "index.html";
+  // Never serve dotfiles (.env holds real secrets), traversal, or malformed paths.
+  const rel = staticGuard.safeRelative(pathname);
+  if (rel === null) return send(res, 404, "Not found", "text/plain; charset=utf-8");
 
   // Prevent path traversal outside either root.
   const abs = path.normalize(path.join(ROOT, rel));
-  if (!abs.startsWith(ROOT)) return send(res, 403, "Forbidden", "text/plain");
+  if (!staticGuard.isInside(ROOT, abs)) return send(res, 403, "Forbidden", "text/plain");
   // Serve from the writable root first (freshly generated pages + new uploads);
   // fall back to the read-only bundle for anything not (yet) copied there.
   const bundled = path.normalize(path.join(APP_ROOT, rel));
@@ -117,7 +126,7 @@ function serveStatic(req, res, pathname) {
   };
   fs.stat(abs, (err, st) => {
     if (!err && st.isFile()) return stream(abs);
-    if (APP_ROOT !== ROOT && bundled.startsWith(APP_ROOT)) {
+    if (APP_ROOT !== ROOT && staticGuard.isInside(APP_ROOT, bundled)) {
       return fs.stat(bundled, (e2, s2) => {
         if (!e2 && s2.isFile()) return stream(bundled);
         return send(res, 404, "Not found: " + rel, "text/plain; charset=utf-8");
@@ -135,12 +144,29 @@ async function handleApi(req, res, url) {
 
   // Optional auth (off by default for local dev). If ADMIN_TOKEN is set it is
   // required — matching the production serverless API in api/[...path].js.
-  if (process.env.ADMIN_TOKEN) {
-    const got = req.headers["x-admin-token"] || url.searchParams.get("token");
-    if (got !== process.env.ADMIN_TOKEN) return sendJSON(res, 401, { error: "Unauthorized — admin token required." });
-  }
+  // preview-asset only redirects to the already-public "listen" bucket and is
+  // fetched by the token-less cinematic engine, so it is exempt from the gate.
+  const isPreviewAsset = parts[1] === "narration" && parts[3] === "preview-asset";
+  // Provider completion/heartbeat callbacks are machine calls authenticated by
+  // HMAC signature inside the route (never by a moderator token).
+  const isProviderCallback = parts[1] === "narration" && parts[2] === "staging" && (parts[3] === "complete" || parts[3] === "heartbeat");
+  const auth = identity.authorize(req.headers, { token: url.searchParams.get("token") });
+  if (!isPreviewAsset && !isProviderCallback && !auth.ok) return sendJSON(res, 401, { error: "Unauthorized — moderator or admin token required." });
+  const actor = auth.actor;
 
   try {
+    // ---- voice narration (async jobs) — shared router; local dev runs the worker in-process ----
+    if (resource === "narration") {
+      const body = req.method === "GET" ? {} : await readBody(req);
+      const nres = await narrationApi.route(parts, req.method, body, actor);
+      if (nres) {
+        if (nres.kick) setImmediate(() => narrationWorker.pump().catch(e => console.error("[narration] pump:", e.message)));
+        if (nres.rebuild) { try { rebuild(); } catch (e) {} }
+        if (nres.redirect) { res.writeHead(302, { Location: nres.redirect }); return res.end(); }
+        return sendJSON(res, nres.status, nres.body);
+      }
+    }
+
     if (resource === "site") {
       if (req.method === "GET") return sendJSON(res, 200, readJSON(SITE));
       if (req.method === "PUT") {
@@ -215,9 +241,12 @@ async function handleApi(req, res, url) {
         const story = normalize(body);
         story.id = Number(body.id) || nextId(stories);
         if (stories.some(s => s.id === story.id)) return sendJSON(res, 409, { error: "id " + story.id + " already exists" });
+        story.createdBy = actor; story.createdAt = new Date().toISOString(); story.lastEditedBy = actor; story.lastEditedAt = story.createdAt;
+        if (story.status === "published") { const pr = process.env.HARLAN_NARRATION_PUBLISH_GATE === "1" ? await narrationSvc.publishReadiness(story) : { block: false }; if (pr.block && !body.force) return sendJSON(res, 409, { error: pr.message, code: pr.code, readiness: pr }); const b = narrationSvc.bindingFor(story); if (b) story.narrationPublication = b; else delete story.narrationPublication; }
         stories.push(story);
         if (story.featured && story.status === "published") enforceSingleFeatured(stories, story.id);
         writeJSON(STORIES, stories);
+        await audit.record({ action: "story.create", storyId: story.id, actor, detail: story.title || null });
         return sendJSON(res, 201, { ok: true, story, build: rebuild() });
       }
 
@@ -227,9 +256,13 @@ async function handleApi(req, res, url) {
         const body = await readBody(req);
         const story = normalize(body, stories[idx]);
         story.id = idParam;
+        story.createdBy = stories[idx].createdBy || story.createdBy || actor; story.createdAt = stories[idx].createdAt || story.createdAt || new Date().toISOString();
+        story.lastEditedBy = actor; story.lastEditedAt = new Date().toISOString();
+        if (story.status === "published") { const pr = process.env.HARLAN_NARRATION_PUBLISH_GATE === "1" ? await narrationSvc.publishReadiness(story) : { block: false }; if (pr.block && !body.force) return sendJSON(res, 409, { error: pr.message, code: pr.code, readiness: pr }); const b = narrationSvc.bindingFor(story); if (b) story.narrationPublication = b; else delete story.narrationPublication; }
         stories[idx] = story;
         if (story.featured && story.status === "published") enforceSingleFeatured(stories, idParam);
         writeJSON(STORIES, stories);
+        await audit.record({ action: "story.edit", storyId: idParam, actor, detail: story.title || null });
         return sendJSON(res, 200, { ok: true, story, build: rebuild() });
       }
 
@@ -421,8 +454,9 @@ server.on("clientError", (err, socket) => {
   if (socket.writable) socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
 });
 
-server.listen(PORT, () => {
-  console.log("Harlan's Legacy admin + preview server");
+server.listen(PORT, HOST, () => {
+  console.log("Harlan's Legacy admin + preview server (listening on " + HOST + ":" + PORT + ")");
+  if (!staticGuard.isLoopback(HOST)) console.warn("  WARNING: bound to " + HOST + " — reachable from other machines on this network.");
   console.log("  Site  : http://localhost:" + PORT + "/");
   console.log("  Admin : http://localhost:" + PORT + "/admin/");
   console.log("  Story : http://localhost:" + PORT + "/story/214-the-blue-chair.html");

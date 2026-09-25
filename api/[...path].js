@@ -21,6 +21,23 @@
 
 const store = require("../lib/store.js");
 const records = require("../lib/records.js");
+const narration = require("../lib/narration/service.js");
+const identity = require("../lib/narration/identity.js");   // per-moderator auth + attribution
+const audit = require("../lib/narration/audit.js");         // moderator action audit log
+
+// Publish contract (§4/§5): bind/clear the approved-generation↔revision stamp.
+// BLOCKING publish/edit on missing narration is OFF unless HARLAN_NARRATION_PUBLISH_GATE=1:
+// narration generation still needs an engine host, so a hard gate would make every
+// story edit depend on it. Listening itself is only ever exposed approved+fresh (build.js).
+async function applyPublishContract(story, force) {
+  if (story.status !== "published") return null;
+  if (process.env.HARLAN_NARRATION_PUBLISH_GATE === "1") {
+    const pr = await narration.publishReadiness(story);
+    if (pr.block && !force) return pr;                     // caller returns 409
+  }
+  const b = narration.bindingFor(story); if (b) story.narrationPublication = b; else delete story.narrationPublication;
+  return null;
+}
 const { buildGraph } = require("../lib/graph.js");
 const { autoPlan } = require("../lib/reader.js");
 const { deriveData } = require("../build.js");
@@ -85,10 +102,29 @@ module.exports = async (req, res) => {
     const method = req.method;
 
     // ---- auth gate (writes always; reads too when a token is configured) ----
-    const TOKEN = process.env.ADMIN_TOKEN;
-    if (TOKEN) {
-      const got = req.headers["x-admin-token"] || url.searchParams.get("token");
-      if (got !== TOKEN) return json(res, 401, { error: "Unauthorized — admin token required." });
+    // preview-asset only redirects to the already-public "listen" bucket and is
+    // fetched by the token-less cinematic engine, so it is exempt from the gate.
+    const isPreviewAsset = parts[1] === "narration" && parts[3] === "preview-asset";
+    // Provider completion/heartbeat callbacks: HMAC-authenticated inside the route.
+    const isProviderCallback = parts[1] === "narration" && parts[2] === "staging" && (parts[3] === "complete" || parts[3] === "heartbeat");
+    const auth = identity.authorize(req.headers, { token: url.searchParams.get("token") });
+    const actor = auth.actor;
+    if (!isPreviewAsset && !isProviderCallback && !auth.ok) {
+      return json(res, 401, { error: "Unauthorized — moderator or admin token required." });
+    }
+
+    /* ---------------- voice narration (async jobs) ---------------- */
+    if (resource === "narration") {
+      const narrationApi = require("../lib/narration/api.js");
+      const body = method === "GET" ? {} : await readBody(req);
+      const nres = await narrationApi.route(parts, method, body, actor);
+      if (nres) {
+        // The serverless runtime cannot run synthesis (30s / ephemeral); a separate
+        // worker (the engine box) drains queued jobs. Enqueue returns 202; admin polls.
+        if (nres.rebuild) { const b = await triggerRebuild(); nres.body.build = b; }
+        if (nres.redirect) { res.writeHead(302, { Location: nres.redirect }); return res.end(); }
+        return json(res, nres.status, nres.body);
+      }
     }
 
     /* ---------------- site ---------------- */
@@ -135,7 +171,11 @@ module.exports = async (req, res) => {
         const story = records.normalize(body);
         story.id = Number(body.id) || records.nextId(all);
         if (all.some(s => s.id === story.id)) return json(res, 409, { error: "id " + story.id + " already exists" });
+        story.createdBy = actor; story.createdAt = new Date().toISOString(); story.lastEditedBy = actor; story.lastEditedAt = story.createdAt;
+        const blockedP = await applyPublishContract(story, body.force);
+        if (blockedP) return json(res, 409, { error: blockedP.message, code: blockedP.code, readiness: blockedP });
         await saveStory(story);
+        await audit.record({ action: "story.create", storyId: story.id, actor, detail: story.title || null });
         return json(res, 201, { ok: true, story, build: await triggerRebuild() });
       }
       if (method === "PUT" && idParam != null) {
@@ -145,7 +185,12 @@ module.exports = async (req, res) => {
         if (!existing) return json(res, 404, { error: "No story " + idParam });
         const story = records.normalize(body, existing);
         story.id = idParam;
+        story.createdBy = existing.createdBy || story.createdBy || actor; story.createdAt = existing.createdAt || story.createdAt || new Date().toISOString();
+        story.lastEditedBy = actor; story.lastEditedAt = new Date().toISOString();
+        const blockedU = await applyPublishContract(story, body.force);
+        if (blockedU) return json(res, 409, { error: blockedU.message, code: blockedU.code, readiness: blockedU });
         await saveStory(story);
+        await audit.record({ action: "story.edit", storyId: idParam, actor, detail: story.title || null });
         return json(res, 200, { ok: true, story, build: await triggerRebuild() });
       }
       if (method === "DELETE" && idParam != null) {

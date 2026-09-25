@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Narration Preview — Harlan's Legacy Admin</title>
+<link rel="stylesheet" href="/assets/listen-cinematic.css">
+<style>
+  :root{color-scheme:dark}
+  body{font-family:Georgia,serif;max-width:760px;margin:0 auto;padding:92px 16px 64px;color:#eae3d6;background:#141210}
+  .pv-bar{position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 14px;background:#3a1d1d;border-bottom:1px solid #7a3a3a;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+  .pv-tag{font:600 12px/1.2 system-ui,sans-serif;letter-spacing:.11em;color:#ffd9d0;background:#5a2626;border:1px solid #7a3a3a;border-radius:999px;padding:6px 11px;text-transform:uppercase}
+  .pv-meta{font:400 12px/1.3 system-ui,sans-serif;color:#e7c9c2;opacity:.85;flex:1;margin:0 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pv-approve{font:600 13px/1 system-ui,sans-serif;color:#0e2a17;background:#8fd6a6;border:0;border-radius:8px;padding:9px 13px;cursor:pointer}
+  .pv-close{font:600 13px/1 system-ui,sans-serif;color:#eae3d6;background:transparent;border:1px solid #7a3a3a;border-radius:8px;padding:9px 12px;cursor:pointer}
+  .cover-eyebrow{opacity:.6;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
+  .pv-hint{font:400 13px/1.5 system-ui,sans-serif;opacity:.7;margin:0 0 18px}
+  .tokbar{background:#241d1d;border:1px solid #533;border-radius:8px;padding:10px;margin:0 0 14px;font:400 13px system-ui}
+  .tokbar input{background:#141210;color:#eae3d6;border:1px solid #533;border-radius:6px;padding:6px 8px}
+  #msg{font:400 12px system-ui;color:#e7c9c2}
+</style></head>
+<body>
+  <div class="pv-bar" role="note">
+    <span class="pv-tag">Preview — Not Published</span>
+    <span class="pv-meta" id="meta"></span>
+    <button class="pv-approve" id="approve" type="button">Approve Narration</button>
+    <button class="pv-close" type="button" onclick="window.close()">Close</button>
+  </div>
+  <div id="tokbar" class="tokbar" hidden>Admin token required: <input id="tok" type="password" placeholder="admin token"> <button class="pv-close" id="toksave" type="button">Use token</button></div>
+  <div id="mount"></div>
+  <p id="msg"></p>
+<script>
+(function(){
+  var qs=new URLSearchParams(location.search), ID=qs.get("story"), GENQ=qs.get("gen")||"";
+  function tok(){ try{return sessionStorage.getItem("hl-admin-token")||"";}catch(e){return"";} }
+  function authHeaders(){ var h={"Content-Type":"application/json"};var t=tok();if(t)h["x-admin-token"]=t;return h; }
+  function el(id){return document.getElementById(id);}
+  function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  var GEN=null;
+
+  function render(info){
+    GEN=info.gen;
+    el("meta").textContent="gen "+info.gen+" · "+(info.versionStatus||"ready").toUpperCase()+(info.emotionalArc?(" · "+info.emotionalArc.join(" › ")):"");
+    var body=(info.paragraphs||[]).map(function(p){return '        <p data-narrate>'+esc(p)+'</p>';}).join("\n");
+    el("mount").innerHTML=''+
+      '<article class="story-card" data-listen="'+info.base+'" data-story-id="'+ID+'">'+
+        '<header class="cover-identity"><div class="cover-eyebrow">'+esc(info.series||"Mom & Dad Stories")+' · Preview</div><h1>'+esc(info.title)+'</h1></header>'+
+        '<p class="pv-hint">Unpublished narration preview. Click “Listen to this memory” to review it in the cinematic experience. Nothing publishes until you explicitly Approve.</p>'+
+        '<div class="story-body">\n'+body+'\n    </div>'+
+      '</article>';
+    // load the CANONICAL cinematic engine AFTER the card exists (no second player)
+    ["/assets/listen-soundscape.js","/assets/listen-cinematic.js"].forEach(function(src){
+      var s=document.createElement("script"); s.src=src; s.defer=true; document.body.appendChild(s);
+    });
+  }
+  function load(){
+    var path="/api/narration/"+ID+"/preview"+(GENQ?("/"+GENQ):"");
+    fetch(path,{headers:authHeaders()}).then(function(r){
+      if(r.status===401){ el("tokbar").hidden=false; throw new Error("token required"); }
+      return r.json();
+    }).then(function(info){ if(info.error) throw new Error(info.error); render(info); })
+      .catch(function(e){ el("msg").textContent=e.message; });
+  }
+  el("approve").addEventListener("click",function(){
+    if(!GEN){el("msg").textContent="not loaded yet";return;}
+    if(!confirm("Approve this narration for publishing?\n\nThis writes the public manifest and makes Listening public for story "+ID+". Only after you have reviewed the preview.")) return;
+    fetch("/api/narration/"+ID+"/approve",{method:"POST",headers:authHeaders(),body:JSON.stringify({generationId:GEN})})
+      .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||("HTTP "+r.status));return j;});})
+      .then(function(){alert("Approved. Listening is now published for this story.");})
+      .catch(function(e){alert("Approve failed: "+e.message);});
+  });
+  el("toksave").addEventListener("click",function(){try{sessionStorage.setItem("hl-admin-token",el("tok").value.trim());}catch(e){}el("tokbar").hidden=true;load();});
+  if(!ID){el("msg").textContent="No ?story=<id> specified.";}else load();
+})();
+</script>
+</body></html>

@@ -348,3 +348,35 @@ select{ appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='
 @media (prefers-reduced-motion:reduce){
   *{ transition:none !important; }
 }
+
+/* ---- Voice narration panel (Listening Mode) ---- */
+#narration-panel .narr-row{ display:flex; justify-content:space-between; align-items:baseline; gap:1rem; padding:0.34rem 0; border-bottom:1px solid var(--line-soft); font-size:0.86rem; }
+#narration-panel .narr-row:last-of-type{ border-bottom:0; }
+#narration-panel .narr-k{ color:var(--ink-3); font-weight:600; letter-spacing:0.02em; }
+#narration-panel .narr-v{ color:var(--ink); text-align:right; }
+#narration-panel .narr-ok{ color:var(--ok); font-weight:600; }
+#narration-panel .narr-bad{ color:var(--danger); font-weight:600; }
+#narration-panel .narr-actions{ display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.9rem; }
+#narration-panel .narr-warn{ background:color-mix(in srgb, var(--warn) 12%, transparent); border:1px solid color-mix(in srgb, var(--warn) 40%, transparent); color:var(--ink); border-radius:var(--radius-xs); padding:0.6rem 0.8rem; font-size:0.85rem; margin:0.2rem 0 0.4rem; }
+#narration-panel .narr-progress{ display:flex; align-items:center; gap:0.5rem; margin-top:0.7rem; font-family:var(--font-voice); font-size:0.82rem; color:var(--ember-2); }
+#narration-panel .narr-dot{ width:9px; height:9px; border-radius:50%; background:var(--ember); box-shadow:0 0 0 0 color-mix(in srgb, var(--ember) 60%, transparent); animation:narrPulse 1.3s ease-in-out infinite; }
+@keyframes narrPulse{ 0%{ box-shadow:0 0 0 0 color-mix(in srgb, var(--ember) 55%, transparent); } 70%{ box-shadow:0 0 0 7px transparent; } 100%{ box-shadow:0 0 0 0 transparent; } }
+#narration-panel .narr-preview{ margin-top:0.8rem; }
+#narration-panel .narr-preview audio{ width:100%; border-radius:10px; }
+
+/* ---- Voice narration: multi-stage progress ---- */
+#narration-panel .narr-stages{ display:flex; align-items:center; gap:0; margin:0.8rem 0 0.3rem; }
+#narration-panel .narr-stage{ display:flex; flex-direction:column; align-items:center; gap:0.3rem; min-width:60px; }
+#narration-panel .narr-sdot{ width:12px; height:12px; border-radius:50%; border:2px solid var(--line); background:var(--surface); }
+#narration-panel .narr-slabel{ font-size:0.62rem; letter-spacing:0.02em; color:var(--ink-3); text-transform:uppercase; }
+#narration-panel .narr-sline{ flex:1; height:2px; background:var(--line); margin-bottom:1.05rem; }
+#narration-panel .narr-stage.done .narr-sdot{ background:var(--ok); border-color:var(--ok); }
+#narration-panel .narr-stage.done .narr-slabel{ color:var(--ink-2); }
+#narration-panel .narr-stage.active .narr-sdot{ background:var(--ember); border-color:var(--ember); box-shadow:0 0 0 0 color-mix(in srgb,var(--ember) 55%,transparent); animation:narrStage 1.3s ease-in-out infinite; }
+#narration-panel .narr-stage.active .narr-slabel{ color:var(--ember-2); font-weight:600; }
+@keyframes narrStage{ 0%{ box-shadow:0 0 0 0 color-mix(in srgb,var(--ember) 55%,transparent);} 70%{ box-shadow:0 0 0 7px transparent;} 100%{ box-shadow:0 0 0 0 transparent;} }
+
+/* ---- Voice narration: publish availability banner ---- */
+#narration-panel .narr-pub{ display:flex; align-items:center; gap:.4rem; padding:.55rem .8rem; border-radius:var(--radius-xs); font-weight:600; font-size:.84rem; margin-bottom:.7rem; }
+#narration-panel .narr-pub.ok{ color:var(--ok); background:color-mix(in srgb,var(--ok) 12%,transparent); border:1px solid color-mix(in srgb,var(--ok) 40%,transparent); }
+#narration-panel .narr-pub.blocked{ color:var(--warn); background:color-mix(in srgb,var(--warn) 12%,transparent); border:1px solid color-mix(in srgb,var(--warn) 40%,transparent); }

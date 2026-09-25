@@ -41,6 +41,11 @@ insert into storage.buckets (id, name, public)
 values ('story-photos', 'story-photos', true)
 on conflict (id) do update set public = true;
 
+-- narration audio + timing assets (public read; writes are server-side / worker with the service-role key)
+insert into storage.buckets (id, name, public)
+values ('listen', 'listen', true)
+on conflict (id) do update set public = true;
+
 -- Public buckets already allow public downloads via the public object URL, which
 -- is all the site/admin need. Uploads/deletes happen server-side with the
 -- service-role key (bypasses storage RLS), so no extra storage policies are

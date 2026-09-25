@@ -7,3 +7,19 @@ public/
 .tmptest/
 .qatest/
 *.log
+
+# narration: hydrated at build time from the 'listen' bucket; never committed
+assets/listen/
+# voice lab: engine caches, venvs and reference voice audio stay local (never public)
+prototype/voicelab/venv/
+prototype/voicelab/hfcache/
+prototype/voicelab/torchcache/
+prototype/voicelab/*.wav
+prototype/voicelab/out/
+# local dev narration state (production uses Supabase)
+data/narration_jobs.json
+data/narration_audit.json
+# narration provider benchmark (isolated staging outputs; never production)
+staging/
+tools/narration-bench/results/
+deploy/provider-a/.context/

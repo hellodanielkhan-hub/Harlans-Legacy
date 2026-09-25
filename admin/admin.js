@@ -130,7 +130,7 @@
 
   /* ---------------- select / new ---------------- */
   function attemptSelect(id) { unsavedGuard(function () { select(id); }); }
-  function select(id) { var s = state.stories.filter(function (x) { return x.id === id; })[0]; if (!s) return; state.selectedId = id; state.isNew = false; fill(s); renderList(); restoreDraft(id); }
+  function select(id) { var s = state.stories.filter(function (x) { return x.id === id; })[0]; if (!s) return; state.selectedId = id; state.isNew = false; fill(s); renderList(); restoreDraft(id); if (window.HLNarration) window.HLNarration.show(id, s); }
   function newStory() { unsavedGuard(freshStory); }
   // Always a completely fresh editor — never restores an old in-progress draft.
   function freshStory() {
@@ -138,7 +138,7 @@
     state.selectedId = null; state.isNew = true; state.dirty = false;
     var nextId = state.stories.reduce(function (m, s) { return Math.max(m, s.id); }, 0) + 1;
     fill({ id: nextId, title: "", slug: "", status: "draft", featured: false, theme: "ordinary", publishedISO: "", dateLong: "", dateLabel: "", memoryDate: "", summary: "", description: "", ogDescription: "", lead: "", body: [], people: [], places: [], objects: [], events: [], bookPart: "", keywords: [], echoStories: [], readingTime: "" }, true);
-    renderList(); $("f-title").focus();
+    renderList(); $("f-title").focus(); if (window.HLNarration) window.HLNarration.hide();
   }
 
   /* Lightweight modal for a 3-way choice (built once). */
@@ -333,6 +333,7 @@
       if (!ok) return;
       var s = state.stories.filter(function (x) { return x.id === savedId; })[0];
       if (s && !done) fill(s);
+      if (window.HLNarration && savedId != null) window.HLNarration.show(savedId, s);
       updateSaveState(false, "Saved · " + clock());
     })
       .catch(function (err) {

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Narration Library — Harlan's Legacy</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23181E28'/%3E%3Cpath d='M16 6c-2 4-4 6-4 9a4 4 0 0 0 8 0c0-3-2-5-4-9z' fill='%23DB8B59'/%3E%3C/svg%3E" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,440;9..144,560&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="admin.css">
+<style>
+  .nl-wrap{ max-width:1180px; margin:0 auto; padding:1.4rem 1.4rem 5rem; }
+  .nl-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .nl-head h1{ font-family:var(--font-display); font-weight:560; font-size:1.5rem; margin:0; }
+  .nl-head .sub{ color:var(--ink-3); font-size:.82rem; margin-top:.2rem; }
+  .nl-engine{ font-size:.76rem; padding:.3rem .7rem; border-radius:999px; border:1px solid var(--line); }
+  .nl-engine.off{ color:var(--warn); border-color:color-mix(in srgb,var(--warn) 45%,transparent); }
+  .nl-engine.on{ color:var(--ok); border-color:color-mix(in srgb,var(--ok) 45%,transparent); }
+  .nl-counts{ display:flex; gap:.5rem; flex-wrap:wrap; margin:.4rem 0 1rem; }
+  .nl-chip{ font-size:.74rem; padding:.34rem .7rem; border-radius:10px; background:var(--surface); border:1px solid var(--line); color:var(--ink-2); }
+  .nl-chip b{ color:var(--ink); }
+  .nl-actions{ display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1rem; }
+  table.nl{ width:100%; border-collapse:collapse; font-size:.86rem; }
+  table.nl th, table.nl td{ text-align:left; padding:.6rem .5rem; border-bottom:1px solid var(--line-soft); vertical-align:middle; }
+  table.nl th{ color:var(--ink-3); font-weight:600; font-size:.72rem; letter-spacing:.04em; text-transform:uppercase; }
+  .st{ display:inline-flex; align-items:center; gap:.4rem; font-weight:600; font-size:.8rem; }
+  .st .dot{ width:8px; height:8px; border-radius:50%; }
+  .st-approved .dot{ background:var(--ok); } .st-approved{ color:var(--ok); }
+  .st-outdated .dot{ background:var(--warn); } .st-outdated{ color:var(--warn); }
+  .st-processing .dot{ background:var(--ember); animation:nlpulse 1.3s infinite; } .st-processing{ color:var(--ember-2); }
+  .st-ready .dot{ background:var(--info); } .st-ready{ color:var(--info); }
+  .st-failed .dot{ background:var(--danger); } .st-failed{ color:var(--danger); }
+  .st-none .dot{ background:var(--ink-4); } .st-none{ color:var(--ink-3); }
+  @keyframes nlpulse{ 0%,100%{ opacity:1 } 50%{ opacity:.35 } }
+  .nl-row-actions{ display:flex; gap:.35rem; flex-wrap:wrap; }
+  .nl-row-actions .btn{ padding:.35rem .6rem; font-size:.74rem; }
+  .nl-mut{ color:var(--ink-3); font-variant-numeric:tabular-nums; }
+  .backlink{ color:var(--ink-2); font-size:.8rem; text-decoration:none; }
+  .backlink:hover{ color:var(--ember); }
+  #nl-audio{ width:100%; margin-top:.6rem; }
+  .tokbar{ display:flex; gap:.5rem; align-items:center; margin-bottom:1rem; }
+  .tokbar input{ flex:1; }
+</style>
+</head>
+<body>
+  <div class="nl-wrap">
+    <div class="nl-head">
+      <div>
+        <a class="backlink" href="./">← Editorial workspace</a>
+        <h1>Narration Library</h1>
+        <div class="sub">Cinematic Story Listening across the archive · generate, preview, approve, and batch-fill narrations.</div>
+      </div>
+      <div id="nl-engine" class="nl-engine">engine: …</div>
+    </div>
+
+    <div class="tokbar" id="tokbar" hidden>
+      <input id="tok" class="input" type="password" placeholder="Admin token (if required)…" autocomplete="off">
+      <button class="btn btn-soft" id="tok-save">Use token</button>
+    </div>
+
+    <div class="nl-counts" id="nl-counts"></div>
+
+    <div class="nl-actions">
+      <button class="btn btn-soft" id="gen-missing">Generate missing narrations</button>
+      <button class="btn btn-ghost" id="retry-failed">Retry failed</button>
+      <button class="btn btn-ghost" id="cancel-queued">Cancel queued</button>
+      <button class="btn btn-ghost" id="refresh">Refresh</button>
+    </div>
+
+    <audio id="nl-audio" controls preload="none" hidden></audio>
+
+    <table class="nl">
+      <thead><tr><th>Story</th><th>Status</th><th>Narration</th><th>Duration</th><th>Generation</th><th>Generated</th><th>Approved</th><th>Actions</th></tr></thead>
+      <tbody id="nl-body"><tr><td colspan="8" class="nl-mut">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+  function tok(){ try { return sessionStorage.getItem("hl-admin-token") || ""; } catch(e){ return ""; } }
+  function el(id){ return document.getElementById(id); }
+  function toast(m,k){ var t=el("toast"); t.textContent=m; t.className="toast show"+(k?" "+k:""); setTimeout(function(){ t.className="toast"; },3400); }
+  function api(method,path,body){ var h={"Content-Type":"application/json"}; var t=tok(); if(t) h["x-admin-token"]=t;
+    return fetch(path,{method:method,headers:h,body:body?JSON.stringify(body):undefined}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); }); }
+  function fmtDur(s){ if(s==null) return "—"; s=Math.round(s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+  function fmtDate(iso){ if(!iso) return "—"; try{ return new Date(iso).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }catch(e){ return iso; } }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c];}); }
+
+  var poll=null;
+
+  function stateChip(st){ var labels={approved:"Approved",outdated:"Outdated",processing:"Generating",ready:"Ready",failed:"Failed",none:"Not generated"};
+    return '<span class="st st-'+st+'"><span class="dot"></span>'+(labels[st]||st)+'</span>'; }
+
+  function render(data){
+    var eng=el("nl-engine"); eng.textContent = data.engineConfigured ? ("engine: configured ("+data.voiceId+" v"+data.voiceVersion+")") : "engine: not configured";
+    eng.className = "nl-engine " + (data.engineConfigured ? "on" : "off");
+    var c=data.counts||{};
+    el("nl-counts").innerHTML = ["total","queued","running","ready","failed","cancelled"].map(function(k){ return '<span class="nl-chip">'+k+' <b>'+(c[k]||0)+'</b></span>'; }).join("");
+
+    var anyActive=false;
+    el("nl-body").innerHTML = (data.stories||[]).map(function(r){
+      if(r.state==="processing") anyActive=true;
+      var acts=[];
+      if(r.hasText!==false){ acts.push('<button class="btn btn-ghost" data-act="treatment" data-id="'+r.id+'">🎭 Treatment</button>'); }
+      if(r.state==="none"||r.state==="failed"||r.state==="outdated"){ acts.push('<button class="btn btn-soft" data-act="generate" data-id="'+r.id+'">'+(r.state==="none"?"Generate":"Regenerate")+'</button>'); }
+      if(r.state==="approved"){ acts.push('<button class="btn btn-ghost" data-act="preview" data-id="'+r.id+'" data-url="'+esc(r.audioUrl||"")+'">▶ Preview</button>'); acts.push('<button class="btn btn-ghost" data-act="generate" data-id="'+r.id+'">Regenerate</button>'); }
+      if(r.state==="ready"){ acts.push('<button class="btn btn-soft" data-act="preview-ready" data-id="'+r.id+'">▶ Preview Narration</button>'); acts.push('<button class="btn btn-ghost" data-act="approve" data-id="'+r.id+'">Approve</button>'); acts.push('<button class="btn btn-ghost" data-act="generate" data-id="'+r.id+'">Regenerate</button>'); }
+      if(r.state==="processing"){ acts.push('<span class="nl-mut">'+esc((r.job&&r.job.stage)||"working…")+'</span>'); }
+      return '<tr>'+
+        '<td>'+esc(r.title)+' <span class="nl-mut">· No. '+r.id+'</span></td>'+
+        '<td class="nl-mut">'+esc(r.storyStatus)+'</td>'+
+        '<td>'+stateChip(r.state)+'</td>'+
+        '<td class="nl-mut">'+fmtDur(r.duration)+'</td>'+
+        '<td class="nl-mut">'+(r.generationId?esc(r.generationId.slice(0,14)):"—")+'</td>'+
+        '<td class="nl-mut">'+fmtDate(r.generatedAt)+'</td>'+
+        '<td class="nl-mut">'+fmtDate(r.approvedAt)+'</td>'+
+        '<td><div class="nl-row-actions">'+acts.join("")+'</div></td>'+
+      '</tr>';
+    }).join("") || '<tr><td colspan="8" class="nl-mut">No stories.</td></tr>';
+
+    // wire row actions
+    [].forEach.call(el("nl-body").querySelectorAll("button[data-act]"), function(b){
+      b.addEventListener("click", function(){ rowAction(b.getAttribute("data-act"), Number(b.getAttribute("data-id")), b.getAttribute("data-url")); });
+    });
+
+    // poll while anything is active
+    if(anyActive && !poll) poll=setInterval(load, 2000);
+    if(!anyActive && poll){ clearInterval(poll); poll=null; }
+  }
+
+  function rowAction(act,id,url){
+    if(act==="generate"){ api("POST","/api/narration/"+id+"/generate",{force:true}).then(function(r){ if(r.cached){ toast("Already approved for this text.","ok"); } else toast("Queued.","ok"); load(); }).catch(function(e){ toast("Generate failed: "+e.message,"err"); }); }
+    else if(act==="approve"){ api("GET","/api/narration/"+id).then(function(st){ var v=(st.readyVersions||[])[0]; if(!v) return toast("Nothing ready to approve.","err"); return api("POST","/api/narration/"+id+"/approve",{generationId:v.generationId}).then(function(){ toast("Approved & rebuilt.","ok"); load(); }); }).catch(function(e){ toast("Approve failed: "+e.message,"err"); }); }
+    else if(act==="preview"){ playPreview(url); }
+    else if(act==="preview-ready"){ window.open("/admin/narration-preview.html?story="+id, "hl-narration-preview-"+id); }
+    else if(act==="treatment"){ window.open("/admin/narration-treatment.html?story="+id, "hl-treatment-"+id); }
+  }
+  function playPreview(url){ if(!url) return; var a=el("nl-audio"); a.hidden=false; a.src=url; a.play().catch(function(){}); a.scrollIntoView({block:"nearest"}); }
+
+  function load(){ api("GET","/api/narration").then(render).catch(function(e){ if(/Unauthorized/i.test(e.message)){ el("tokbar").hidden=false; } el("nl-body").innerHTML='<tr><td colspan="8" class="nl-mut">'+esc(e.message)+'</td></tr>'; }); }
+
+  el("gen-missing").addEventListener("click", function(){ if(!confirm("Queue narration for every story that is missing/outdated/failed? Approved+fresh narrations are left untouched.")) return; api("POST","/api/narration/generate-missing",{}).then(function(r){ toast("Queued "+r.count+" narration(s).","ok"); load(); }).catch(function(e){ toast(e.message,"err"); }); });
+  el("retry-failed").addEventListener("click", function(){ api("POST","/api/narration/retry-failed",{}).then(function(r){ toast("Re-queued "+r.count+" failed.","ok"); load(); }).catch(function(e){ toast(e.message,"err"); }); });
+  el("cancel-queued").addEventListener("click", function(){ api("POST","/api/narration/cancel-queued",{}).then(function(r){ toast("Cancelled "+r.cancelled+" queued.","ok"); load(); }).catch(function(e){ toast(e.message,"err"); }); });
+  el("refresh").addEventListener("click", load);
+  el("tok-save").addEventListener("click", function(){ try{ sessionStorage.setItem("hl-admin-token", el("tok").value.trim()); }catch(e){} el("tokbar").hidden=true; load(); });
+
+  load();
+})();
+</script>
+</body>
+</html>

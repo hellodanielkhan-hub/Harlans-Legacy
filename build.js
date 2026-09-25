@@ -27,6 +27,21 @@ const exploreLib = require("./lib/explore.js");
 const readerLib = require("./lib/reader.js");
 
 const { ROOT } = require("./lib/paths.js");   // app dir locally; a writable dir on read-only hosts
+const narrText = require("./lib/narration/text.js");   // narrated-text revision hash (for narration freshness)
+
+// Public Listening Mode is exposed for a story ONLY when its narration record is
+// approved AND still fresh (its sourceRevision matches the current story text),
+// AND the site feature flag is on. Any other state (missing / processing / failed /
+// outdated / superseded) → no Listen wiring at all → the normal reader, untouched.
+function listeningEnabled(site) {
+  var f = site && site.features;
+  return !f || f.listening !== false;   // default ON; set site.features.listening=false to disable everywhere
+}
+function narrationApprovedFresh(s) {
+  var n = s && s.narration;
+  if (!n || n.status !== "approved") return false;
+  try { return n.sourceRevision === narrText.sourceRevision(s); } catch (e) { return false; }
+}
 const DATA = path.join(ROOT, "data");
 const STORY_DIR = path.join(ROOT, "story");
 
@@ -363,6 +378,12 @@ function storyPageHTML(s, site, graph, journey, journeys) {
   const codaHTML = readerLib.endingCoda(s, site);
   const moreCount = Math.max(0, site.archiveTotal - 1);
   const connectionsHTML = graph ? renderStoryConnections(graph.storyConnections[s.id]) : "";
+  // Cinematic Story Listening is gated on the APPROVED + FRESH narration record
+  // (not mere asset presence) and the site feature flag. Approval writes the public
+  // manifest (assets/listen/<id>/listen.json) the engine loads; the gate below keeps
+  // a stale/failed/processing story from ever exposing a broken Listen control.
+  const listenOn = listeningEnabled(site) && narrationApprovedFresh(s)
+    && (function () { try { return fs.existsSync(path.join(ROOT, "assets", "listen", String(s.id), "listen.json")); } catch (e) { return false; } })();
   const relatedHTML = graph ? renderRelatedMemories(graph.relatedMemories[s.id]) : "";
   const exploreHTML = graph ? exploreLib.renderContinueExploring(
     { type: "story", story: s, selfKey: "s:" + s.id }, graph, journeys || [], "../") : "";
@@ -951,7 +972,7 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
 }
 </style>
 <link rel="stylesheet" href="../assets/experience.css">
-</head>
+${listenOn ? '<link rel="stylesheet" href="../assets/listen-cinematic.css">\n' : ""}</head>
 <body>
 <noscript><style>body{opacity:1 !important;}</style></noscript>
 
@@ -1021,7 +1042,7 @@ footer{ border-top: 1px solid var(--ink-whisper); padding-block: var(--sp-6) var
 <main id="main">
   <section id="story">
     <div class="container">
-      <div class="story-card reveal" id="hl-story" data-story-id="${s.id}" data-theme="${attr(s.theme)}" data-reading-time="${s.readingTime || 0}" data-url="${attr(s.url)}">
+      <div class="story-card reveal" id="hl-story" data-story-id="${s.id}" data-theme="${attr(s.theme)}" data-reading-time="${s.readingTime || 0}" data-url="${attr(s.url)}"${listenOn ? ` data-listen="../assets/listen/${s.id}/"` : ""}>
         <header class="story-cover${coverImg ? " has-photo" : " no-photo"}" data-orient="${coverOrient}" style="--thread:${s.threadHex}">
           <button class="hl-bookmark hl-bookmark-cover" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
             <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -1230,7 +1251,7 @@ ${exploreHTML}
 <script src="../assets/experience.js" defer></script>
 <script src="../assets/archive.js" defer></script>
 <script src="../assets/explore.js" defer></script>
-</body>
+${listenOn ? '<script src="../assets/listen-soundscape.js" defer></script>\n<script src="../assets/listen-cinematic.js" defer></script>\n' : ""}</body>
 </html>
 `;
 }
@@ -1405,6 +1426,78 @@ function buildExploreData(graph) {
 }
 
 /* ---------- orchestrator ---------- */
+// -------------------------------------------------------------------------
+// Listening source-of-truth guards (see LISTENING_SOURCE_OF_TRUTH.md).
+// The build FAILS LOUDLY if the wrong engine, a proof file, a missing engine
+// identity, a broken narration manifest, or a lost Blue Chair narration ever
+// reaches production — so "currently wired" / "filename vN" can never
+// masquerade as the approved feature again.
+// -------------------------------------------------------------------------
+const CANON_ENGINE_ID = "harlan-listen-cinematic";
+function assertListeningIntegrity(allStories) {
+  const fail = (m) => { throw new Error("LISTENING GUARD FAILED — " + m); };
+  const enginePath = path.join(ROOT, "assets", "listen-cinematic.js");
+  if (!fs.existsSync(enginePath)) fail("canonical engine missing: assets/listen-cinematic.js");
+  const engine = fs.readFileSync(enginePath, "utf8");
+  // canonical identity + architectural invariants must be present in the engine
+  if (engine.indexOf('ENGINE_ID = "' + CANON_ENGINE_ID + '"') < 0 && engine.indexOf(CANON_ENGINE_ID) < 0) fail("engine is missing its canonical ENGINE_ID (" + CANON_ENGINE_ID + ")");
+  [["OPEN_SETTLE", "master state machine"], ["destText", "singleton fixed-slot leaf + dest handoff"], ["maskPosition", "paint-only ink-front writing"], ["audio.currentTime", "audio.currentTime reading clock"], ["HL_LISTEN_ENGINE", "machine-readable engine identity"]]
+    .forEach(([m, why]) => { if (engine.indexOf(m) < 0) fail("engine lacks required invariant marker for " + why + " (\"" + m + "\")"); });
+
+  // scan every generated story page: exactly the canonical engine, never the
+  // legacy player or a prototype/proof file.
+  const storyDir = path.join(ROOT, "story");
+  const pages = fs.existsSync(storyDir) ? fs.readdirSync(storyDir).filter(f => /\.html$/.test(f)) : [];
+  let wiredCount = 0;
+  for (const f of pages) {
+    const html = fs.readFileSync(path.join(storyDir, f), "utf8");
+    if (/src="[^"]*assets\/listen\.js"/.test(html)) fail("legacy engine assets/listen.js is wired into story/" + f);
+    if (/listen-cinematic-experience-v2\.html|listen-page-engine-proof\.html|listen-[a-z0-9-]*proof[a-z0-9-]*\.html/.test(html)) fail("a prototype/proof file is wired into story/" + f);
+    const hits = (html.match(/src="[^"]*assets\/listen-cinematic\.js"/g) || []).length;
+    if (hits > 1) fail("multiple competing Listening engines detected in story/" + f);
+    if (hits === 1) wiredCount++;
+  }
+
+  // Blue Chair (214) must keep its approved+fresh narration pointing at its
+  // recorded generation — never silently downgraded.
+  const bc = allStories.find(s => s.id === 214);
+  if (bc && bc.narration) {
+    if (!narrationApprovedFresh(bc)) fail("Blue Chair (214) narration is no longer approved+fresh");
+    const manPath = path.join(ROOT, "assets", "listen", "214", "listen.json");
+    if (!fs.existsSync(manPath)) fail("Blue Chair public manifest missing (assets/listen/214/listen.json)");
+    const man = JSON.parse(fs.readFileSync(manPath, "utf8"));
+    if (bc.narration.generationId && String(man.audio || "").indexOf(bc.narration.generationId) < 0) fail("Blue Chair manifest points to a different generation than the approved record");
+    if (bc.narration.generationId !== "gen_4f94ce2febb7") fail("Blue Chair approved generation changed (expected gen_4f94ce2febb7 — it must remain frozen)");
+  }
+
+  // Narration/publication contract for EVERY story (§16):
+  //  - every story resolves a narration state (no throw)
+  //  - a story is Listening-eligible ONLY when approved+fresh
+  //  - an eligible story's public manifest exists, points at its approved
+  //    generation, and that generation's audio asset exists on disk
+  //  - a PUBLISHED story never carries a publication binding for a stale generation
+  let eligible = 0;
+  for (const s of allStories) {
+    let fresh; try { fresh = narrationApprovedFresh(s); } catch (e) { fail("story " + s.id + " could not resolve a narration state: " + e.message); }
+    if (fresh) {
+      eligible++;
+      const mp = path.join(ROOT, "assets", "listen", String(s.id), "listen.json");
+      if (!fs.existsSync(mp)) fail("story " + s.id + " is approved+fresh but its public manifest is missing (" + mp + ")");
+      const m = JSON.parse(fs.readFileSync(mp, "utf8"));
+      const gid = s.narration && s.narration.generationId;
+      if (gid && String(m.audio || "").indexOf(gid) < 0) fail("story " + s.id + " manifest points to a different generation than its approved record");
+      const audioAbs = path.join(ROOT, "assets", "listen", String(s.id), String(m.audio || ""));
+      if (!fs.existsSync(audioAbs)) fail("story " + s.id + " approved audio asset missing (" + m.audio + ")");
+    }
+    // a PUBLISHED story must never carry a stale publication binding (§5); drafts may
+    // keep an old binding privately until re-approved.
+    if (s.status !== "draft" && s.narrationPublication && s.narration) {
+      if (s.narrationPublication.sourceRevision !== narrText.sourceRevision(s)) fail("published story " + s.id + " carries a publication binding for a STALE revision — regenerate/approve before publishing");
+    }
+  }
+  return { engineOk: true, storyPagesWired: wiredCount, eligibleStories: eligible };
+}
+
 function build() {
   const { site, stories: allStories, entities } = loadData();
   // Drafts are private work-in-progress: they live in the store/CMS but must never
@@ -1425,6 +1518,8 @@ function build() {
   buildExploreData(graph);
   const family = buildFamily(site, stories, entities, graph, jByPerson, journeys);
   const journeyPages = journeysLib.buildJourneyPages(journeys, site, graph);
+
+  const listenGuard = assertListeningIntegrity(allStories);   // fails the build on any Listening source-of-truth violation
 
   const summary = {
     featured: featured ? `${featured.id} — ${featured.title}` : "(none)",

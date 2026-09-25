@@ -48,13 +48,16 @@
 
   var MAN = null, DUR = 0;
   // tiny manifest fetch on load (for the CTA duration + gating); audio/timings are lazy
+  // The CTA stays disabled until the manifest is in, so a tap always starts the
+  // experience inside its own user gesture (and never lands on a dead button).
   fetch(BASE + "listen.json").then(function (r) { return r.ok ? r.json() : null; })
-    .then(function (m) { if (!m) return; MAN = m; DUR = m.duration || 0; if (durEl) durEl.textContent = DUR ? " · " + fmt(DUR) : ""; })
-    .catch(function () {});
+    .then(function (m) { if (!m || !m.words) { dropCta(); return; } MAN = m; DUR = m.duration || 0; if (durEl) durEl.textContent = DUR ? " · " + fmt(DUR) : ""; cta.disabled = false; })
+    .catch(dropCta);
+  function dropCta() { if (cta.parentNode) cta.parentNode.removeChild(cta); }
 
   /* ---------------- the light-DOM CTA ---------------- */
   var cta = document.createElement("button");
-  cta.className = "hl-listen"; cta.type = "button"; cta.setAttribute("aria-label", "Listen to this memory — enter the listening experience");
+  cta.className = "hl-listen"; cta.type = "button"; cta.disabled = true; cta.setAttribute("aria-label", "Listen to this memory — enter the listening experience");
   cta.innerHTML = '<span class="hl-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg></span><span class="hl-label">Listen to this memory</span><span class="hl-dur"></span>';
   (idn || card).appendChild(cta);
   var durEl = cta.querySelector(".hl-dur");
@@ -65,8 +68,8 @@
   function ensureData(cb) {
     var afterMan = function () {
       if (TIMINGS) { cb(true); return; }
-      var w = fetch(BASE + MAN.words).then(function (r) { return r.json(); });
-      var z = MAN.zones ? fetch(BASE + MAN.zones).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }) : Promise.resolve(null);
+      var w = fetch(BASE + MAN.words, { priority: "high" }).then(function (r) { return r.json(); });
+      var z = MAN.zones ? fetch(BASE + MAN.zones, { priority: "high" }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }) : Promise.resolve(null);
       Promise.all([w, z]).then(function (a) { TIMINGS = a[0].words || a[0]; ZONESDATA = a[1]; if (TIMINGS && TIMINGS.length) { DUR = DUR || TIMINGS[TIMINGS.length - 1].end; cb(true); } else cb(false); }).catch(function () { cb(false); });
     };
     if (MAN) return afterMan();
@@ -87,21 +90,29 @@
     if (MAN) proceed(); else fetch(BASE + "listen.json").then(function (r) { return r.ok ? r.json() : null; }).then(function (m) { if (!m || !m.words) { bail(); return; } MAN = m; DUR = m.duration || 0; proceed(); }).catch(bail);
   }
   function bail() { open = false; cta.classList.remove("is-busy"); }
+  var launchTok = 0;
   function proceed() {
+    var tok = ++launchTok;
+    // Respond on the tap itself: the dark room opens now and the book arrives once its
+    // timings are in. (Waiting for the timing files first left the page unchanged for
+    // seconds on a phone, while those small files competed with the MP3 stream.)
+    buildStage();
+    // Request the small timing/zone files BEFORE the audio stream starts.
+    ensureData(function (ok) { setTimeout(function () {                        // after audio + soundscape below exist
+      if (tok !== launchTok) return;                                        // closed or relaunched meanwhile
+      if (!ok) { closeOverlay(); return; }                                   // graceful: back to the reader
+      if (ZONESDATA && scapeCtl) scapeCtl.setZones(ZONESDATA);
+      // pagination must measure the FULLY-STYLED stage with REAL fonts loaded, or it
+      // over-paginates (0-height / fallback-font measurement). Gate on both.
+      var go = function () { if (tok === launchTok) whenStyled(beginSequence); };
+      if (document.fonts && document.fonts.ready) { var did = false; var run = function () { if (!did) { did = true; go(); } }; document.fonts.ready.then(run); setTimeout(run, 900); }
+      else go();
+    }, 0); });
     // Establish audio + the AudioContext SYNCHRONOUSLY inside the click gesture, so
     // later playback (which happens ~2s later at OPEN_SETTLE→READING) is permitted.
     if (!audio) { audio = new Audio(); audio.preload = "auto"; audio.addEventListener("error", function () { if (open) closeOverlay(); }); audio.addEventListener("ended", function () { if (STATE === "READING") endReading(); }); }
     try { audio.muted = true; audio.src = BASE + MAN.audio; var up = audio.play(); if (up && up.then) up.then(function () { audio.pause(); audio.currentTime = 0; audio.muted = false; }).catch(function () { audio.muted = false; }); else audio.muted = false; } catch (e) { audio.muted = false; }
     try { if (window.HLSoundscape && !scapeCtl) scapeCtl = window.HLSoundscape.create({ soundscape: (MAN.soundscape || (MAN.zones ? "blue-chair" : "default")), isPaused: function () { return !audio || audio.paused; } }); if (scapeCtl) { scapeCtl.resume(); scapeCtl.silence(); } } catch (e) {}
-    ensureData(function (ok) {
-      if (!ok) { bail(); return; }                                          // graceful: stay in the reader
-      if (ZONESDATA && scapeCtl) scapeCtl.setZones(ZONESDATA);
-      // pagination must measure the FULLY-STYLED stage with REAL fonts loaded, or it
-      // over-paginates (0-height / fallback-font measurement). Gate on both.
-      var go = function () { buildStage(); whenStyled(beginSequence); };
-      if (document.fonts && document.fonts.ready) { var did = false; var run = function () { if (!did) { did = true; go(); } }; document.fonts.ready.then(run); setTimeout(run, 900); }
-      else go();
-    });
   }
 
   /* ---------------- build the Shadow-DOM stage ---------------- */
@@ -322,7 +333,7 @@
   var scrollY = 0;
   function closeOverlay() {
     if (!open) return;
-    seqToken++; cancelAll(); if (bookFloat) { try { bookFloat.cancel(); } catch (e) {} }
+    launchTok++; seqToken++; cancelAll(); if (bookFloat) { try { bookFloat.cancel(); } catch (e) {} }
     try { if (audio) audio.pause(); } catch (e) {}
     if (scapeCtl) { try { scapeCtl.silence(); } catch (e) {} }
     document.removeEventListener("keydown", onKey);

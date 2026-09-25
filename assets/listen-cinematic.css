@@ -16,6 +16,14 @@
   cursor:pointer; box-shadow:0 1px 0 rgba(255,255,255,.5) inset, 0 6px 18px -10px rgba(40,28,12,.5); transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
 .hl-listen:hover{ border-color:#b5763e; box-shadow:0 1px 0 rgba(255,255,255,.6) inset, 0 10px 24px -12px rgba(40,28,12,.6); transform:translateY(-1px); }
 .hl-listen:focus-visible{ outline:2px solid #b5763e; outline-offset:2px; }
+.hl-listen{ touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+/* waiting for the (tiny) manifest: visibly not ready yet, never a dead tap */
+.hl-listen:disabled{ opacity:.55; cursor:progress; transform:none; }
+/* tapped: acknowledge instantly while the listening room opens */
+.hl-listen.is-busy{ cursor:progress; transform:scale(.97); }
+.hl-listen.is-busy .hl-glyph{ animation:hl-listen-pulse 1s ease-in-out infinite; }
+@keyframes hl-listen-pulse{ 50%{ opacity:.35; } }
+@media (prefers-reduced-motion:reduce){ .hl-listen.is-busy .hl-glyph{ animation:none; } }
 .hl-listen .hl-glyph{ display:inline-flex; width:1.15rem; height:1.15rem; color:#8c3d22; }
 .hl-listen .hl-glyph svg{ width:100%; height:100%; }
 .hl-listen .hl-dur{ color:#6a5b45; font-weight:500; }
@@ -131,6 +139,10 @@
 .lc-btn:hover{ border-color:#D9A25A; color:#D9A25A; } .lc-btn svg{ width:18px; height:18px; }
 .lc-attrib{ position:absolute; left:0; right:0; bottom:.7vmin; z-index:60; text-align:center; font:500 .62rem/1.4 var(--body); letter-spacing:.06em; color:rgba(200,192,176,.5); opacity:0; transition:opacity .6s ease; }
 .lc-scene.reading .lc-attrib{ opacity:1; }
+/* the attribution is information only — it must never take taps meant for the controls */
+.lc-attrib{ pointer-events:none; }
+/* phones: the attribution wraps to two lines; keep Pause/Close clear above it */
+@media (max-width:640px){ .lc-bar{ bottom:calc(.7vmin + 2.2rem); } }
 
 @media (max-width:900px){
   :host{ --measure:none; --bw:92vw; --bh:auto; --fs:clamp(1.42rem,1.05rem + 1.6vw,1.92rem); }

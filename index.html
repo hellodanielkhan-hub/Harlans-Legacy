@@ -2066,10 +2066,17 @@ footer{
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ---------- Page-ready fade ---------- */
-  window.addEventListener("load", function(){
-    document.body.classList.add("is-ready");
-  });
+  /* ---------- Page-ready fade ----------
+     As soon as the content is parsed + fonts are in (700 ms at most), not on
+     DOMContentLoaded / window "load": on phones those also wait for every deferred
+     script, image and font file. */
+  (function(){
+    var done = false;
+    function ready(){ if (done) return; done = true; document.body.classList.add("is-ready"); }
+    setTimeout(ready, 700);                  // this script follows the page content
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(ready);
+    window.addEventListener("load", ready);
+  })();
 
   /* ---------- Sticky header shadow on scroll (rAF-throttled, change-only) ----------
      Reads scrollY inside a single rAF and toggles the class ONLY when the state

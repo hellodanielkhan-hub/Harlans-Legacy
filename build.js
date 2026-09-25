@@ -1137,7 +1137,17 @@ ${exploreHTML}
   "use strict";
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  window.addEventListener("load", function(){ document.body.classList.add("is-ready"); });
+  // Fade the page in as soon as its content is parsed and web fonts are in (700 ms
+  // at most) — not on DOMContentLoaded, which waits for every deferred script, and
+  // not on window "load", which on phones also waits for every image and font file
+  // and kept the page blank for seconds.
+  (function(){
+    var done = false;
+    function ready(){ if (done) return; done = true; document.body.classList.add("is-ready"); }
+    setTimeout(ready, 700);                  // this script follows the page content
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(ready);
+    window.addEventListener("load", ready);
+  })();
 
   var revealEls = document.querySelectorAll(".reveal, .resolve");
   if (reduceMotion || !("IntersectionObserver" in window)) {

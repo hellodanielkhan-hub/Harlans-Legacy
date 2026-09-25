@@ -25,6 +25,7 @@ const { buildGraph, KIND, entityUrl } = require("./lib/graph.js");
 const journeysLib = require("./lib/journeys.js");
 const exploreLib = require("./lib/explore.js");
 const readerLib = require("./lib/reader.js");
+const { brandLogo, BRAND_CSS } = require("./lib/brand.js");   // primary brand mark (header + mobile menu)
 
 const { ROOT } = require("./lib/paths.js");   // app dir locally; a writable dir on read-only hosts
 const narrText = require("./lib/narration/text.js");   // narrated-text revision hash (for narration freshness)
@@ -605,6 +606,7 @@ a:focus-visible, input:focus-visible, summary:focus-visible{
   font-family: var(--font-display); font-size: 1.25rem; font-weight: 560; letter-spacing: -0.01em;
 }
 .brand svg{ width: 24px; height: 24px; flex-shrink: 0; }
+${BRAND_CSS}
 .desktop-nav{ display: flex; align-items: center; gap: var(--sp-4); }
 .desktop-nav ul{ list-style: none; display: flex; gap: var(--sp-3); margin: 0; padding: 0; }
 .desktop-nav a{
@@ -983,8 +985,7 @@ ${listenOn ? '<link rel="stylesheet" href="../assets/listen-cinematic.css">\n' :
 <header class="site-header">
   <div class="container header-row">
     <a class="brand" href="../index.html#top">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 5c-2.4 4.6-4.6 6.9-4.6 10.3a4.6 4.6 0 0 0 9.2 0c0-3.4-2.2-5.7-4.6-10.3z" fill="var(--ember-core)"/><rect x="12.6" y="20" width="6.8" height="8" rx="1" fill="var(--ink-primary)"/></svg>
-      Harlan's Legacy
+      ${brandLogo("../")}
     </a>
     <nav class="desktop-nav" aria-label="Primary">
       <ul>
@@ -1012,7 +1013,7 @@ ${listenOn ? '<link rel="stylesheet" href="../assets/listen-cinematic.css">\n' :
 
 <div class="mobile-panel" id="mobile-panel" role="dialog" aria-modal="true" aria-label="Site menu">
   <div class="mobile-panel-top">
-    <span class="brand" style="font-size:1.1rem;">Harlan's Legacy</span>
+    <span class="brand">${brandLogo("../")}</span>
     <button class="nav-toggle" id="nav-close" type="button" aria-label="Close menu">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>

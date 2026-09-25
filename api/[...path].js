@@ -102,8 +102,9 @@ module.exports = async (req, res) => {
     const method = req.method;
 
     // ---- auth gate (writes always; reads too when a token is configured) ----
-    // preview-asset only redirects to the already-public "listen" bucket and is
-    // fetched by the token-less cinematic engine, so it is exempt from the gate.
+    // preview-asset is fetched header-less by the cinematic engine, so the header gate
+    // cannot apply; the route itself requires a moderator-issued, short-lived capability
+    // (lib/narration/preview-cap.js) and only redirects to a signed URL on PRIVATE storage.
     const isPreviewAsset = parts[1] === "narration" && parts[3] === "preview-asset";
     // Provider completion/heartbeat callbacks: HMAC-authenticated inside the route.
     const isProviderCallback = parts[1] === "narration" && parts[2] === "staging" && (parts[3] === "complete" || parts[3] === "heartbeat");

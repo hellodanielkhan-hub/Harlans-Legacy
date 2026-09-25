@@ -41,10 +41,12 @@ insert into storage.buckets (id, name, public)
 values ('story-photos', 'story-photos', true)
 on conflict (id) do update set public = true;
 
--- narration audio + timing assets (public read; writes are server-side / worker with the service-role key)
+-- narration audio + timing assets: PRIVATE. Ready/unapproved generations are never publicly
+-- readable; approved narrations reach readers only through the static build (lib/hydrate.js copies
+-- approved manifests + their files). Admin Preview uses short-lived signed URLs (server-side).
 insert into storage.buckets (id, name, public)
-values ('listen', 'listen', true)
-on conflict (id) do update set public = true;
+values ('listen', 'listen', false)
+on conflict (id) do update set public = false;
 
 -- Public buckets already allow public downloads via the public object URL, which
 -- is all the site/admin need. Uploads/deletes happen server-side with the

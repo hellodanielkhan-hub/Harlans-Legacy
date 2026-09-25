@@ -106,7 +106,7 @@
       var acts=[];
       if(r.hasText!==false){ acts.push('<button class="btn btn-ghost" data-act="treatment" data-id="'+r.id+'">🎭 Treatment</button>'); }
       if(r.state==="none"||r.state==="failed"||r.state==="outdated"){ acts.push('<button class="btn btn-soft" data-act="generate" data-id="'+r.id+'">'+(r.state==="none"?"Generate":"Regenerate")+'</button>'); }
-      if(r.state==="approved"){ acts.push('<button class="btn btn-ghost" data-act="preview" data-id="'+r.id+'" data-url="'+esc(r.audioUrl||"")+'">▶ Preview</button>'); acts.push('<button class="btn btn-ghost" data-act="generate" data-id="'+r.id+'">Regenerate</button>'); }
+      if(r.state==="approved"){ acts.push('<button class="btn btn-ghost" data-act="preview" data-id="'+r.id+'" data-url="'+esc(r.generationId||"")+'">▶ Preview</button>'); acts.push('<button class="btn btn-ghost" data-act="generate" data-id="'+r.id+'">Regenerate</button>'); }
       if(r.state==="ready"){ acts.push('<button class="btn btn-soft" data-act="preview-ready" data-id="'+r.id+'">▶ Preview Narration</button>'); acts.push('<button class="btn btn-ghost" data-act="approve" data-id="'+r.id+'">Approve</button>'); acts.push('<button class="btn btn-ghost" data-act="generate" data-id="'+r.id+'">Regenerate</button>'); }
       if(r.state==="processing"){ acts.push('<span class="nl-mut">'+esc((r.job&&r.job.stage)||"working…")+'</span>'); }
       return '<tr>'+
@@ -134,7 +134,7 @@
   function rowAction(act,id,url){
     if(act==="generate"){ api("POST","/api/narration/"+id+"/generate",{force:true}).then(function(r){ if(r.cached){ toast("Already approved for this text.","ok"); } else toast("Queued.","ok"); load(); }).catch(function(e){ toast("Generate failed: "+e.message,"err"); }); }
     else if(act==="approve"){ api("GET","/api/narration/"+id).then(function(st){ var v=(st.readyVersions||[])[0]; if(!v) return toast("Nothing ready to approve.","err"); return api("POST","/api/narration/"+id+"/approve",{generationId:v.generationId}).then(function(){ toast("Approved & rebuilt.","ok"); load(); }); }).catch(function(e){ toast("Approve failed: "+e.message,"err"); }); }
-    else if(act==="preview"){ playPreview(url); }
+    else if(act==="preview"){ api("GET","/api/narration/"+id+"/preview/"+encodeURIComponent(url||"")).then(function(info){ playPreview(info.audioSrc); }).catch(function(e){ toast(e.message,"err"); }); }   // private storage: moderator-issued short-lived link
     else if(act==="preview-ready"){ window.open("/admin/narration-preview.html?story="+id, "hl-narration-preview-"+id); }
     else if(act==="treatment"){ window.open("/admin/narration-treatment.html?story="+id, "hl-treatment-"+id); }
   }

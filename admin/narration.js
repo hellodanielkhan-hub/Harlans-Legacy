@@ -107,7 +107,7 @@
       body.appendChild(integrityLine(appr.integrity));
       body.appendChild(row("Generated", fmtDate(appr.generatedAt)));
       body.appendChild(row("Approved", fmtDate(appr.approvedAt)));
-      body.appendChild(preview(appr.audioUrl));
+      body.appendChild(preview(appr.generationId));
       var a1 = document.createElement("div"); a1.className = "narr-actions";
       a1.appendChild(btn("Regenerate", "btn-ghost", function () { generate(true); }));
       body.appendChild(a1);
@@ -119,7 +119,7 @@
       note.textContent = "The story text changed after this narration was approved.";
       body.appendChild(warn("⚠ Outdated — the approved narration no longer matches the current story text. Regenerate to refresh."));
       body.appendChild(row("Voice", voice));
-      if (appr) body.appendChild(preview(appr.audioUrl));
+      if (appr) body.appendChild(preview(appr.generationId));
       var a2 = document.createElement("div"); a2.className = "narr-actions";
       a2.appendChild(btn("Regenerate narration", "btn-soft", function () { generate(true); }));
       body.appendChild(a2);
@@ -133,7 +133,7 @@
       body.appendChild(row("Voice", voice));
       body.appendChild(row("Duration", fmtDur(ready.duration)));
       body.appendChild(integrityLine(ready.integrity));
-      body.appendChild(preview(ready.audioUrl));
+      body.appendChild(preview(ready.generationId));
       var a3 = document.createElement("div"); a3.className = "narr-actions";
       a3.appendChild(btn("Approve narration", "btn-soft", function () { approve(ready.generationId); }));
       a3.appendChild(btn("Regenerate", "btn-ghost", function () { generate(true); }));
@@ -177,10 +177,18 @@
       : '<span class="narr-bad">✗ ' + ig.missingCount + " missing, " + ig.duplicateCount + " extra</span>";
     return row("Integrity", ok);
   }
-  function preview(url) {
+  // Narration storage is private: fetch a short-lived, moderator-issued preview
+  // link for this exact generation only when the moderator asks to listen.
+  function preview(generationId) {
     var wrap = document.createElement("div"); wrap.className = "narr-preview";
-    var audio = document.createElement("audio"); audio.controls = true; audio.preload = "none"; audio.style.width = "100%";
-    audio.src = url; wrap.appendChild(audio); return wrap;
+    var play = btn("▶ Play preview", "btn-ghost", function () {
+      play.disabled = true;
+      api("GET", "/api/narration/" + state.id + "/preview/" + encodeURIComponent(generationId || "")).then(function (info) {
+        var audio = document.createElement("audio"); audio.controls = true; audio.style.width = "100%";
+        audio.src = info.audioSrc; wrap.replaceChild(audio, play); audio.play().catch(function () {});
+      }).catch(function (e) { play.disabled = false; toast(e.message, "err"); });
+    });
+    wrap.appendChild(play); return wrap;
   }
 
   function generate(force) {

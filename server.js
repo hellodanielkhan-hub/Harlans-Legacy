@@ -144,8 +144,9 @@ async function handleApi(req, res, url) {
 
   // Optional auth (off by default for local dev). If ADMIN_TOKEN is set it is
   // required — matching the production serverless API in api/[...path].js.
-  // preview-asset only redirects to the already-public "listen" bucket and is
-  // fetched by the token-less cinematic engine, so it is exempt from the gate.
+  // preview-asset is fetched header-less by the cinematic engine, so the header gate
+  // cannot apply; the route itself requires a moderator-issued, short-lived capability
+  // (lib/narration/preview-cap.js) and only redirects to a signed URL on PRIVATE storage.
   const isPreviewAsset = parts[1] === "narration" && parts[3] === "preview-asset";
   // Provider completion/heartbeat callbacks are machine calls authenticated by
   // HMAC signature inside the route (never by a moderator token).

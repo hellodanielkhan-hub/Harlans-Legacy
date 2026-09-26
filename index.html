@@ -1126,37 +1126,62 @@ section{ padding-block: var(--sp-7); }
 .this-week .tw-lead .marginalia-notes{ grid-column: 1 / -1; }
 .this-week .tw-lead .marginalia-notes:empty{ display: none; }
 
-.tw-coda{ display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: clamp(1.6rem, 4vw, 4.5rem);
-  align-items: end; margin-top: clamp(1.8rem, 3.2vw, 2.8rem); padding: clamp(1.4rem, 2.6vw, 2.2rem) clamp(.2rem, 1vw, .6rem) 0;
-  border-top: 1px solid var(--frame-line); }
+/* the previous memory — a quiet footnote set under the exhibit's text column
+   ("one memory leads to another"); the grid mirrors the exhibit's columns */
+.tw-coda{ display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); column-gap: clamp(2rem, 4.5vw, 4.75rem);
+  padding-inline: clamp(1.4rem, 3vw, 2.9rem); margin-top: var(--sp-4); }
 .tw-kicker{ display: block; font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .18em;
-  font-size: .64rem; color: var(--label-ink); }
-.tw-also{ display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 1.1rem; align-items: center;
-  text-decoration: none; color: inherit; align-self: center; }
-.tw-also-plate{ display: block; width: 96px; aspect-ratio: 1; padding: 5px; background: var(--mat);
+  font-size: .62rem; color: var(--label-ink); }
+.tw-also{ grid-column: 2; display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 1rem; align-items: center;
+  text-decoration: none; color: inherit; }
+.tw-also-plate{ display: block; width: 56px; aspect-ratio: 1; padding: 4px; background: var(--mat);
   border: 1px solid var(--frame-line); box-shadow: var(--exhibit-shadow); }
 .tw-also-plate picture, .tw-also-plate img{ display: block; width: 100%; height: 100%; object-fit: cover; }
-.tw-also-title{ display: block; margin-top: .4rem; font-family: var(--font-display); font-weight: 440;
-  font-size: clamp(1.2rem, 1rem + .6vw, 1.5rem); line-height: 1.18; color: var(--ink-primary); text-wrap: balance;
+.tw-also-title{ display: block; margin-top: .3rem; font-family: var(--font-display); font-weight: 440;
+  font-size: clamp(1.05rem, .95rem + .35vw, 1.22rem); line-height: 1.25; color: var(--ink-secondary);
   transition: color var(--dur-quiet) var(--ease-settle); }
-.tw-also:hover .tw-also-title{ color: var(--ember-deep); }
-.tw-explore{ display: flex; flex-direction: column; gap: .45rem; justify-self: end; text-align: right;
-  max-width: 34rem; text-decoration: none; color: inherit; }
-.tw-explore-title{ font-family: var(--font-display); font-weight: 340; font-size: clamp(2.1rem, 1.3rem + 2.7vw, 3.5rem);
-  line-height: 1.02; letter-spacing: -.02em; color: var(--ink-primary);
-  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .2em;
-  text-decoration-color: color-mix(in srgb, var(--ember-core) 45%, transparent);
+.tw-also-arrow{ color: var(--ember-core); }
+.tw-also:hover .tw-also-title{ color: var(--ink-primary); }
+/* This Week closes on a shorter tail: the pause belongs to the invitation below */
+.this-week{ padding-bottom: var(--sp-6); }
+/* ...and its warm vignette fades out instead of ending on a hard band */
+.this-week::before{ -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 12rem), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 12rem), transparent); }
+
+/* =========================================================
+   THE ARCHIVE — the homepage passage's closing moment
+   The page ends here; the collection continues on archive.html.
+   A hairline and a catalogue shelf-mark beside a calm display link —
+   quieter than the lead, never a button or a card.
+   ========================================================= */
+.archive-invite{ padding-block: var(--sp-6) var(--sp-7); }
+.archive-invite > .container.tw-container{ max-width: 1240px; }
+.ai-grid{ display: grid; grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr); gap: var(--sp-3) clamp(2rem, 5vw, 5rem);
+  align-items: start; padding-top: var(--sp-5); border-top: 1px solid var(--frame-line); }
+.ai-mark{ margin: 0; padding-top: .95rem; display: flex; flex-direction: column; gap: .55rem;
+  font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .18em; font-size: .62rem; color: var(--label-ink); }
+.ai-eyebrow{ color: var(--ember-core); }
+.ai-nos{ font-size: .72rem; letter-spacing: .14em; color: var(--ink-secondary); }
+.ai-title{ margin: 0; font-family: var(--font-display); font-weight: 340; font-size: clamp(2.3rem, 1.5rem + 2.4vw, 3.7rem);
+  line-height: 1.04; letter-spacing: -.02em; text-wrap: balance; }
+.ai-title a{ color: var(--ink-primary); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .2em;
+  text-decoration-color: color-mix(in srgb, var(--ember-core) 40%, transparent);
   transition: text-decoration-color var(--dur-quiet) var(--ease-settle); }
-.tw-explore:hover .tw-explore-title{ text-decoration-color: var(--ember-core); }
-.tw-arrow{ display: inline-block; color: var(--ember-core); transition: transform var(--dur-quiet) var(--ease-settle); }
-.tw-explore:hover .tw-arrow{ transform: translateX(6px); }
-.tw-explore-sub{ font-family: var(--font-reading); font-size: .98rem; line-height: 1.55; color: var(--ink-secondary); }
-@media (prefers-reduced-motion: reduce){ .tw-explore:hover .tw-arrow{ transform: none; } }
+.ai-title a:hover{ text-decoration-color: var(--ember-core); }
+.ai-arrow{ display: inline-block; color: var(--ember-core); font-weight: 300; transition: transform var(--dur-quiet) var(--ease-settle); }
+.ai-title a:hover .ai-arrow{ transform: translateX(6px); }
+.ai-sub{ margin: var(--sp-3) 0 0; font-family: var(--font-reading); font-size: 1.08rem; line-height: 1.6;
+  color: var(--ink-secondary); max-width: 50ch; }
+/* About follows the invitation after a proper pause (it used to start 1rem after This Week) */
+#about{ padding-top: var(--sp-5); }
+@media (prefers-reduced-motion: reduce){ .ai-title a:hover .ai-arrow{ transform: none; } }
 @media (max-width: 900px){
   .this-week #this-week-card.tw-lead{ grid-template-columns: 1fr; gap: 1.2rem; }
   .this-week .tw-lead .tw-plate img{ max-height: 60vh; }
-  .tw-coda{ grid-template-columns: 1fr; align-items: start; }
-  .tw-explore{ justify-self: start; text-align: left; }
+  .tw-coda{ grid-template-columns: 1fr; }
+  .tw-also{ grid-column: 1; }
+  .ai-grid{ grid-template-columns: 1fr; gap: var(--sp-2); }
+  .ai-mark{ flex-direction: row; flex-wrap: wrap; gap: .35rem 1rem; padding-top: 0; }
   .this-week .tw-lead .marginalia{ grid-template-columns: 1fr; }
   .this-week .tw-lead .marginalia-form{ grid-column: 1; grid-row: auto; margin-top: .6rem; }
   /* the Save pill sits above the photograph, not on it */
@@ -1169,9 +1194,13 @@ section{ padding-block: var(--sp-7); }
   .tw-stamp{ margin-top: .9rem; }
   #this-week-card .tw-title{ font-size: clamp(2.3rem, 11vw, 3rem); }
   .tw-actions{ margin-top: 1.3rem; }
-  .tw-also{ grid-template-columns: 72px minmax(0, 1fr); gap: .9rem; }
-  .tw-also-plate{ width: 72px; }
-  .tw-explore-title{ font-size: clamp(1.9rem, 8.5vw, 2.4rem); }
+  .tw-coda{ margin-top: var(--sp-3); padding-inline: 1rem; }
+  .this-week{ padding-bottom: var(--sp-5); }
+  .archive-invite{ padding-block: var(--sp-4) var(--sp-6); }
+  .ai-grid{ padding-top: var(--sp-4); }
+  .ai-title{ font-size: clamp(2rem, 9vw, 2.5rem); }
+  .ai-sub{ font-size: 1rem; }
+  #about{ padding-top: var(--sp-4); }
   /* phones: the lede and one paragraph are enough of an invitation */
   #this-week-card .tw-opening + .tw-opening + .tw-opening{ display: none; }
   /* pre-existing: in the column layout the input's 260px flex-basis became its height */
@@ -1684,9 +1713,19 @@ footer{
           <div class="marginalia-notes" id="marginalia-notes" aria-live="polite"></div>
         </div>
       </article>
-      <nav class="tw-coda reveal pace-quick" aria-label="More from the archive">
+      <nav class="tw-coda reveal pace-quick" aria-label="The previous memory">
         <!-- HL:TW_CODA:START --><!-- HL:TW_CODA:END -->
       </nav>
+    </div>
+  </section>
+
+  <!-- =========================================================
+       THE ARCHIVE — the page ends here; the collection continues.
+       Its own closing moment after This Week (region filled by build.js).
+       ========================================================= -->
+  <section class="archive-invite" id="archive-invite" aria-labelledby="archive-invite-title">
+    <div class="container tw-container">
+      <!-- HL:ARCHIVE_INVITE:START --><!-- HL:ARCHIVE_INVITE:END -->
     </div>
   </section>
 

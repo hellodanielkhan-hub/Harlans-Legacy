@@ -205,33 +205,45 @@ function renderThisWeekText(s, site) {
   ].join("\n");
 }
 
-function renderThisWeekCoda(featured, stories) {
-  const byDate = (a, b) => ((a.publishedISO || "") < (b.publishedISO || "") ? 1 : -1);
-  const pub = stories.filter(s => s.published).sort(byDate);
-  const second = pub.find(s => !featured || s.id !== featured.id);
-  const oldest = pub[pub.length - 1];
-  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-  const since = oldest && oldest.publishedISO ? ` since ${MONTHS[+oldest.publishedISO.slice(5, 7) - 1]} ${oldest.publishedISO.slice(0, 4)}` : "";
-  const parts = [];
-  if (second) {
-    const gap = featured && featured.publishedISO && second.publishedISO ? daysBetween(featured.publishedISO, second.publishedISO) : null;
-    const kicker = gap === 7 ? "The Friday before" : "Also kept";
-    const thumb = storyPhotoPicture(second, "(max-width:640px) 72px, 96px");
-    parts.push([
-      `          <a class="tw-also" href="${second.url}">`,
-      thumb ? `            <span class="tw-also-plate">${thumb}</span>` : `            <span class="tw-also-plate is-words" aria-hidden="true"></span>`,
-      `            <span class="tw-also-text"><span class="tw-kicker">${kicker} · No.&nbsp;${second.id}</span><span class="tw-also-title">${text(second.title)}</span></span>`,
-      `          </a>`
-    ].join("\n"));
-  }
-  parts.push([
-    `          <a class="tw-explore" href="archive.html">`,
-    `            <span class="tw-kicker">The archive</span>`,
-    `            <span class="tw-explore-title">Explore the archive <span class="tw-arrow" aria-hidden="true">→</span></span>`,
-    `            <span class="tw-explore-sub">This week's memory is one page of a longer record — ${pub.length} Fridays kept${since}, and every person, place and object in them searchable.</span>`,
+// The previous memory, as a quiet footnote to the exhibit ("one memory leads to
+// another") — modest, set under the exhibit's text column. Not a card.
+function publishedByDate(stories) {
+  return stories.filter(s => s.published).sort((a, b) => ((a.publishedISO || "") < (b.publishedISO || "") ? 1 : -1));
+}
+function renderThisWeekCompanion(featured, stories) {
+  const second = publishedByDate(stories).find(s => !featured || s.id !== featured.id);
+  if (!second) return "";
+  const gap = featured && featured.publishedISO && second.publishedISO ? daysBetween(featured.publishedISO, second.publishedISO) : null;
+  const kicker = gap === 7 ? "The Friday before" : "Also kept";
+  const thumb = storyPhotoPicture(second, "56px");
+  return [
+    `          <a class="tw-also" href="${second.url}">`,
+    thumb ? `            <span class="tw-also-plate">${thumb}</span>` : `            <span class="tw-also-plate is-words" aria-hidden="true"></span>`,
+    `            <span class="tw-also-text"><span class="tw-kicker">${kicker} · No.&nbsp;${second.id}</span><span class="tw-also-title">${text(second.title)} <span class="tw-also-arrow" aria-hidden="true">→</span></span></span>`,
     `          </a>`
-  ].join("\n"));
-  return parts.join("\n");
+  ].join("\n");
+}
+
+// The page ends here; the collection continues on archive.html. Its own closing
+// moment: a hairline, a catalogue shelf-mark (numbers kept, count, months) and a
+// calmer display link — quieter than the lead, never a button.
+function renderArchiveInvite(stories) {
+  const pub = publishedByDate(stories);
+  if (!pub.length) return "";
+  const ids = pub.map(s => s.id);
+  const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const mon = iso => iso ? `${SHORT[+iso.slice(5, 7) - 1]} ${iso.slice(0, 4)}` : "";
+  const first = mon(pub[pub.length - 1].publishedISO), last = mon(pub[0].publishedISO);
+  const span = first && last ? (first === last ? first : (first.slice(-4) === last.slice(-4) ? `${first.slice(0, 3)} – ${last}` : `${first} – ${last}`)) : "";
+  return [
+    `        <div class="ai-grid reveal pace-quick">`,
+    `          <p class="ai-mark"><span class="ai-eyebrow">The archive</span><span class="ai-nos">Nos.&nbsp;${Math.min(...ids)}&thinsp;–&thinsp;${Math.max(...ids)}</span><span class="ai-span">${pub.length} ${pub.length === 1 ? "memory" : "memories"}${span ? ` · ${span}` : ""}</span></p>`,
+    `          <div class="ai-body">`,
+    `            <h2 class="ai-title" id="archive-invite-title"><a href="archive.html">Explore the archive<span class="ai-arrow" aria-hidden="true">&nbsp;→</span></a></h2>`,
+    `            <p class="ai-sub">This week's memory is one page of a longer record — every Friday kept so far, and every person, place and object in them, searchable.</p>`,
+    `          </div>`,
+    `        </div>`
+  ].join("\n");
 }
 
 // The memory's primary editorial photograph (with generated derivatives), or null.
@@ -332,7 +344,8 @@ function buildIndex(site, stories, featured, journeys, entities) {
     html = injectRegion(html, "TW_PLATE", renderThisWeekPlate(featured));
     html = injectRegion(html, "TW_TEXT", renderThisWeekText(featured, site));
   }
-  html = injectRegion(html, "TW_CODA", renderThisWeekCoda(featured, stories));
+  html = injectRegion(html, "TW_CODA", renderThisWeekCompanion(featured, stories));
+  html = injectRegion(html, "ARCHIVE_INVITE", renderArchiveInvite(stories));
   html = injectRegion(html, "ABOUT_PORTRAITS", renderHomePortraits(entities));
   html = injectRegion(html, "DISCOVER", journeysLib.renderDiscoverCards(journeys || [], ""));
   html = injectRegion(html, "QUOTE", renderQuote(site));

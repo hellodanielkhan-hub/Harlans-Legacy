@@ -25,6 +25,7 @@ const { buildGraph, KIND, entityUrl } = require("./lib/graph.js");
 const journeysLib = require("./lib/journeys.js");
 const exploreLib = require("./lib/explore.js");
 const readerLib = require("./lib/reader.js");
+const archiveLib = require("./lib/archive.js");   // the dedicated Archive page (archive.html)
 const { brandLogo, BRAND_CSS } = require("./lib/brand.js");   // primary brand mark (header + mobile menu)
 
 const { ROOT } = require("./lib/paths.js");   // app dir locally; a writable dir on read-only hosts
@@ -127,33 +128,110 @@ function pickFeatured(stories) {
 }
 
 /* ---------- renderers: homepage regions ---------- */
-function renderThisWeekTitle(s) {
-  return `            <h2 class="story-title">${text(s.title)}</h2>`;
+// Homepage "This week" — one editorial passage, not a grid. The featured memory
+// is the exhibit (large matted photograph beside its wall text); one earlier
+// memory and the way into the Archive page follow as a quiet coda. The full
+// collection lives on archive.html — the homepage is only a window into it.
+// "Continue reading" goes to the story's own page (its immersive reader).
+
+// Plain-text opening for the homepage: the lead, then as many following
+// paragraphs as fit ~maxWords, trimmed at a word boundary.
+function excerptOf(s, maxWords) {
+  const clean = p => String(p || "").replace(/<[^>]+>/g, "").replace(/\*\*|__/g, "").replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/\s+/g, " ").trim();
+  const paras = [s.lead, ...(s.body || [])].map(clean).filter(Boolean);
+  const out = []; let n = 0;
+  for (const p of paras) {
+    const w = p.split(" ");
+    if (n + w.length <= maxWords) { out.push(p); n += w.length; if (n >= maxWords * 0.6) break; continue; }
+    if (!out.length || n < maxWords * 0.5) out.push(w.slice(0, maxWords - n).join(" ").replace(/[,;:—–-]+$/, "") + "…");
+    break;
+  }
+  return out;
+}
+function daysBetween(a, b) { return Math.round((Date.parse(a) - Date.parse(b)) / 86400000); }
+
+// Public Listening availability — the same predicate the story page uses (read-only).
+function publicListenOn(site, s) {
+  return listeningEnabled(site) && narrationApprovedFresh(s)
+    && (function () { try { return fs.existsSync(path.join(ROOT, "assets", "listen", String(s.id), "listen.json")); } catch (e) { return false; } })();
 }
 
-// The homepage is an introduction, not the reader: show the lead as a teaser and
-// send "Continue reading" to the story's own canonical page (its immersive
-// reader), rather than expanding the full text inline. The link reuses the
-// existing .story-toggle affordance so the look is unchanged.
-function renderThisWeekBody(s) {
-  const pic = storyPhotoPicture(s, "(max-width:900px) 92vw, 760px");
+// The lead photograph at its natural ratio ("full" derivatives), lazy: the
+// hero is above it, so it never competes with the first paint.
+function leadPicture(s) {
   const p = primaryStoryPhoto(s);
-  const capText = p ? (p.it.caption || "") : "";
-  const plate = pic ? [
-    `            <figure class="tw-plate reveal">`,
-    `              <span class="tw-frame">${pic}</span>`,
-    capText ? `              <figcaption>${text(capText)}</figcaption>` : "",
-    `            </figure>`
-  ].filter(Boolean).join("\n") : "";
+  if (!p) return "";
+  const it = p.it;
+  const kind = (it.full && it.full.length) ? "full" : "portrait";
+  const widths = kind === "full" ? it.full : it.portrait;
+  const largest = widths[widths.length - 1];
+  const dir = `assets/story-photos/story-${s.id}/`;
+  const f = it.focus || { x: 50, y: 50 };
+  const w = it.width || largest, h = it.height || largest;
+  const sizes = "(max-width:900px) 92vw, 620px";
+  const set = ext => widths.map(x => `${dir}${it.id}.${kind}.${x}.${ext} ${x}w`).join(", ");
+  return `<picture><source type="image/webp" srcset="${set("webp")}" sizes="${sizes}"><img src="${dir}${it.id}.${kind}.${largest}.jpg" srcset="${set("jpg")}" sizes="${sizes}" width="${w}" height="${h}" style="object-position:${f.x}% ${f.y}%" alt="${attr(it.caption || s.title)}" loading="lazy" decoding="async"></picture>`;
+}
+
+function renderThisWeekPlate(s) {
+  const pic = leadPicture(s);
+  const p = primaryStoryPhoto(s);
+  const cap = p ? (p.it.caption || "") : "";
+  if (!pic) return `            <div class="tw-plate is-words" aria-hidden="true"><span class="tw-mark"></span></div>`;
   return [
-    plate,
-    `            <p class="dropcap">${s.lead || ""}</p>`,
-    ``,
-    `            <a class="story-toggle story-continue" href="${s.url}">`,
-    `              <span class="label-closed">Continue reading</span>`,
-    `              <svg class="toggle-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-    `            </a>`
+    `            <figure class="tw-plate">`,
+    `              <a class="tw-frame" href="${s.url}" tabindex="-1" aria-hidden="true">${pic}</a>`,
+    cap ? `              <figcaption>${text(cap)}</figcaption>` : "",
+    `            </figure>`
   ].filter(Boolean).join("\n");
+}
+
+function renderThisWeekText(s, site) {
+  const ex = excerptOf(s, 64);
+  const dot = `background:var(--thread-${s.theme})`;
+  const n = s.narration || {};
+  const dur = n.duration ? `${Math.floor(n.duration / 60)}:${String(Math.round(n.duration % 60)).padStart(2, "0")}` : "";
+  const listen = publicListenOn(site, s)
+    ? `\n              <a class="tw-listen" href="${s.url}" aria-label="Open this memory to listen${dur ? " (" + dur + ")" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>Listen${dur ? `<span class="tw-listen-dur"> · ${dur}</span>` : ""}</a>` : "";
+  return [
+    `            <p class="tw-stamp">No.&nbsp;${s.id} <span aria-hidden="true">·</span> ${text(s.dateLong || s.dateLabel || "")}${s.readingTime ? ` <span aria-hidden="true">·</span> ${s.readingTime}&nbsp;min` : ""}</p>`,
+    `            <h2 class="story-title tw-title"><a href="${s.url}">${text(s.title)}</a></h2>`,
+    `            <p class="tw-thread"><span class="dot" style="${dot}"></span>${text(s.themeLabel)}</p>`,
+    // a short opening line (a question, a name) reads as a lede; a full paragraph opens with a drop cap
+    ex.map((p, i) => `            <p class="tw-opening${i === 0 ? (p.length < 90 ? " tw-lede" : " dropcap") : ""}">${text(p)}</p>`).join("\n"),
+    `            <div class="tw-actions">`,
+    `              <a class="story-toggle story-continue" href="${s.url}"><span class="label-closed">Continue reading</span><svg class="toggle-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>${listen}`,
+    `            </div>`
+  ].join("\n");
+}
+
+function renderThisWeekCoda(featured, stories) {
+  const byDate = (a, b) => ((a.publishedISO || "") < (b.publishedISO || "") ? 1 : -1);
+  const pub = stories.filter(s => s.published).sort(byDate);
+  const second = pub.find(s => !featured || s.id !== featured.id);
+  const oldest = pub[pub.length - 1];
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const since = oldest && oldest.publishedISO ? ` since ${MONTHS[+oldest.publishedISO.slice(5, 7) - 1]} ${oldest.publishedISO.slice(0, 4)}` : "";
+  const parts = [];
+  if (second) {
+    const gap = featured && featured.publishedISO && second.publishedISO ? daysBetween(featured.publishedISO, second.publishedISO) : null;
+    const kicker = gap === 7 ? "The Friday before" : "Also kept";
+    const thumb = storyPhotoPicture(second, "(max-width:640px) 72px, 96px");
+    parts.push([
+      `          <a class="tw-also" href="${second.url}">`,
+      thumb ? `            <span class="tw-also-plate">${thumb}</span>` : `            <span class="tw-also-plate is-words" aria-hidden="true"></span>`,
+      `            <span class="tw-also-text"><span class="tw-kicker">${kicker} · No.&nbsp;${second.id}</span><span class="tw-also-title">${text(second.title)}</span></span>`,
+      `          </a>`
+    ].join("\n"));
+  }
+  parts.push([
+    `          <a class="tw-explore" href="archive.html">`,
+    `            <span class="tw-kicker">The archive</span>`,
+    `            <span class="tw-explore-title">Explore the archive <span class="tw-arrow" aria-hidden="true">→</span></span>`,
+    `            <span class="tw-explore-sub">This week's memory is one page of a longer record — ${pub.length} Fridays kept${since}, and every person, place and object in them searchable.</span>`,
+    `          </a>`
+  ].join("\n"));
+  return parts.join("\n");
 }
 
 // The memory's primary editorial photograph (with generated derivatives), or null.
@@ -211,40 +289,6 @@ function storyProvenance(s) {
   return parts.join("\n            ");
 }
 
-// An archive memory rendered as a framed exhibit on the gallery wall: a matted
-// photograph where the memory has one, a dignified "in words" plate where it
-// does not — so a memory without a surviving photograph never reads as empty.
-function renderArchiveCard(s) {
-  const tab = `--tab-color:var(--thread-${s.theme})`;
-  const dot = `background:var(--thread-${s.theme})`;
-  const plate = storyPhotoPicture(s, "(max-width:640px) 92vw, 340px");
-  const cls = "card-catalogue" + (plate ? "" : " is-words");
-  const inner = [
-    plate ? `          <span class="cc-plate">${plate}</span>` : `          <span class="cc-mark" aria-hidden="true"></span>`,
-    `          <span class="stamp">No. ${s.id} &middot; ${text(s.dateLabel)}</span>`,
-    `          <h3>${text(s.title)}</h3>`,
-    `          <p class="teaser">${text(s.summary)}</p>`,
-    `          <span class="theme-label"><span class="dot" style="${dot}"></span>${text(s.themeLabel)}</span>`
-  ].join("\n");
-  if (s.published) {
-    return `        <a class="${cls}" data-theme="${s.theme}" style="${tab}" href="${s.url}">\n${inner}\n        </a>`;
-  }
-  return `        <article class="${cls}" data-theme="${s.theme}" style="${tab}">\n${inner}\n        </article>`;
-}
-
-// The archive lists EVERY story — including This Week's featured one — so a
-// newly published memory always surfaces here (and in the theme filters /
-// categories), never buried. Order: published first, then newest first, so
-// fresh publications lead the grid instead of sitting under coming-soon cards.
-function renderArchiveCards(stories) {
-  const rank = s => (s.published ? 0 : 1);
-  const dkey = s => s.publishedISO || "0000-00-00";
-  return stories.slice()
-    .sort((a, b) => rank(a) - rank(b) || (dkey(a) < dkey(b) ? 1 : dkey(a) > dkey(b) ? -1 : 0) || b.id - a.id)
-    .map(renderArchiveCard)
-    .join("\n\n");
-}
-
 function renderQuote(site) {
   const q = site.featuredQuote;
   return [
@@ -285,13 +329,12 @@ function buildIndex(site, stories, featured, journeys, entities) {
   let html = fs.readFileSync(file, "utf8");
 
   if (featured) {
-    html = injectRegion(html, "TW_TITLE", renderThisWeekTitle(featured));
-    html = injectRegion(html, "TW_BODY", renderThisWeekBody(featured));
+    html = injectRegion(html, "TW_PLATE", renderThisWeekPlate(featured));
+    html = injectRegion(html, "TW_TEXT", renderThisWeekText(featured, site));
   }
+  html = injectRegion(html, "TW_CODA", renderThisWeekCoda(featured, stories));
   html = injectRegion(html, "ABOUT_PORTRAITS", renderHomePortraits(entities));
   html = injectRegion(html, "DISCOVER", journeysLib.renderDiscoverCards(journeys || [], ""));
-  html = injectRegion(html, "ARCHIVE_CARDS", renderArchiveCards(stories));
-  html = injectRegion(html, "ARCHIVE_COUNT", `${site.archiveTotal}`);
   html = injectRegion(html, "QUOTE", renderQuote(site));
   html = injectRegion(html, "BOOK_PROGRESS", renderBookProgress(site));
 
@@ -333,7 +376,7 @@ function renderRelatedMemories(rels) {
   const cards = rels.slice(0, 3).map(r => {
     const via = r.via.slice(0, 3).map(e => text(e.name)).join(" · ");
     const pub = r.story.published;
-    const href = pub ? `../${r.story.url}` : "../index.html#archive";
+    const href = pub ? `../${r.story.url}` : "../archive.html";
     const meta = pub ? `No.&nbsp;${r.story.id}` : "Coming soon";
     return `        <a class="collection-piece" style="--tab-color:var(--thread-${r.story.theme})" href="${href}">
           <span class="cp-label">${meta}${via ? ` &middot; shares ${via}` : ""}</span>
@@ -992,7 +1035,7 @@ ${listenOn ? '<link rel="stylesheet" href="../assets/listen-cinematic.css">\n' :
         <li><a href="../index.html#hero">Start Here</a></li>
         <li><a href="../index.html#discover">Discover</a></li>
         <li><a href="../index.html#this-week">This Week</a></li>
-        <li><a href="../index.html#archive">Archive</a></li>
+        <li><a href="../archive.html">Archive</a></li>
         <li><a href="../family.html">Family</a></li>
         <li><a href="../index.html#about">About Harlan</a></li>
       </ul>
@@ -1023,7 +1066,7 @@ ${listenOn ? '<link rel="stylesheet" href="../assets/listen-cinematic.css">\n' :
       <li><a href="../index.html#hero">Start Here</a></li>
       <li><a href="../index.html#discover">Discover</a></li>
       <li><a href="../index.html#this-week">This Week</a></li>
-      <li><a href="../index.html#archive">Archive</a></li>
+      <li><a href="../archive.html">Archive</a></li>
       <li><a href="../family.html">Family</a></li>
       <li><a href="../index.html#about">About Harlan</a></li>
     </ul>
@@ -1096,7 +1139,7 @@ ${exploreHTML}
   <section class="return-invite">
     <div class="container reveal">
       <p>There are ${moreCount} more of these, kept the same way this one was.</p>
-      <a class="btn btn-quiet" href="../index.html#archive">← Back to the archive</a>
+      <a class="btn btn-quiet" href="../archive.html">← Back to the archive</a>
     </div>
   </section>
 </main>
@@ -1114,7 +1157,7 @@ ${exploreHTML}
           <li><a href="../index.html#hero">Start Here</a></li>
           <li><a href="../index.html#discover">Discover</a></li>
           <li><a href="../index.html#this-week">This Week's Story</a></li>
-          <li><a href="../index.html#archive">The Archive</a></li>
+          <li><a href="../archive.html">The Archive</a></li>
           <li><a href="../family.html">The Family</a></li>
           <li><a href="../index.html#book">The Book</a></li>
         </ul>
@@ -1311,7 +1354,7 @@ function buildSearchIndex(site, stories, entities, graph, journeys) {
       type: "story",
       title: s.title,
       subtitle: s.published ? `No. ${s.id} · ${s.themeLabel}` : `Coming soon · ${s.themeLabel}`,
-      url: s.published ? s.url : "#archive",
+      url: s.published ? s.url : "archive.html",
       badge: "Story",
       related: sConn.total || 0,
       keywords: kw
@@ -1356,16 +1399,10 @@ function buildSearchIndex(site, stories, entities, graph, journeys) {
     });
   });
 
-  // Public copy + inject into the homepage. Escape "<" so the JSON is safe
-  // inside a <script> element and can never terminate it early.
+  // Public copy; the Archive page (archive.html) embeds the same records for its
+  // search (escaped there). The homepage no longer carries the index.
   fs.writeFileSync(path.join(ROOT, "search-index.json"), JSON.stringify(records, null, 2) + "\n");
-  const safe = JSON.stringify(records).replace(/</g, "\\u003c");
-  const file = path.join(ROOT, "index.html");
-  let html = fs.readFileSync(file, "utf8");
-  html = injectRegion(html, "SEARCH_INDEX",
-    `<script id="hl-search-index" type="application/json">${safe}</script>`);
-  fs.writeFileSync(file, html);
-  return records.length;
+  return records;
 }
 
 /* ---------- stories.js public mirror ---------- */
@@ -1523,7 +1560,10 @@ function build() {
   const jByPerson = journeysLib.journeysByPerson(journeys);
 
   const idx = buildIndex(site, stories, featured, journeys, entities);
-  const searchCount = buildSearchIndex(site, stories, entities, graph, journeys);
+  const searchRecords = buildSearchIndex(site, stories, entities, graph, journeys);
+  const searchCount = searchRecords.length;
+  fs.writeFileSync(path.join(ROOT, "archive.html"), archiveLib.renderArchive(site, stories, searchRecords,
+    { storyPhotoPicture, listenOn: s => publicListenOn(site, s) }));
   const pages = buildStoryPages(site, stories, graph, jByStory, journeys);
   const js = buildStoriesJs(stories, graph, featured, site);
   buildExploreData(graph);
@@ -1537,7 +1577,7 @@ function build() {
     published: stories.filter(s => s.published).length,
     comingSoon: stories.filter(s => s.status === "coming-soon").length,
     total: stories.length,
-    pages, index: path.basename(idx), storiesJs: js,
+    pages, index: path.basename(idx), archive: "archive.html", storiesJs: js,
     familyTree: family.tree, familyProfiles: family.profiles,
     entityPages: family.entityPages || [],
     journeys: journeyPages,

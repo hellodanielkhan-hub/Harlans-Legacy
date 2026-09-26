@@ -1066,12 +1066,13 @@ section{ padding-block: var(--sp-7); }
 }
 
 /* =========================================================
-   ARCHIVE PREVIEW — THE CATALOGUE
+   THIS WEEK — the editorial passage (homepage)
+   One exhibit, not a grid: the week's memory as a matted photograph
+   beside its wall text, then a quiet coda — one earlier memory and the
+   way into the Archive page (archive.html holds the whole collection).
+   Deliberately wider than the reading column; same materials as the
+   story exhibit (mat, wall, frame line, voice labels).
    ========================================================= */
-.archive-fact-number{
-  color: var(--ember-core);
-  font-size: 1.25em;
-}
 .archive-fragment{
   font-family: var(--font-reading);
   font-size: var(--text-body);
@@ -1080,122 +1081,102 @@ section{ padding-block: var(--sp-7); }
   line-height: 1.65;
   margin: 0;
 }
+.this-week > .container.tw-container{ max-width: 1240px; }
+.this-week #this-week-card.tw-lead{
+  max-width: none;
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: clamp(2rem, 4.5vw, 4.75rem); align-items: center;
+  padding: clamp(1.4rem, 3vw, 2.9rem);
+}
+.tw-lead .tw-plate{ margin: 0; min-width: 0; }
+.this-week .tw-lead .tw-plate .tw-frame{ display: block; padding: clamp(8px, 1vw, 12px); }
+.this-week .tw-lead .tw-plate img{ aspect-ratio: auto; height: auto; max-height: min(76vh, 680px); object-fit: cover; }
+.tw-lead .tw-plate.is-words{ aspect-ratio: 4 / 5; display: grid; place-items: center; background: var(--wall); border: 1px solid var(--frame-line); }
+.tw-mark{ width: 22%; height: 1px; background: var(--ember-core); opacity: .7; }
+.tw-body{ min-width: 0; }
+.tw-stamp{ font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .18em;
+  font-size: .7rem; color: var(--label-ink); margin: 1.2rem 0 0; }
+#this-week-card .tw-title{ font-size: clamp(2.7rem, 1.5rem + 4.2vw, 5.4rem); line-height: .98; margin: .55rem 0 .85rem; }
+.tw-title a{ color: inherit; text-decoration: none; }
+.tw-title a:hover{ color: var(--ember-deep); }
+.tw-thread{ display: flex; align-items: center; gap: .5rem; font-family: var(--font-voice); text-transform: uppercase;
+  letter-spacing: .12em; font-size: .64rem; color: var(--ink-muted); margin: 0 0 1.6rem; }
+.tw-thread .dot{ width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+#this-week-card .tw-opening{ font-size: clamp(1.1rem, 1rem + .45vw, 1.32rem); line-height: 1.62;
+  color: var(--ink-secondary); max-width: 44ch; margin: 0 0 .9rem; }
+.tw-body .dropcap::first-letter{ font-family: var(--font-display); font-size: 3.4em; float: left; line-height: .82;
+  padding-right: .09em; padding-top: .04em; color: var(--ember-core); font-weight: 560; }
+.tw-actions{ display: flex; flex-wrap: wrap; align-items: center; gap: .9rem 1.7rem; margin-top: 1.7rem; }
+#this-week-card .tw-actions .story-continue{ margin-top: 0; }
+.tw-listen{ display: inline-flex; align-items: center; gap: .45rem; min-height: 40px; padding: .5rem 1rem;
+  font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .14em; font-size: .7rem;
+  color: var(--ink-primary); text-decoration: none; background: var(--paper-raised);
+  border: 1px solid var(--frame-line); border-radius: 999px;
+  transition: border-color var(--dur-quiet) var(--ease-settle); }
+.tw-listen svg{ width: 12px; height: 12px; color: var(--ember-core); }
+.tw-listen:hover{ border-color: var(--ember-core); }
+.tw-listen-dur{ color: var(--ink-muted); }
+#this-week-card .tw-opening.tw-lede{ font-family: var(--font-display); font-style: italic; font-weight: 340;
+  font-size: clamp(1.45rem, 1.15rem + 1vw, 1.95rem); line-height: 1.28; color: var(--ink-primary); max-width: 26ch; margin-bottom: 1.1rem; }
+/* the margin note runs as a quiet strip along the foot of the exhibit */
+.this-week .tw-lead .marginalia{ grid-column: 1 / -1; margin-top: 0; padding-top: 1.3rem;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: .35rem clamp(1.5rem, 4vw, 3.5rem); align-items: center; }
+.this-week .tw-lead .marginalia .prompt, .this-week .tw-lead .marginalia .prompt-note{ grid-column: 1; margin: 0; }
+.this-week .tw-lead .marginalia-form{ grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+.this-week .tw-lead .marginalia-notes{ grid-column: 1 / -1; }
+.this-week .tw-lead .marginalia-notes:empty{ display: none; }
 
-.chip-row{
-  display:flex; flex-wrap:wrap; gap: var(--sp-1);
-  margin-bottom: var(--sp-3);
+.tw-coda{ display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: clamp(1.6rem, 4vw, 4.5rem);
+  align-items: end; margin-top: clamp(1.8rem, 3.2vw, 2.8rem); padding: clamp(1.4rem, 2.6vw, 2.2rem) clamp(.2rem, 1vw, .6rem) 0;
+  border-top: 1px solid var(--frame-line); }
+.tw-kicker{ display: block; font-family: var(--font-voice); text-transform: uppercase; letter-spacing: .18em;
+  font-size: .64rem; color: var(--label-ink); }
+.tw-also{ display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 1.1rem; align-items: center;
+  text-decoration: none; color: inherit; align-self: center; }
+.tw-also-plate{ display: block; width: 96px; aspect-ratio: 1; padding: 5px; background: var(--mat);
+  border: 1px solid var(--frame-line); box-shadow: var(--exhibit-shadow); }
+.tw-also-plate picture, .tw-also-plate img{ display: block; width: 100%; height: 100%; object-fit: cover; }
+.tw-also-title{ display: block; margin-top: .4rem; font-family: var(--font-display); font-weight: 440;
+  font-size: clamp(1.2rem, 1rem + .6vw, 1.5rem); line-height: 1.18; color: var(--ink-primary); text-wrap: balance;
+  transition: color var(--dur-quiet) var(--ease-settle); }
+.tw-also:hover .tw-also-title{ color: var(--ember-deep); }
+.tw-explore{ display: flex; flex-direction: column; gap: .45rem; justify-self: end; text-align: right;
+  max-width: 34rem; text-decoration: none; color: inherit; }
+.tw-explore-title{ font-family: var(--font-display); font-weight: 340; font-size: clamp(2.1rem, 1.3rem + 2.7vw, 3.5rem);
+  line-height: 1.02; letter-spacing: -.02em; color: var(--ink-primary);
+  text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .2em;
+  text-decoration-color: color-mix(in srgb, var(--ember-core) 45%, transparent);
+  transition: text-decoration-color var(--dur-quiet) var(--ease-settle); }
+.tw-explore:hover .tw-explore-title{ text-decoration-color: var(--ember-core); }
+.tw-arrow{ display: inline-block; color: var(--ember-core); transition: transform var(--dur-quiet) var(--ease-settle); }
+.tw-explore:hover .tw-arrow{ transform: translateX(6px); }
+.tw-explore-sub{ font-family: var(--font-reading); font-size: .98rem; line-height: 1.55; color: var(--ink-secondary); }
+@media (prefers-reduced-motion: reduce){ .tw-explore:hover .tw-arrow{ transform: none; } }
+@media (max-width: 900px){
+  .this-week #this-week-card.tw-lead{ grid-template-columns: 1fr; gap: 1.2rem; }
+  .this-week .tw-lead .tw-plate img{ max-height: 60vh; }
+  .tw-coda{ grid-template-columns: 1fr; align-items: start; }
+  .tw-explore{ justify-self: start; text-align: left; }
+  .this-week .tw-lead .marginalia{ grid-template-columns: 1fr; }
+  .this-week .tw-lead .marginalia-form{ grid-column: 1; grid-row: auto; margin-top: .6rem; }
+  /* the Save pill sits above the photograph, not on it */
+  .this-week #this-week-card.tw-lead{ padding-top: 3.6rem; }
 }
-.chip{
-  font-size: var(--text-label);
-  letter-spacing: 0.05em;
-  padding: 0.5em 0.95em;
-  border-radius: 999px;
-  border: 1px solid var(--ink-whisper);
-  background: transparent;
-  color: var(--ink-secondary);
-  cursor: pointer;
-  display: inline-flex; align-items:center; gap: 0.5em;
-  transition: border-color var(--dur-quiet), color var(--dur-quiet), background var(--dur-quiet);
+@media (max-width: 640px){
+  .this-week #this-week-card.tw-lead{ padding: 3.5rem 1rem 1.5rem; }
+  .this-week .tw-lead .tw-plate .tw-frame{ padding: 6px; }
+  .this-week .tw-lead .tw-plate img{ aspect-ratio: 4 / 3; max-height: none; }
+  .tw-stamp{ margin-top: .9rem; }
+  #this-week-card .tw-title{ font-size: clamp(2.3rem, 11vw, 3rem); }
+  .tw-actions{ margin-top: 1.3rem; }
+  .tw-also{ grid-template-columns: 72px minmax(0, 1fr); gap: .9rem; }
+  .tw-also-plate{ width: 72px; }
+  .tw-explore-title{ font-size: clamp(1.9rem, 8.5vw, 2.4rem); }
+  /* phones: the lede and one paragraph are enough of an invitation */
+  #this-week-card .tw-opening + .tw-opening + .tw-opening{ display: none; }
+  /* pre-existing: in the column layout the input's 260px flex-basis became its height */
+  .this-week .tw-lead .marginalia-form input[type="text"]{ flex: 0 0 auto; }
 }
-.chip .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-.chip:hover{ border-color: var(--ember-core); color: var(--ink-primary); }
-.chip[aria-pressed="true"]{
-  background: var(--ink-primary);
-  border-color: var(--ink-primary);
-  color: var(--paper-raised);
-}
-
-.catalogue-grid{
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--sp-2);
-}
-.card-catalogue{
-  background: var(--paper-raised); /* fallback for browsers without color-mix() */
-  background: linear-gradient(170deg, color-mix(in srgb, var(--paper-raised) 100%, white 3%) 0%, var(--paper-raised) 55%, color-mix(in srgb, var(--paper-raised) 97%, var(--paper-deep) 3%) 100%);
-  border: 1px solid var(--ink-whisper);
-  border-radius: var(--radius-card);
-  padding: var(--sp-3) var(--sp-3) var(--sp-3);
-  position: relative;
-  text-decoration:none;
-  color: var(--ink-primary);
-  display: flex;
-  flex-direction: column;
-  transition: transform var(--dur-quiet) var(--ease-settle),
-              box-shadow var(--dur-quiet) var(--ease-settle),
-              border-color var(--dur-quiet) var(--ease-settle),
-              filter var(--dur-slow) var(--ease-settle),
-              opacity var(--dur-slow) var(--ease-settle);
-}
-.card-catalogue::before{
-  content:"";
-  position:absolute; top:-1px; left: var(--sp-3);
-  width: 34px; height: 6px;
-  border-radius: 0 0 3px 3px;
-  background: var(--tab-color, var(--ink-whisper));
-}
-.card-catalogue:hover{
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-card);
-  border-color: var(--ink-secondary);
-}
-/* Depth of field: the grid as a whole softens once a visitor starts
-   sorting through it, so the one card they're actually looking at
-   reads as nearer than the rest — the way your eye actually focuses
-   on one card in a stack rather than the whole stack at once. */
-.catalogue-grid:hover .card-catalogue{
-  filter: blur(1.5px);
-  opacity: 0.62;
-}
-.catalogue-grid:hover .card-catalogue:hover{
-  filter: blur(0);
-  opacity: 1;
-  transform: translateY(-3px) scale(1.015);
-}
-@media (prefers-reduced-motion: reduce){
-  .catalogue-grid:hover .card-catalogue{ filter:none; opacity:1; }
-}
-.card-catalogue .stamp{
-  font-family: var(--font-voice);
-  font-size: 0.72rem;
-  letter-spacing: 0.03em;
-  color: var(--ink-muted);
-  margin-bottom: var(--sp-2);
-}
-.card-catalogue h3{
-  font-size: 1.18rem;
-  margin: 0 0 0.5rem;
-}
-.card-catalogue p.teaser{
-  font-size: 0.94rem;
-  color: var(--ink-secondary);
-  margin: 0;
-  flex-grow: 1;
-}
-.card-catalogue .theme-label{
-  margin-top: var(--sp-2);
-  display:flex; align-items:center; gap:0.4em;
-  font-size: var(--text-label);
-  text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--ink-secondary);
-}
-.card-catalogue .theme-label .dot{ width:7px;height:7px;border-radius:50%; }
-
-.catalogue-empty{
-  padding: var(--sp-5);
-  text-align:center;
-  color: var(--ink-secondary);
-  border: 1px dashed var(--ink-whisper);
-  border-radius: var(--radius-soft);
-  display: none;
-}
-.catalogue-empty.is-visible{ display:block; }
-
-.archive-cta{
-  margin-top: var(--sp-5);
-  display:flex; flex-direction:column; gap: var(--sp-1); align-items:flex-start;
-}
-.archive-cta small{ color: var(--ink-muted); font-size: var(--text-caption); }
 
 /* =========================================================
    FEATURED QUOTE — the Voice
@@ -1386,7 +1367,6 @@ footer{
    RESPONSIVE — TABLET
    ========================================================= */
 @media (max-width: 960px){
-  .catalogue-grid{ grid-template-columns: repeat(2, 1fr); }
 }
 
 /* =========================================================
@@ -1395,7 +1375,6 @@ footer{
 @media (max-width: 720px){
   .desktop-nav{ display:none; }
   .nav-toggle{ display:inline-flex; align-items:center; justify-content:center; }
-  .catalogue-grid{ grid-template-columns: 1fr; }
   section{ padding-block: var(--sp-6); }
   .footer-grid{ flex-direction:column; gap: var(--sp-4); }
 }
@@ -1424,72 +1403,6 @@ footer{
   }
   .featured-quote{ background: none !important; }
   section{ padding-block: 1.5rem; }
-}
-
-/* =========================================================
-   SEARCH & DISCOVERY
-   Global search over stories + people/places/objects/events.
-   Data comes from an injected JSON index (build.js) — the UI
-   here is chrome only. Uses existing tokens throughout.
-   ========================================================= */
-.archive-search{ position: relative; max-width: 640px; margin-bottom: var(--sp-5); z-index: 20; }
-.search-field{
-  display: flex; align-items: center; gap: var(--sp-2);
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-whisper);
-  border-radius: var(--radius-soft);
-  padding: 0.15em 0.9em;
-  transition: border-color var(--dur-quiet) var(--ease-settle), box-shadow var(--dur-quiet) var(--ease-settle);
-}
-.search-field:focus-within{ border-color: var(--ember-core); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ember-glow) 30%, transparent); }
-.search-icon{ width: 18px; height: 18px; color: var(--ink-muted); flex-shrink: 0; }
-.search-field:focus-within .search-icon{ color: var(--ember-core); }
-#hl-search-input{
-  flex: 1; min-width: 0; border: none; background: transparent;
-  font-family: var(--font-reading); font-size: var(--text-body); color: var(--ink-primary);
-  padding: 0.85em 0; outline: none;
-}
-#hl-search-input::placeholder{ color: var(--ink-muted); }
-.search-clear{
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border: none; background: transparent;
-  color: var(--ink-muted); cursor: pointer; border-radius: 999px; flex-shrink: 0;
-}
-.search-clear:hover{ color: var(--ember-core); }
-.search-clear svg{ width: 16px; height: 16px; }
-
-.search-panel{
-  position: absolute; top: calc(100% + 8px); left: 0; right: 0;
-  background: var(--paper-raised);
-  border: 1px solid var(--ink-whisper);
-  border-radius: var(--radius-soft);
-  box-shadow: var(--shadow-raised);
-  max-height: min(60vh, 460px); overflow-y: auto;
-  padding: var(--sp-1);
-}
-.search-group{ padding: var(--sp-1) 0; }
-.search-group + .search-group{ border-top: 1px solid var(--ink-whisper); }
-.search-group-title{
-  display: flex; align-items: center; gap: 0.5em;
-  font-size: var(--text-label); text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--ink-muted); font-weight: 500;
-  padding: 0.5em 0.8em 0.35em;
-}
-.search-group-title .dot{ width: 7px; height: 7px; border-radius: 50%; }
-.search-result{
-  display: flex; align-items: baseline; gap: var(--sp-2);
-  text-decoration: none; color: var(--ink-primary);
-  padding: 0.6em 0.8em; border-radius: var(--radius-card);
-  scroll-margin: 0.5em;
-}
-.search-result:hover, .search-result.is-active{ background: var(--paper-deep); }
-.search-result.is-active{ box-shadow: inset 2px 0 0 var(--ember-core); }
-.search-result .sr-title{ font-weight: 500; }
-.search-result .sr-title mark{ background: color-mix(in srgb, var(--ember-glow) 45%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
-.search-result .sr-sub{ font-size: var(--text-caption); color: var(--ink-muted); margin-left: auto; padding-left: var(--sp-2); white-space: nowrap; }
-.search-empty{ padding: var(--sp-3) var(--sp-2); text-align: center; color: var(--ink-muted); font-size: var(--text-caption); }
-@media (max-width: 640px){
-  .search-result .sr-sub{ display: none; }
 }
 
 /* =========================================================
@@ -1594,7 +1507,7 @@ footer{
         <li><a href="#hero">Start Here</a></li>
         <li><a href="#discover">Discover</a></li>
         <li><a href="#this-week">This Week</a></li>
-        <li><a href="#archive">Archive</a></li>
+        <li><a href="archive.html">Archive</a></li>
         <li><a href="family.html">Family</a></li>
         <li><a href="#about">About Harlan</a></li>
       </ul>
@@ -1629,7 +1542,7 @@ footer{
       <li><a href="#hero">Start Here</a></li>
       <li><a href="#discover">Discover</a></li>
       <li><a href="#this-week">This Week</a></li>
-      <li><a href="#archive">Archive</a></li>
+      <li><a href="archive.html">Archive</a></li>
       <li><a href="family.html">Family</a></li>
       <li><a href="#about">About Harlan</a></li>
     </ul>
@@ -1742,41 +1655,38 @@ footer{
   </section>
 
   <!-- =========================================================
-       THIS WEEK'S STORY
+       THIS WEEK — one editorial passage, not a grid.
+       The featured memory is the exhibit (matted photograph beside its wall
+       text); one earlier memory and the way into the Archive page follow as
+       a quiet coda. The complete collection lives on archive.html — the
+       homepage is only a window into it. Regions are filled by build.js.
        ========================================================= -->
   <section class="this-week" id="this-week">
-    <div class="container">
-      <div class="story-card reveal pace-primary" id="this-week-card">
+    <div class="container tw-container">
+      <article class="tw-lead reveal pace-primary" id="this-week-card">
         <button class="hl-bookmark hl-bookmark-float" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
           <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
           <span class="hl-bm-label">Save</span>
         </button>
-        <p class="eyebrow" id="friday-eyebrow">This week</p>
-        <!-- HL:TW_TITLE:START -->            <h2 class="story-title">The Tattoo That Wasn’t</h2><!-- HL:TW_TITLE:END -->
-
-        <div class="story-body">
-          <!-- HL:TW_BODY:START -->
-            <figure class="tw-plate reveal">
-              <span class="tw-frame"><picture><source type="image/webp" srcset="assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.176.webp 176w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.352.webp 352w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.528.webp 528w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.768.webp 768w" sizes="(max-width:900px) 92vw, 760px"><img src="assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.768.jpg" srcset="assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.176.jpg 176w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.352.jpg 352w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.528.jpg 528w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.768.jpg 768w" sizes="(max-width:900px) 92vw, 760px" width="768" height="768" style="object-position:50% 50%" alt="The Tattoo That Wasn’t" loading="lazy" decoding="async"></picture></span>
-            </figure>
-            <p class="dropcap">This week’s memorial blog is number 388, and as we look at this week’s Torah portion, Shoftim, we are given a powerful command:</p>
-            <a class="story-toggle story-continue" href="story/305-the-tattoo-that-wasnt.html">
-              <span class="label-closed">Continue reading</span>
-              <svg class="toggle-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </a>
-            <!-- HL:TW_BODY:END -->
-          <div class="marginalia" id="marginalia">
-            <p class="prompt">Leave a line in the margin — what did this remind you of?</p>
-            <p class="prompt-note"><em>Coming soon</em> — notes aren't saved permanently yet; this reminder stays only in your own browser for now.</p>
-            <form class="marginalia-form" id="marginalia-form">
-              <label class="visually-hidden" for="marginalia-input">Your note</label>
-              <input type="text" id="marginalia-input" maxlength="140" placeholder="This reminded me of…" required>
-              <button class="btn btn-quiet" type="submit">Leave a note</button>
-            </form>
-            <div class="marginalia-notes" id="marginalia-notes" aria-live="polite"></div>
-          </div>
+        <!-- HL:TW_PLATE:START --><!-- HL:TW_PLATE:END -->
+        <div class="tw-body">
+          <p class="eyebrow" id="friday-eyebrow">This week</p>
+          <!-- HL:TW_TEXT:START --><!-- HL:TW_TEXT:END -->
         </div>
-      </div>
+        <div class="marginalia" id="marginalia">
+          <p class="prompt">Leave a line in the margin — what did this remind you of?</p>
+          <p class="prompt-note"><em>Coming soon</em> — notes aren't saved permanently yet; this reminder stays only in your own browser for now.</p>
+          <form class="marginalia-form" id="marginalia-form">
+            <label class="visually-hidden" for="marginalia-input">Your note</label>
+            <input type="text" id="marginalia-input" maxlength="140" placeholder="This reminded me of…" required>
+            <button class="btn btn-quiet" type="submit">Leave a note</button>
+          </form>
+          <div class="marginalia-notes" id="marginalia-notes" aria-live="polite"></div>
+        </div>
+      </article>
+      <nav class="tw-coda reveal pace-quick" aria-label="More from the archive">
+        <!-- HL:TW_CODA:START --><!-- HL:TW_CODA:END -->
+      </nav>
     </div>
   </section>
 
@@ -1817,97 +1727,6 @@ footer{
         <p class="eyebrow">Who they were</p>
         <h2>About Harlan</h2>
         <p class="measure">Harlan Blaine Yaffe is remembered here through the weekly stories written by his brother, Hal. His full biography is being carefully assembled from family records, photographs, original writings and the memories of those who knew him.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- =========================================================
-       ARCHIVE PREVIEW — THE CATALOGUE
-       ========================================================= -->
-  <section id="archive">
-    <div class="container">
-      <div class="archive-search reveal pace-quick" id="search">
-        <label class="visually-hidden" for="hl-search-input">Search the archive, people, places, objects and events</label>
-        <div class="search-field" role="combobox" aria-haspopup="listbox" aria-owns="search-panel" aria-expanded="false">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
-          <input type="text" id="hl-search-input" autocomplete="off" spellcheck="false"
-                 placeholder="Search stories, people, places, objects, events…"
-                 aria-controls="search-panel" aria-autocomplete="list" aria-activedescendant="">
-          <button type="button" class="search-clear" id="search-clear" aria-label="Clear search" hidden>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"/></svg>
-          </button>
-        </div>
-        <div class="search-panel" id="search-panel" role="listbox" aria-label="Search results" hidden></div>
-        <p class="visually-hidden" id="search-status" aria-live="polite"></p>
-      </div>
-
-      <div class="section-head reveal pace-quick">
-        <p class="eyebrow">The archive</p>
-        <h2>Every Friday, a story — kept.</h2>
-        <p class="archive-fragment">The complete Harlan's Legacy archive is being gathered and added progressively. Each memory is kept the same way — completely, and on purpose.</p>
-        <p class="archive-fragment" style="margin-top: var(--sp-3);">If you came for this week's story, you've already had it — everything below is only for anyone who'd like to stay a little longer.</p>
-      </div>
-
-      <div class="chip-row" role="group" aria-label="Filter stories by theme">
-        <button class="chip" data-filter="all" aria-pressed="true">All stories</button>
-        <button class="chip" data-filter="funny" aria-pressed="false"><span class="dot" style="background:var(--thread-funny)"></span>Funny Harlan Stories</button>
-        <button class="chip" data-filter="momdad" aria-pressed="false"><span class="dot" style="background:var(--thread-momdad)"></span>Mom and Dad Stories</button>
-        <button class="chip" data-filter="toledo" aria-pressed="false"><span class="dot" style="background:var(--thread-toledo)"></span>Toledo Childhood</button>
-        <button class="chip" data-filter="shabbat" aria-pressed="false" title="Shabbat: the Jewish day of weekly rest, observed Friday evening through Saturday"><span class="dot" style="background:var(--thread-shabbat)"></span>Jewish Life / Shabbat</button>
-        <button class="chip" data-filter="grief" aria-pressed="false"><span class="dot" style="background:var(--thread-grief)"></span>Grief and Memory</button>
-        <button class="chip" data-filter="ordinary" aria-pressed="false"><span class="dot" style="background:var(--thread-ordinary)"></span>Ordinary Moments</button>
-      </div>
-
-      <div class="catalogue-grid reveal pace-quick" id="catalogue-grid">
-        <p class="visually-hidden" id="catalogue-status" aria-live="polite"></p>
-
-        <!-- HL:ARCHIVE_CARDS:START -->
-        <a class="card-catalogue" data-theme="funny" style="--tab-color:var(--thread-funny)" href="story/305-the-tattoo-that-wasnt.html">
-          <span class="cc-plate"><picture><source type="image/webp" srcset="assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.176.webp 176w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.352.webp 352w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.528.webp 528w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.768.webp 768w" sizes="(max-width:640px) 92vw, 340px"><img src="assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.768.jpg" srcset="assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.176.jpg 176w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.352.jpg 352w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.528.jpg 528w, assets/story-photos/story-305/774157024-1080331681129107-71235752380147178-n.portrait.768.jpg 768w" sizes="(max-width:640px) 92vw, 340px" width="768" height="768" style="object-position:50% 50%" alt="The Tattoo That Wasn’t" loading="lazy" decoding="async"></picture></span>
-          <span class="stamp">#388 &middot; Aug 2026</span>
-          <h3>The Tattoo That Wasn’t</h3>
-          <p class="teaser">This week’s memorial blog is number 388, and as we look at this week’s Torah portion, Shoftim, we are given a powerful…</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-funny)"></span>Funny Harlan Stories</span>
-        </a>
-
-        <a class="card-catalogue" data-theme="grief" style="--tab-color:var(--thread-grief)" href="story/304-the-red-suitcase.html">
-          <span class="cc-plate"><picture><source type="image/webp" srcset="assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.176.webp 176w, assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.352.webp 352w" sizes="(max-width:640px) 92vw, 340px"><img src="assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.352.jpg" srcset="assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.176.jpg 176w, assets/story-photos/story-304/765872306-26888809170796179-5505727250538762647-n.portrait.352.jpg 352w" sizes="(max-width:640px) 92vw, 340px" width="352" height="352" style="object-position:50% 50%" alt="The Red Suitcase" loading="lazy" decoding="async"></picture></span>
-          <span class="stamp">Aug 2026</span>
-          <h3>The Red Suitcase</h3>
-          <p class="teaser">Harlan and I were old enough to remember hard-sided Samsonite suitcases from before rolling wheels and extendable…</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-grief)"></span>Grief and Memory</span>
-        </a>
-
-        <a class="card-catalogue is-words" data-theme="shabbat" style="--tab-color:var(--thread-shabbat)" href="story/303-following-the-trail-harlan-left-us.html">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">Jul 2026</span>
-          <h3>Following the Trail Harlan Left Us</h3>
-          <p class="teaser">Six months ago, we shared a Shabbat Shalom post about the Yaffe family tree and opened it with three simple words: Six…</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-shabbat)"></span>Jewish Life / Shabbat</span>
-        </a>
-
-        <a class="card-catalogue is-words" data-theme="momdad" style="--tab-color:var(--thread-momdad)" href="story/214-the-blue-chair.html">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">Sep 2021</span>
-          <h3>The Blue Chair</h3>
-          <p class="teaser">He rescued that chair from the curb three times.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-momdad)"></span>Mom and Dad Stories</span>
-        </a>
-
-        <article class="card-catalogue is-words" data-theme="shabbat" style="--tab-color:var(--thread-shabbat)">
-          <span class="cc-mark" aria-hidden="true"></span>
-          <span class="stamp">Dec 2020</span>
-          <h3>Shabbat With No Candles</h3>
-          <p class="teaser">The year the power went out, and we lit the week anyway.</p>
-          <span class="theme-label"><span class="dot" style="background:var(--thread-shabbat)"></span>Jewish Life / Shabbat</span>
-        </article>
-            <!-- HL:ARCHIVE_CARDS:END -->
-      </div>
-      <p class="catalogue-empty" id="catalogue-empty">No stories found for that thread yet — try a different one, or browse everything above.</p>
-
-      <div class="archive-cta">
-        <span class="btn btn-quiet" aria-disabled="true">The full Archive is being gathered and added progressively →</span>
-        <small>Search above spans every story, person, place, object and event kept so far; filtering continues to grow as the archive is added.</small>
       </div>
     </div>
   </section>
@@ -2046,7 +1865,7 @@ footer{
           <li><a href="#hero">Start Here</a></li>
           <li><a href="#discover">Discover</a></li>
           <li><a href="#this-week">This Week's Story</a></li>
-          <li><a href="#archive">The Archive</a></li>
+          <li><a href="archive.html">The Archive</a></li>
           <li><a href="family.html">The Family</a></li>
           <li><a href="#book">The Book</a></li>
         </ul>
@@ -2065,12 +1884,13 @@ footer{
   </div>
 </footer>
 
-<!-- Search & Discovery index — generated from stories.json + entities.json by build.js. -->
-<!-- HL:SEARCH_INDEX:START --><script id="hl-search-index" type="application/json">[{"type":"journey","title":"Humor","subtitle":"1 memory · a journey","url":"journey/humor.html","badge":"Journey","memories":1,"keywords":"humor funny harlan stories the stories that made everyone laugh, and a few that still do. some of what a person leaves behind is simply the way they made a room feel lighter. these are the fridays that begin with a straight face and end with the whole table laughing. journey discover harlan"},{"type":"journey","title":"Loss & Memory","subtitle":"1 memory · a journey","url":"journey/loss-memory.html","badge":"Journey","memories":1,"keywords":"loss & memory grief and memory what remains after someone is gone — and how the remembering keeps going. this is the quietest part of the archive. not the ending, but everything that keeps on after one — the chair no one could sit in, and the fridays that kept coming anyway. journey discover harlan"},{"type":"journey","title":"Family & Home","subtitle":"1 memory · a journey","url":"journey/family-home.html","badge":"Journey","memories":1,"keywords":"family & home mom and dad stories the people he came from, and the home they made together. every family has a centre of gravity. walk into the rooms harlan grew up in and later kept — the parents, the chair, the ordinary devotions that hold a family together. journey discover hal harlan"},{"type":"journey","title":"Faith & Traditions","subtitle":"2 memories · a journey","url":"journey/faith-traditions.html","badge":"Journey","memories":2,"keywords":"faith & traditions jewish life / shabbat shabbat kept most fridays — sometimes imperfectly, always on purpose. faith here is less a doctrine than a rhythm: candles, a table, a week set down gently. follow the traditions that returned every friday, whatever else the year had done. journey discover harlan hal"},{"type":"story","title":"Shabbat With No Candles","subtitle":"Coming soon · Jewish Life / Shabbat","url":"#archive","badge":"Story","related":2,"keywords":"shabbat with no candles the year the power went out, and we lit the week anyway. jewish life / shabbat dec 2020 story harlan hal"},{"type":"story","title":"The Blue Chair","subtitle":"Mom and Dad Stories","url":"story/214-the-blue-chair.html","badge":"Story","related":5,"keywords":"the blue chair he rescued that chair from the curb three times. mom and dad stories c. late 1990s–2010s — spans roughly two decades, no single date iii — mom, dad and home sep 2021 story harlan hal harlan's wife (unnamed in this telling) the den (family home, toledo, ohio) the blue recliner harlan's death (a tuesday in march, year unspecified) his wife sitting in the chair for the first time, about a year later"},{"type":"story","title":"Following the Trail Harlan Left Us","subtitle":"Jewish Life / Shabbat","url":"story/303-following-the-trail-harlan-left-us.html","badge":"Story","related":2,"keywords":"following the trail harlan left us six months ago, we shared a shabbat shalom post about the yaffe family tree and opened it with three simple words: six… jewish life / shabbat jewish life / shabbat jul 2026 story harlan toledo, ohio family harlan julius yaffe tree father harry born toledo ohio"},{"type":"story","title":"The Red Suitcase","subtitle":"Grief and Memory","url":"story/304-the-red-suitcase.html","badge":"Story","related":1,"keywords":"the red suitcase harlan and i were old enough to remember hard-sided samsonite suitcases from before rolling wheels and extendable… grief and memory aug 2026 story harlan harlan’s suitcase carried state harlan days remember something"},{"type":"story","title":"The Tattoo That Wasn’t","subtitle":"#388 · Funny Harlan Stories","url":"story/305-the-tattoo-that-wasnt.html","badge":"Story","related":1,"keywords":"the tattoo that wasn’t this week’s memorial blog is number 388, and as we look at this week’s torah portion, shoftim, we are given a powerful… funny harlan stories aug 2026 story issue 388 blog issue 388 harlan harlan justice lesson ourselves uncle look childhood ever"},{"type":"person","title":"Marvin J. Yaffe","subtitle":"Father of Harlan and Hal","url":"family/marvin-yaffe.html","badge":"Person","memories":0,"related":0,"portrait":"assets/photos/marvin/516607523-10228458948408089-8744987781729357311-n.portrait.176.jpg","keywords":"marvin j. yaffe marvin j. yaffe father of harlan and hal person family"},{"type":"person","title":"Zandra L. Yaffe","subtitle":"Mother of Harlan and Hal","url":"family/zandra-yaffe.html","badge":"Person","memories":0,"related":0,"portrait":"assets/photos/zandra/464922816-10225644168720356-7727881483837371960-n-1.portrait.176.jpg","keywords":"zandra l. yaffe zandra l. yaffe (née levine) mother of harlan and hal person family"},{"type":"person","title":"Harlan","subtitle":"The subject of every story","url":"family/harlan.html","badge":"Person","memories":5,"related":5,"portrait":"assets/photos/harlan/508556147-10228078061326150-5638579625169660949-n.portrait.176.jpg","keywords":"harlan harlan blaine yaffe the subject of every story person family"},{"type":"person","title":"Hal","subtitle":"Harlan's brother","url":"family/hal.html","badge":"Person","memories":2,"related":4,"portrait":"assets/photos/hal/hal.portrait.176.jpg","keywords":"hal hal f. yaffe harlan's brother person family"},{"type":"place","title":"The den","subtitle":"1 story","url":"place/the-den.html","badge":"Place","memories":1,"related":4,"keywords":"the den a family home in toledo, ohio the den (family home, toledo, ohio) the den place"},{"type":"place","title":"Toledo, Ohio","subtitle":"1 story","url":"place/toledo-ohio.html","badge":"Place","memories":1,"related":1,"keywords":"toledo, ohio where the family's funeral arrangements were held toledo toledo, ohio place"},{"type":"object","title":"The blue recliner","subtitle":"1 story","url":"object/the-blue-recliner.html","badge":"Object","memories":1,"related":4,"keywords":"the blue recliner rescued from the curb three times over twenty years the blue recliner the blue chair object"},{"type":"event","title":"Harlan's passing","subtitle":"1 story","url":"event/harlans-death.html","badge":"Event","memories":1,"related":4,"keywords":"harlan's passing funeral arrangements were held in toledo, ohio. harlan's death (a tuesday in march, year unspecified) harlan's death harlan's passing event"}]</script><!-- HL:SEARCH_INDEX:END -->
 
 <script>
 (function(){
   "use strict";
+
+  // The complete archive now has its own page; keep old links to #archive working.
+  if (location.hash === "#archive") { location.replace("archive.html"); return; }
 
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -2291,41 +2111,6 @@ footer{
     input.focus();
   });
 
-  /* ---------- Archive Catalogue: filter, don't render ----------
-     The cards above are injected by the build (HL:ARCHIVE_CARDS) from the
-     current story data — the archive is being gathered and added progressively.
-     This script never creates or removes them; it only shows/hides the
-     existing markup via the native `hidden` attribute, so the section
-     is fully present and readable even with JavaScript disabled. */
-  var catalogueCards = Array.prototype.slice.call(document.querySelectorAll(".card-catalogue"));
-  var emptyState = document.getElementById("catalogue-empty");
-  var catalogueStatus = document.getElementById("catalogue-status");
-  var themeNames = {
-    funny: "Funny Harlan Stories", momdad: "Mom and Dad Stories", toledo: "Toledo Childhood",
-    shabbat: "Jewish Life / Shabbat", grief: "Grief and Memory", ordinary: "Ordinary Moments"
-  };
-
-  function applyFilter(filter){
-    var visible = 0;
-    catalogueCards.forEach(function(card){
-      var match = (filter === "all") || (card.getAttribute("data-theme") === filter);
-      card.hidden = !match;
-      if (match) visible++;
-    });
-    emptyState.classList.toggle("is-visible", visible === 0);
-    var label = filter === "all" ? "all stories" : themeNames[filter];
-    catalogueStatus.textContent = "Showing " + visible + " of " + catalogueCards.length + " stories — " + label + ".";
-  }
-
-  var chips = document.querySelectorAll(".chip");
-  chips.forEach(function(chip){
-    chip.addEventListener("click", function(){
-      chips.forEach(function(c){ c.setAttribute("aria-pressed", "false"); });
-      chip.setAttribute("aria-pressed", "true");
-      applyFilter(chip.getAttribute("data-filter"));
-    });
-  });
-
   /* ---------- Newsletter (front-end only demo — needs a real backend) ---------- */
   var newsletterForm = document.getElementById("newsletter-form");
   var newsletterSubmit = document.getElementById("newsletter-submit");
@@ -2359,168 +2144,6 @@ footer{
       newsletterSubmit.textContent = originalLabel;
     }, reduceMotion ? 0 : 500);
   });
-
-  /* ---------- Search & Discovery ----------
-     Instant, grouped search over stories + people/places/objects/events.
-     The index is injected as JSON by build.js (from stories.json +
-     entities.json) — no data is hardcoded here, and it works with no
-     network request. Fully keyboard operable and screen-reader announced. */
-  (function initSearch(){
-    var input = document.getElementById("hl-search-input");
-    var panel = document.getElementById("search-panel");
-    var clearBtn = document.getElementById("search-clear");
-    var statusEl = document.getElementById("search-status");
-    var field = input && input.closest(".search-field");
-    var indexNode = document.getElementById("hl-search-index");
-    if (!input || !panel || !indexNode) return;
-
-    var INDEX = [];
-    try { INDEX = JSON.parse(indexNode.textContent || "[]"); } catch(e){ INDEX = []; }
-
-    var GROUPS = [
-      { type: "journey", label: "Memory journeys", color: "var(--ember-core)" },
-      { type: "story",  label: "Stories" },
-      { type: "person", label: "People",  color: "var(--thread-momdad)" },
-      { type: "place",  label: "Places",  color: "var(--thread-toledo)" },
-      { type: "object", label: "Objects", color: "var(--thread-ordinary)" },
-      { type: "event",  label: "Events",  color: "var(--thread-grief)" }
-    ];
-    var PER_GROUP = 6;
-    var results = [];   // flat list of {rec} in render order
-    var active = -1;
-
-    function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-    function escRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
-
-    function highlight(title, terms){
-      var valid = terms.filter(Boolean).map(escRe);
-      var t = title;
-      if (valid.length){
-        // Wrap matches in sentinels first, escape, then swap sentinels for <mark>,
-        // so escaping can never break the inserted tags.
-        t = t.replace(new RegExp("(" + valid.join("|") + ")", "ig"), "$1");
-      }
-      return esc(t).replace(//g, "<mark>").replace(//g, "</mark>");
-    }
-
-    function score(rec, q, terms){
-      var title = rec.title.toLowerCase();
-      if (title === q) return 100;
-      if (title.indexOf(q) === 0) return 80;
-      if (title.indexOf(q) !== -1) return 60;
-      // all terms present in keywords
-      var kw = rec.keywords;
-      for (var i = 0; i < terms.length; i++){ if (kw.indexOf(terms[i]) === -1) return 0; }
-      return 30;
-    }
-
-    function search(raw){
-      var q = raw.trim().toLowerCase();
-      if (!q){ close(); return; }
-      var terms = q.split(/\s+/);
-      var scored = [];
-      INDEX.forEach(function(rec){
-        var sc = score(rec, q, terms);
-        if (sc > 0) scored.push({ rec: rec, sc: sc });
-      });
-      scored.sort(function(a,b){ return b.sc - a.sc || a.rec.title.localeCompare(b.rec.title); });
-      render(scored, terms, q);
-    }
-
-    function render(scored, terms, q){
-      results = [];
-      var html = "";
-      var total = 0;
-      GROUPS.forEach(function(g){
-        var rows = scored.filter(function(x){ return x.rec.type === g.type; }).slice(0, PER_GROUP);
-        if (!rows.length) return;
-        total += rows.length;
-        var dot = g.color ? '<span class="dot" style="background:' + g.color + '"></span>' : '<span class="dot" style="background:var(--ember-core)"></span>';
-        html += '<div class="search-group" role="presentation">';
-        html += '<div class="search-group-title">' + dot + esc(g.label) + '</div>';
-        var gc = g.color || 'var(--ember-core)';
-        rows.forEach(function(x){
-          var i = results.length;
-          var rec = x.rec;
-          results.push(rec);
-          // Deep result: small portrait (or kind dot), title, meta + counts, type badge.
-          var media = rec.portrait
-            ? '<img class="sr-portrait" src="' + esc(rec.portrait) + '" width="36" height="36" alt="" loading="lazy" decoding="async">'
-            : '<span class="sr-dot-media" style="background:' + gc + '"></span>';
-          var counts = [];
-          if (rec.memories) counts.push(rec.memories + (rec.memories === 1 ? ' memory' : ' memories'));
-          if (rec.related) counts.push(rec.related + ' linked');
-          var meta = (rec.subtitle || counts.length)
-            ? '<span class="sr-meta">'
-              + (rec.subtitle ? '<span class="sr-sub2">' + esc(rec.subtitle) + '</span>' : '')
-              + (counts.length ? '<span class="sr-counts">' + esc(counts.join(' · ')) + '</span>' : '')
-              + '</span>'
-            : '';
-          var badge = rec.badge ? '<span class="sr-badge" style="border-color:' + gc + '">' + esc(rec.badge) + '</span>' : '';
-          html += '<a class="search-result deep" role="option" id="sr-' + i + '" tabindex="-1" href="' + esc(rec.url) + '">' +
-                    media +
-                    '<span class="sr-main"><span class="sr-title">' + highlight(rec.title, terms) + '</span>' + meta + '</span>' +
-                    badge + '</a>';
-        });
-        html += '</div>';
-      });
-      if (!total){
-        html = '<p class="search-empty">No matches for &ldquo;' + esc(q) + '&rdquo; yet.</p>';
-      }
-      panel.innerHTML = html;
-      open();
-      active = -1;
-      statusEl.textContent = total ? (total + " result" + (total === 1 ? "" : "s") + " for " + q) : ("No results for " + q);
-      // Clicking a result closes the panel (navigation happens via the href).
-      panel.querySelectorAll(".search-result").forEach(function(a){
-        a.addEventListener("mousedown", function(){ /* allow default navigation */ });
-      });
-    }
-
-    function open(){ panel.hidden = false; if (field) field.setAttribute("aria-expanded", "true"); }
-    function close(){
-      panel.hidden = true; panel.innerHTML = ""; active = -1; results = [];
-      if (field) field.setAttribute("aria-expanded", "false");
-      input.setAttribute("aria-activedescendant", "");
-    }
-
-    function setActive(i){
-      var nodes = panel.querySelectorAll(".search-result");
-      if (!nodes.length) return;
-      if (i < 0) i = nodes.length - 1;
-      if (i >= nodes.length) i = 0;
-      nodes.forEach(function(n){ n.classList.remove("is-active"); });
-      active = i;
-      var el = nodes[active];
-      el.classList.add("is-active");
-      el.scrollIntoView({ block: "nearest" });
-      input.setAttribute("aria-activedescendant", el.id);
-    }
-
-    input.addEventListener("input", function(){
-      clearBtn.hidden = !input.value;
-      search(input.value);
-    });
-
-    input.addEventListener("keydown", function(e){
-      if (e.key === "ArrowDown"){ e.preventDefault(); if (panel.hidden) search(input.value); else setActive(active + 1); }
-      else if (e.key === "ArrowUp"){ e.preventDefault(); setActive(active - 1); }
-      else if (e.key === "Enter"){
-        if (active >= 0 && results[active]){ e.preventDefault(); window.location.href = results[active].url; }
-      }
-      else if (e.key === "Escape"){ if (!panel.hidden){ e.preventDefault(); close(); } else { input.value = ""; clearBtn.hidden = true; } }
-    });
-
-    clearBtn.addEventListener("click", function(){
-      input.value = ""; clearBtn.hidden = true; close(); input.focus();
-    });
-
-    // Close when focus/click leaves the search widget.
-    document.addEventListener("click", function(e){
-      if (!e.target.closest(".archive-search")) close();
-    });
-    input.addEventListener("focus", function(){ if (input.value) search(input.value); });
-  })();
 
   /* ---------- Footer year ---------- */
   document.getElementById("year").textContent = new Date().getFullYear();

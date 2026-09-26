@@ -55,9 +55,21 @@
   }
 
   /* ---- About exhibit: rotating framed portraits (homepage only) ----
-     A slow, cinematic cross-dissolve through the family's faces. It never
-     competes with reading (long dwell, gentle fade), pauses when the tab is
-     hidden, and holds a single portrait under prefers-reduced-motion. */
+     One real family photograph per person (build.js renderHomePortraits),
+     captioned, changing quietly like prints on a wall: no controls, no
+     sliding, no zoom, just a crossfade of the new print over the old one.
+       • every ROTATE ms while the exhibit is on screen; paused when it is off
+         screen or the tab is hidden
+       • only the NEXT slide is ever fetched (its data-src/srcset are armed
+         once the exhibit is on screen) and decoded; a turn whose photograph
+         is not ready yet is skipped, so the frame is never blank
+       • reduced motion (the site convention, as in the hero): the same,
+         slower, with a longer, softer fade (opacity only) — index.html keeps
+         that transition alive under the global reduced-motion guard
+       • Data Saver / 2G: the first portrait stays
+     Before: reduced motion returned here, so on any device with animation
+     effects turned off (a common Windows / iOS setting) the exhibit showed a
+     single portrait forever. */
   (function initAboutPortraits() {
     var fig = document.getElementById("about-portrait");
     if (!fig) return;
@@ -76,47 +88,76 @@
     }
     setCaption(slides[idx]);
 
-    if (reduceMotion || slides.length < 2) return;
-    var ROTATE = 6500, timer = null, inView = false, primed = false;
+    if (slides.length < 2 || !("IntersectionObserver" in window)) return;
+    var conn = navigator.connection;
+    if (conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ""))) return;
+    // reserve the tallest caption, so a longer name / role that wraps on a
+    // narrow screen never nudges the text column as the portraits change
+    function reserveCaption() {
+      if (!caption) return;
+      caption.style.minHeight = "";
+      var tallest = 0;
+      slides.forEach(function (s) { setCaption(s); tallest = Math.max(tallest, Math.ceil(caption.getBoundingClientRect().height)); });
+      setCaption(slides[idx]);
+      caption.style.minHeight = tallest + "px";
+    }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(reserveCaption); else reserveCaption();
+    var rsz = null;
+    window.addEventListener("resize", function () { window.clearTimeout(rsz); rsz = window.setTimeout(reserveCaption, 200); });
+    var ROTATE = reduceMotion ? 7000 : 5000;   // dwell per portrait
+    var FADE = reduceMotion ? 1000 : 700;      // matches the CSS crossfade on .ap-slide
+    var z = 1, next = -1, ready = false, loading = false, timer = null, inView = false;
+    slides[idx].style.zIndex = "1";
 
-    // Root cause of "rotates on mobile, not desktop": the exhibit sits far
-    // below the fold on desktop, so its slide images stay lazy/unloaded and the
-    // timer (started at load) cross-dissolves through blank frames — it looks
-    // frozen. Fix: only rotate while the exhibit is actually on screen, and
-    // eagerly decode every slide the first time it appears, so each dissolve
-    // always lands on a real photograph. This is also more efficient — no work
-    // happens while the exhibit is off-screen.
-    function prime() {
-      if (primed) return; primed = true;
-      slides.forEach(function (s) {
-        var img = s.querySelector("img");
-        if (!img) return;
-        img.loading = "eager";
-        if (!(img.complete && img.naturalWidth > 0)) {
-          var pre = new Image();
-          if (img.currentSrc || img.getAttribute("src")) pre.src = img.currentSrc || img.getAttribute("src");
-        }
+    // give a deferred slide its real sources (build.js leaves them as data-*)
+    function arm(s) {
+      var img = s.querySelector("img");
+      if (!img) return null;
+      img.removeAttribute("loading");
+      Array.prototype.forEach.call(s.querySelectorAll("[data-srcset]"), function (el) {
+        el.setAttribute("srcset", el.getAttribute("data-srcset")); el.removeAttribute("data-srcset");
       });
+      if (img.hasAttribute("data-src")) { img.setAttribute("src", img.getAttribute("data-src")); img.removeAttribute("data-src"); }
+      return img;
+    }
+    // fetch + decode only the next portrait
+    function prepare() {
+      var i = (idx + 1) % slides.length;
+      if (i === next && (ready || loading)) return;
+      next = i; ready = false; loading = true;
+      var img = arm(slides[i]);
+      var settle = function (ok) { if (next !== i) return; loading = false; ready = ok; if (!ok) next = -1; };
+      if (!img) settle(false);
+      else if (img.decode) img.decode().then(function () { settle(true); }, function () { settle(false); });
+      else if (img.complete && img.naturalWidth) settle(true);
+      else { img.onload = function () { settle(true); }; img.onerror = function () { settle(false); }; }
     }
     function tick() {
-      var prev = slides[idx];
-      idx = (idx + 1) % slides.length;
-      var next = slides[idx];
-      next.classList.add("is-visible");
-      prev.classList.remove("is-visible");
-      setCaption(next);
+      if (!ready || next < 0) { prepare(); return; }   // never cut to an unready portrait
+      // the new print fades in ON TOP of the old one (which stays opaque
+      // beneath, so the frame never dims mid-fade); the old one is hidden after
+      var prev = slides[idx], s = slides[next];
+      s.style.zIndex = String(++z);
+      s.classList.add("is-visible");
+      setCaption(s);
+      idx = next; next = -1; ready = false;
+      window.setTimeout(function () { prev.classList.remove("is-visible"); prepare(); }, FADE + 60);
     }
     function running() { return inView && !document.hidden; }
-    function schedule() { window.clearTimeout(timer); if (running()) timer = window.setTimeout(function () { tick(); schedule(); }, ROTATE); }
-    document.addEventListener("visibilitychange", schedule);
-    if ("IntersectionObserver" in window) {
-      var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (en) { inView = en.isIntersecting; if (inView) prime(); schedule(); });
-      }, { threshold: 0.25 });
-      io.observe(fig);
-    } else {
-      inView = true; prime(); schedule();
+    function schedule() {
+      window.clearTimeout(timer); timer = null;
+      if (running()) timer = window.setTimeout(function () { tick(); schedule(); }, ROTATE);
     }
+    document.addEventListener("visibilitychange", schedule);
+    // once any of the exhibit is on screen: fetch the next portrait (one
+    // image). While enough of it is on screen: rotate; otherwise pause.
+    new IntersectionObserver(function (entries) {
+      var e = entries[entries.length - 1];
+      if (e.isIntersecting) prepare();
+      var was = inView;
+      inView = e.isIntersecting && e.intersectionRatio >= 0.25;
+      if (inView !== was) schedule();
+    }, { threshold: [0, 0.25] }).observe(fig);
   })();
 
   /* ---- Hero candle cinemagraph ----

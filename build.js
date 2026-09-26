@@ -25,7 +25,8 @@ const { buildGraph, KIND, entityUrl } = require("./lib/graph.js");
 const journeysLib = require("./lib/journeys.js");
 const exploreLib = require("./lib/explore.js");
 const readerLib = require("./lib/reader.js");
-const archiveLib = require("./lib/archive.js");   // the dedicated Archive page (archive.html)
+const archiveLib = require("./lib/archive.js");
+const { resolveAbout } = require("./lib/discover-pools.js");   // curated About portraits (disjoint from the Discover pools)   // the dedicated Archive page (archive.html)
 const { brandLogo, BRAND_CSS } = require("./lib/brand.js");   // primary brand mark (header + mobile menu)
 
 const { ROOT } = require("./lib/paths.js");   // app dir locally; a writable dir on read-only hosts
@@ -313,26 +314,30 @@ function renderBookProgress(site) {
   return `        <p class="book-progress">${text(site.book.progress)}</p>`;
 }
 
-// Rotating framed portraits for the About exhibit (homepage only). Data-driven
-// from the visible family members who have a primary photograph; the rotation
-// itself (crossfade, pause, reduced-motion) is handled in experience.js.
+// Rotating framed portraits for the About exhibit (homepage only): one curated
+// family photograph per person (lib/discover-pools.js ABOUT — never one a
+// Discover card uses), captioned with that person's name and role. Only the
+// first slide carries a real src; the others hold data-src/data-srcset so
+// nothing downloads until experience.js arms the next slide as it rotates
+// (crossfade, pause, reduced-motion and slow-network handling live there).
 function renderHomePortraits(entities) {
   const people = ((entities.family && entities.family.people) || []).filter(p => !p.hidden);
-  const withPhoto = people.filter(p => p.photos && !Array.isArray(p.photos) && p.photos.items && p.photos.items.length && p.photos.primary);
+  const byId = {};
+  people.forEach(p => { byId[p.id] = p; });
   const sizes = "(max-width:720px) 60vw, 300px";
-  return withPhoto.map((p, i) => {
-    const ph = p.photos;
-    const it = ph.items.find(x => x.id === ph.primary) || ph.items[0];
-    if (!it || !it.portrait || !it.portrait.length) return "";
-    const dir = `assets/photos/${p.id}/`;
-    const set = ext => it.portrait.map(w => `${dir}${it.id}.portrait.${w}.${ext} ${w}w`).join(", ");
-    const largest = it.portrait[it.portrait.length - 1];
+  return resolveAbout(byId).map(({ person, it, kind, widths }, i) => {
+    const p = byId[person];
+    const dir = `assets/photos/${person}/`;
+    const set = ext => widths.map(w => `${dir}${it.id}.${kind}.${w}.${ext} ${w}w`).join(", ");
+    const largest = widths[widths.length - 1];
     const f = it.focus || { x: 50, y: 42 };
-    const pic = `<picture><source type="image/webp" srcset="${set("webp")}" sizes="${sizes}">` +
-      `<img src="${dir}${it.id}.portrait.${largest}.jpg" srcset="${set("jpg")}" sizes="${sizes}" ` +
-      `width="${largest}" height="${largest}" style="object-position:${f.x}% ${f.y}%" alt="" loading="lazy" decoding="async"></picture>`;
+    const a = i === 0 ? "" : "data-";   // later slides: deferred until armed
+    const dims = kind === "portrait" ? `width="${largest}" height="${largest}"` : `width="${it.width || largest}" height="${it.height || largest}"`;
+    const pic = `<picture><source type="image/webp" ${a}srcset="${set("webp")}" sizes="${sizes}">` +
+      `<img ${a}src="${dir}${it.id}.${kind}.${largest}.jpg" ${a}srcset="${set("jpg")}" sizes="${sizes}" ` +
+      `${dims} style="object-position:${f.x}% ${f.y}%" alt="" loading="lazy" decoding="async"></picture>`;
     return `          <span class="ap-slide${i === 0 ? " is-visible" : ""}" data-name="${attr(p.name)}" data-role="${attr(p.role || "")}">${pic}</span>`;
-  }).filter(Boolean).join("\n");
+  }).join("\n");
 }
 
 /* ---------- index.html ---------- */

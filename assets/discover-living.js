@@ -11,10 +11,12 @@
      • a card never shows the photograph it already shows, nor one another
        card is showing (the curated pools are also disjoint)
      • only the NEXT photograph of each card is fetched and decoded, and only
-       once the section approaches the viewport; a frame is never shown
-       before it has decoded, so a card is never blank
+       once the section is on screen (the first change waits FIRST ms, time
+       enough to decode); a frame is never shown before it has decoded, so a
+       card is never blank — on a slow connection a turn is simply skipped
      • paused when the section is off screen or the tab is hidden
-     • prefers-reduced-motion: nothing runs — the first photograph stays
+     • prefers-reduced-motion: the same, slower (5.4 s) with a softer fade;
+       Data Saver / 2G: nothing runs — the first photograph stays
 
    Sequence data comes from build.js (lib/journeys.js livingCover), as
    data-living on each .jc-living cover. Progressive enhancement only.
@@ -23,13 +25,17 @@
   "use strict";
   var covers = Array.prototype.slice.call(document.querySelectorAll(".jc-living[data-living]"));
   if (!covers.length || !("IntersectionObserver" in window)) return;
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   var conn = navigator.connection;                       // Data Saver / 2G: keep the first photograph
   if (conn && (conn.saveData || /(^|-)2g$/.test(conn.effectiveType || ""))) return;
+  // Reduced motion (the site-wide convention, as in the hero): a gentler,
+  // opacity-only version, slower and softer, not a frozen one. A crossfade
+  // has no movement, zoom or flashing; index.html restores the transition
+  // under the global reduced-motion guard at the matching (longer) length.
+  var gentle = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var INTERVAL = 3600;   // each card changes about every 3.6 s
-  var FADE = 650;        // crossfade length (CSS transition on .jl-frame)
-  var FIRST = 2400;      // the first change waits for the section to settle in view
+  var INTERVAL = gentle ? 5400 : 3600;   // each card changes about every 3.6 s (5.4 s gently)
+  var FADE = gentle ? 950 : 650;         // crossfade length (CSS transition on .jl-frame)
+  var FIRST = 2400;                      // the first change waits for the section to settle in view
 
   var cards = covers.map(function (el) {
     var seq = []; try { seq = JSON.parse(el.getAttribute("data-living")) || []; } catch (e) {}
@@ -104,14 +110,14 @@
   function stop() { clearTimeout(lead); lead = null; clearInterval(timer); timer = null; }
 
   var section = cards[0].el.closest(".discover-grid") || cards[0].el;
-  // as the section approaches: fetch each card's next photograph (one image per card)
+  // once any of the section is on screen: fetch each card's next photograph
+  // (one image per card; nothing is downloaded for a visitor who never
+  // scrolls this far). While enough of it is on screen: rotate; otherwise pause.
   new IntersectionObserver(function (entries) {
-    if (entries.some(function (e) { return e.isIntersecting; })) cards.forEach(prepare);
-  }, { rootMargin: "400px 0px" }).observe(section);
-  // while it is actually on screen: rotate; otherwise pause
-  new IntersectionObserver(function (entries) {
-    inView = entries.some(function (e) { return e.isIntersecting; });
+    var e = entries[entries.length - 1];
+    if (e.isIntersecting) cards.forEach(prepare);
+    inView = e.isIntersecting && e.intersectionRatio >= 0.12;
     if (inView) start(); else stop();
-  }, { threshold: 0.12 }).observe(section);
+  }, { threshold: [0, 0.12] }).observe(section);
   document.addEventListener("visibilitychange", function () { if (document.hidden) stop(); else start(); });
 })();

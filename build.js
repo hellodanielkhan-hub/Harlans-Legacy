@@ -289,7 +289,7 @@ function buildIndex(site, stories, featured, journeys, entities) {
     html = injectRegion(html, "TW_BODY", renderThisWeekBody(featured));
   }
   html = injectRegion(html, "ABOUT_PORTRAITS", renderHomePortraits(entities));
-  html = injectRegion(html, "DISCOVER", journeysLib.renderDiscoverCards(journeys || [], ""));
+  html = injectRegion(html, "DISCOVER", journeysLib.renderDiscoverCards(journeys || [], "", entities));
   html = injectRegion(html, "ARCHIVE_CARDS", renderArchiveCards(stories));
   html = injectRegion(html, "ARCHIVE_COUNT", `${site.archiveTotal}`);
   html = injectRegion(html, "QUOTE", renderQuote(site));

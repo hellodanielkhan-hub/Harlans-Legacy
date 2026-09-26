@@ -347,7 +347,7 @@ function buildIndex(site, stories, featured, journeys, entities) {
   html = injectRegion(html, "TW_CODA", renderThisWeekCompanion(featured, stories));
   html = injectRegion(html, "ARCHIVE_INVITE", renderArchiveInvite(stories));
   html = injectRegion(html, "ABOUT_PORTRAITS", renderHomePortraits(entities));
-  html = injectRegion(html, "DISCOVER", journeysLib.renderDiscoverCards(journeys || [], ""));
+  html = injectRegion(html, "DISCOVER", journeysLib.renderDiscoverCards(journeys || [], "", entities));
   html = injectRegion(html, "QUOTE", renderQuote(site));
   html = injectRegion(html, "BOOK_PROGRESS", renderBookProgress(site));
 

@@ -156,12 +156,14 @@ async function handleApi(req, res, url) {
   const actor = auth.actor;
 
   try {
-    // ---- voice narration (async jobs) — shared router; local dev runs the worker in-process ----
+    // ---- voice narration (async jobs) — shared router. Jobs are drained by the standalone
+    // worker (lib/narration/worker.js); running synthesis inside this API process is an explicit
+    // local-dev opt-in (HARLAN_INPROCESS_WORKER=1), never the default. ----
     if (resource === "narration") {
       const body = req.method === "GET" ? {} : await readBody(req);
       const nres = await narrationApi.route(parts, req.method, body, actor);
       if (nres) {
-        if (nres.kick) setImmediate(() => narrationWorker.pump().catch(e => console.error("[narration] pump:", e.message)));
+        if (nres.kick && process.env.HARLAN_INPROCESS_WORKER === "1") setImmediate(() => narrationWorker.pump().catch(e => console.error("[narration] pump:", e.message)));
         if (nres.rebuild) { try { rebuild(); } catch (e) {} }
         if (nres.redirect) { res.writeHead(302, { Location: nres.redirect }); return res.end(); }
         return sendJSON(res, nres.status, nres.body);

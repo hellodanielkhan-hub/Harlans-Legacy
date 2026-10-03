@@ -95,8 +95,18 @@
     return '<span class="st st-'+st+'"><span class="dot"></span>'+(labels[st]||st)+'</span>'; }
 
   function render(data){
-    var eng=el("nl-engine"); eng.textContent = data.engineConfigured ? ("engine: configured ("+data.voiceId+" v"+data.voiceVersion+")") : "engine: not configured";
-    eng.className = "nl-engine " + (data.engineConfigured ? "on" : "off");
+    // The engine runs on the standalone GPU worker, never on this API host: show its liveness.
+    var eng=el("nl-engine"), w=data.worker, on;
+    if (w) {
+      var lw=(w.workers||[]).filter(function(x){return x.live;})[0];
+      on=!!w.live;
+      eng.textContent = on ? ("worker: online"+(lw&&lw.gpu?" — "+lw.gpu:"")+(lw&&lw.busyJob?" (generating "+lw.busyJob+")":"")+" · "+data.voiceId+" v"+data.voiceVersion)
+                           : ("worker: offline"+(w.lastSeenAt?" — last seen "+new Date(w.lastSeenAt).toLocaleString():" — never reported")+". Generate requests will wait, then fail.");
+    } else {
+      on=!!data.engineConfigured;
+      eng.textContent = on ? ("engine: configured ("+data.voiceId+" v"+data.voiceVersion+")") : "engine: not configured";
+    }
+    eng.className = "nl-engine " + (on ? "on" : "off");
     var c=data.counts||{};
     el("nl-counts").innerHTML = ["total","queued","running","ready","failed","cancelled"].map(function(k){ return '<span class="nl-chip">'+k+' <b>'+(c[k]||0)+'</b></span>'; }).join("");
 

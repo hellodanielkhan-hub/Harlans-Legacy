@@ -18,6 +18,7 @@ param(
   [int]$EngineTimeoutMin = 60
 )
 $ErrorActionPreference = "Stop"
+try { $Host.UI.RawUI.WindowTitle = "Harlan's Legacy narration GPU worker (keep open)" } catch {}
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $python = Join-Path $VoiceLab "venv-cuda\Scripts\python.exe"
 $golden = Join-Path $VoiceLab "harlan_golden.py"

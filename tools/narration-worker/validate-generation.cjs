@@ -86,6 +86,12 @@ async function manifestExists(storyId) {
   if (!v.voiceVersion || !v.voiceId) f.push("no voice metadata"); else ok.push("voice " + v.voiceId + " v" + v.voiceVersion);
   if (EXPECT_DEVICE && String(p.device || "").indexOf(EXPECT_DEVICE) !== 0) f.push("synthesis device " + p.device + " (expected " + EXPECT_DEVICE + ")"); else ok.push("synthesis device " + p.device);
   if (await manifestExists(STORY) && rec.status !== "approved") f.push("public manifest exists before approval"); else ok.push("no public manifest");
+  const er = v.engineRelease;
+  if (process.argv.includes("--expect-release")) { if (!er || !er.manifestVerified) f.push("engine release not verified: " + JSON.stringify(er)); }
+  if (er) ok.push("engine release " + er.id + (er.manifestVerified ? " (files match manifest)" : " (NOT verified)") + ": harlan_golden.py " + String((er.files || {})["harlan_golden.py"]).slice(0, 16) + "…, platform_audio.py " + String((er.files || {})["platform_audio.py"]).slice(0, 16) + "…");
+  else ok.push("engine release: legacy single-file engine (unversioned)");
+  if (v.stageMemory) ok.push("stage memory: synth " + JSON.stringify(v.stageMemory.synth) + " · align " + JSON.stringify(v.stageMemory.align));
+  if (v.alignMode) ok.push("alignment mode " + JSON.stringify(v.alignMode));
 
   console.log((f.length ? "FAIL " : "PASS ") + "story " + STORY + " " + v.generationId + " (" + (store.USE_SUPABASE ? "production private bucket" : "local files") + ")");
   ok.forEach(x => console.log("   ok   " + x));

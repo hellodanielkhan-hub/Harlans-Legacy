@@ -35,6 +35,8 @@
   .nl-row-actions{ display:flex; gap:.35rem; flex-wrap:wrap; }
   .nl-row-actions .btn{ padding:.35rem .6rem; font-size:.74rem; }
   .nl-mut{ color:var(--ink-3); font-variant-numeric:tabular-nums; }
+  .nl-job{ font-size:11px; margin-top:4px; word-break:break-all; }
+  .nl-err{ font-size:12px; margin-top:4px; color:var(--danger); max-width:360px; }
   .backlink{ color:var(--ink-2); font-size:.8rem; text-decoration:none; }
   .backlink:hover{ color:var(--ember); }
   #nl-audio{ width:100%; margin-top:.6rem; }
@@ -82,9 +84,20 @@
   "use strict";
   function tok(){ try { return sessionStorage.getItem("hl-admin-token") || ""; } catch(e){ return ""; } }
   function el(id){ return document.getElementById(id); }
-  function toast(m,k){ var t=el("toast"); t.textContent=m; t.className="toast show"+(k?" "+k:""); setTimeout(function(){ t.className="toast"; },3400); }
+  var toastT=null;
+  // errors stay up long enough to read and copy the job/request IDs (click to dismiss)
+  function toast(m,k){ var t=el("toast"); t.textContent=m; t.className="toast show"+(k?" "+k:""); clearTimeout(toastT); toastT=setTimeout(function(){ t.className="toast"; }, k==="err"?20000:3400); }
+  // Every call has a timeout and keeps the HTTP status + response body, so no request can hang silently.
   function api(method,path,body){ var h={"Content-Type":"application/json"}; var t=tok(); if(t) h["x-admin-token"]=t;
-    return fetch(path,{method:method,headers:h,body:body?JSON.stringify(body):undefined}).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; }); }); }
+    var ac=typeof AbortController!=="undefined"?new AbortController():null; var to=ac?setTimeout(function(){ ac.abort(); },30000):null;
+    return fetch(path,{method:method,headers:h,body:body?JSON.stringify(body):undefined,signal:ac?ac.signal:undefined})
+      .catch(function(e){ var err=new Error(e&&e.name==="AbortError"?"No response from the server within 30 s.":"Could not reach the server ("+(e&&e.message||e)+")."); err.network=true; throw err; })
+      .then(function(r){ return r.text().then(function(tx){ var j={}; try{ j=tx?JSON.parse(tx):{}; }catch(e){ j={error:"HTTP "+r.status+" (non-JSON response)"}; }
+        if(!r.ok){ var err=new Error(j.error||("HTTP "+r.status)); err.status=r.status; err.body=j; throw err; } return j; }); })
+      .finally(function(){ if(to) clearTimeout(to); }); }
+  function newRequestId(){ return "req_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8); }
+  function ago(ms){ if(!ms) return "—"; var s=Math.max(0,Math.round((Date.now()-ms)/1000)); return s<90?s+" s ago":Math.round(s/60)+" min ago"; }
+  function jobLine(j){ if(!j) return ""; return '<div class="nl-mut nl-job">job '+esc(j.id)+(j.requestId?' · request '+esc(j.requestId):'')+(j.workerId?' · worker '+esc(j.workerId):'')+(j.heartbeatAt?' · heartbeat '+ago(j.heartbeatAt):'')+'</div>'; }
   function fmtDur(s){ if(s==null) return "—"; s=Math.round(s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
   function fmtDate(iso){ if(!iso) return "—"; try{ return new Date(iso).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); }catch(e){ return iso; } }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"})[c];}); }
@@ -100,8 +113,9 @@
     if (w) {
       var lw=(w.workers||[]).filter(function(x){return x.live;})[0];
       on=!!w.live;
-      eng.textContent = on ? ("worker: online"+(lw&&lw.gpu?" — "+lw.gpu:"")+(lw&&lw.busyJob?" (generating "+lw.busyJob+")":"")+" · "+data.voiceId+" v"+data.voiceVersion)
-                           : ("worker: offline"+(w.lastSeenAt?" — last seen "+new Date(w.lastSeenAt).toLocaleString():" — never reported")+". Generate requests will wait, then fail.");
+      var sup=w.supervisor;
+      eng.textContent = on ? ("worker: online"+(lw&&lw.gpu?" — "+lw.gpu:"")+(lw&&lw.busyJob?" (generating "+lw.busyJob+")":"")+(lw&&lw.engineRelease?" · engine "+lw.engineRelease:"")+" · "+data.voiceId+" v"+data.voiceVersion+(sup&&sup.restarts?" · restarted "+sup.restarts+"× (last exit code "+(sup.lastExit?sup.lastExit.code:"?")+")":""))
+                           : ("worker: offline"+(w.lastSeenAt?" — last seen "+new Date(w.lastSeenAt).toLocaleString():" — never reported")+(w.offlineReason?". Reason: "+w.offlineReason:"")+". Generate requests are refused until it is back.");
     } else {
       on=!!data.engineConfigured;
       eng.textContent = on ? ("engine: configured ("+data.voiceId+" v"+data.voiceVersion+")") : "engine: not configured";
@@ -119,10 +133,11 @@
       if(r.state==="approved"){ acts.push('<button class="btn btn-ghost" data-act="preview" data-id="'+r.id+'" data-url="'+esc(r.generationId||"")+'">▶ Preview</button>'); acts.push('<button class="btn btn-ghost" data-act="generate" data-id="'+r.id+'">Regenerate</button>'); }
       if(r.state==="ready"){ acts.push('<button class="btn btn-soft" data-act="preview-ready" data-id="'+r.id+'">▶ Preview Narration</button>'); acts.push('<button class="btn btn-ghost" data-act="approve" data-id="'+r.id+'">Approve</button>'); acts.push('<button class="btn btn-ghost" data-act="generate" data-id="'+r.id+'">Regenerate</button>'); }
       if(r.state==="processing"){ acts.push('<span class="nl-mut">'+esc((r.job&&r.job.stage)||"working…")+'</span>'); }
+      var jobInfo = (r.state==="processing"||r.state==="failed") && r.job ? (r.state==="failed"&&r.job.error?'<div class="nl-err">'+esc(r.job.error.code?r.job.error.code+": ":"")+esc(r.job.error.message||"")+'</div>':"")+jobLine(r.job) : "";
       return '<tr>'+
         '<td>'+esc(r.title)+' <span class="nl-mut">· No. '+r.id+'</span></td>'+
         '<td class="nl-mut">'+esc(r.storyStatus)+'</td>'+
-        '<td>'+stateChip(r.state)+'</td>'+
+        '<td>'+stateChip(r.state)+jobInfo+'</td>'+
         '<td class="nl-mut">'+fmtDur(r.duration)+'</td>'+
         '<td class="nl-mut">'+(r.generationId?esc(r.generationId.slice(0,14)):"—")+'</td>'+
         '<td class="nl-mut">'+fmtDate(r.generatedAt)+'</td>'+
@@ -142,7 +157,11 @@
   }
 
   function rowAction(act,id,url){
-    if(act==="generate"){ api("POST","/api/narration/"+id+"/generate",{force:true}).then(function(r){ if(r.cached){ toast("Already approved for this text.","ok"); } else toast("Queued.","ok"); load(); }).catch(function(e){ toast("Generate failed: "+e.message,"err"); }); }
+    if(act==="generate"){ var rq=newRequestId();
+      api("POST","/api/narration/"+id+"/generate",{force:true,requestId:rq}).then(function(r){
+        if(r.cached){ toast("Already approved for this text.","ok"); } else toast((r.reused?"Already in progress":"Queued")+" — job "+(r.job&&r.job.id)+" (request "+(r.requestId||rq)+").","ok"); load(); })
+      .catch(function(e){ var b=e.body||{}; var jid=b.job&&b.job.id;
+        toast("Generate failed"+(e.status?" (HTTP "+e.status+")":"")+": "+e.message+(jid?" Job "+jid+".":"")+" Request "+(b.requestId||rq)+".","err"); load(); }); }
     else if(act==="approve"){ api("GET","/api/narration/"+id).then(function(st){ var v=(st.readyVersions||[])[0]; if(!v) return toast("Nothing ready to approve.","err"); return api("POST","/api/narration/"+id+"/approve",{generationId:v.generationId}).then(function(){ toast("Approved & rebuilt.","ok"); load(); }); }).catch(function(e){ toast("Approve failed: "+e.message,"err"); }); }
     else if(act==="preview"){ api("GET","/api/narration/"+id+"/preview/"+encodeURIComponent(url||"")).then(function(info){ playPreview(info.audioSrc); }).catch(function(e){ toast(e.message,"err"); }); }   // private storage: moderator-issued short-lived link
     else if(act==="preview-ready"){ window.open("/admin/narration-preview.html?story="+id, "hl-narration-preview-"+id); }
@@ -152,6 +171,7 @@
 
   function load(){ api("GET","/api/narration").then(render).catch(function(e){ if(/Unauthorized/i.test(e.message)){ el("tokbar").hidden=false; } el("nl-body").innerHTML='<tr><td colspan="8" class="nl-mut">'+esc(e.message)+'</td></tr>'; }); }
 
+  el("toast").addEventListener("click", function(){ el("toast").className="toast"; });
   el("gen-missing").addEventListener("click", function(){ if(!confirm("Queue narration for every story that is missing/outdated/failed? Approved+fresh narrations are left untouched.")) return; api("POST","/api/narration/generate-missing",{}).then(function(r){ toast("Queued "+r.count+" narration(s).","ok"); load(); }).catch(function(e){ toast(e.message,"err"); }); });
   el("retry-failed").addEventListener("click", function(){ api("POST","/api/narration/retry-failed",{}).then(function(r){ toast("Re-queued "+r.count+" failed.","ok"); load(); }).catch(function(e){ toast(e.message,"err"); }); });
   el("cancel-queued").addEventListener("click", function(){ api("POST","/api/narration/cancel-queued",{}).then(function(r){ toast("Cancelled "+r.cancelled+" queued.","ok"); load(); }).catch(function(e){ toast(e.message,"err"); }); });

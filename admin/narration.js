@@ -19,10 +19,34 @@
   function token() { try { return sessionStorage.getItem("hl-admin-token") || ""; } catch (e) { return ""; } }
   function el(id) { return document.getElementById(id); }
   function toast(msg, kind) { var t = el("toast"); if (!t) return; t.textContent = msg; t.className = "toast show" + (kind ? " " + kind : ""); setTimeout(function () { t.className = "toast"; }, 3400); }
-  function api(method, path, body) {
+  // Never wait silently: 30 s timeout, network failures reported as such, and the
+  // server's error body (code, job, request id) kept on the thrown error.
+  function api(method, path, body, timeoutMs) {
     var h = { "Content-Type": "application/json" }; var tok = token(); if (tok) h["x-admin-token"] = tok;
-    return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined })
-      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; }); });
+    var ctl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function () { ctl.abort(); }, timeoutMs || 30000) : null;
+    return fetch(path, { method: method, headers: h, body: body ? JSON.stringify(body) : undefined, signal: ctl ? ctl.signal : undefined })
+      .catch(function (e) {
+        var err = new Error(e && e.name === "AbortError" ? "No response from the server within " + Math.round((timeoutMs || 30000) / 1000) + " s" : "The request did not reach the server (" + (e && e.message || "network error") + ")");
+        err.network = true; throw err;
+      })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) { var e = new Error(j.error || ("HTTP " + r.status)); e.status = r.status; e.body = j; throw e; }
+          return j;
+        });
+      })
+      .finally(function () { if (timer) clearTimeout(timer); });
+  }
+  function newRequestId() { return "req_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function ago(t) { if (!t) return "—"; var s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 90 ? s + " s ago" : Math.round(s / 60) + " min ago"; }
+  function jobDetails(job) {
+    var d = document.createElement("div"); d.className = "narr-meta";
+    d.innerHTML = '<span class="narr-k">Job</span> <code>' + esc(job.id) + "</code>" +
+      (job.workerId ? ' · worker <code>' + esc(job.workerId) + "</code>" : "") +
+      (job.heartbeatAt ? " · heartbeat " + esc(ago(job.heartbeatAt)) : (job.status === "queued" ? " · waiting for the worker" : "")) +
+      (job.requestId ? ' · request <code>' + esc(job.requestId) + "</code>" : "");
+    return d;
   }
   function fmtDur(s) { s = Math.round(s || 0); var m = Math.floor(s / 60); return m + ":" + String(s % 60).padStart(2, "0"); }
   function fmtDate(iso) { if (!iso) return "—"; try { return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }); } catch (e) { return iso; } }
@@ -79,6 +103,7 @@
       note.textContent = "Generating — you can keep working; this runs in the background.";
       body.appendChild(row("Voice", voice));
       body.appendChild(stageBar(st.job));
+      body.appendChild(jobDetails(st.job));
       startPolling(st.job.id);
       return;
     }
@@ -86,10 +111,11 @@
     // ---- failed ----
     if (st.state === "failed" || (st.job && st.job.status === "failed")) {
       var err = (st.job && st.job.error) || {};
-      note.textContent = "Generation failed.";
+      note.textContent = "Generation failed" + (err.code ? " (" + err.code + ")" : "") + ".";
       body.appendChild(warn("⚠ " + (err.message || "Generation failed.")));
+      if (st.job) body.appendChild(jobDetails(st.job));
       var actions = document.createElement("div"); actions.className = "narr-actions";
-      actions.appendChild(btn("Retry", "btn-soft", function () { generate(true); }));
+      actions.appendChild(btn("Retry", "btn-soft", function () { generate(false); }));
       body.appendChild(actions);
       return;
     }
@@ -193,12 +219,25 @@
 
   function generate(force) {
     if (state.id == null) return;
-    el("narr-body").innerHTML = '<p class="upload-note">' + (force ? "Regenerating…" : "Starting generation…") + '</p>';
-    api("POST", "/api/narration/" + state.id + "/generate", { force: !!force }).then(function (r) {
+    var requestId = newRequestId();
+    el("narr-body").innerHTML = '<p class="upload-note">' + (force ? "Regenerating…" : "Sending the generate request…") + ' <span class="narr-k">request <code>' + esc(requestId) + "</code></span></p>";
+    api("POST", "/api/narration/" + state.id + "/generate", { force: !!force, requestId: requestId }).then(function (r) {
       if (r.cached) { toast("Existing approved narration reused.", "ok"); refresh(); return; }
-      toast("Generation queued.", "ok");
+      toast("Generation queued — job " + (r.job ? r.job.id : "?") + ".", "ok");
       if (r.job) startPolling(r.job.id); else refresh();
-    }).catch(function (e) { toast("Generate failed: " + e.message, "err"); refresh(); });
+    }).catch(function (e) {
+      var b = e.body || {};
+      var msg = (b.code === "worker_offline" ? "Not queued — " : "Generate failed: ") + e.message;
+      toast(msg, "err");
+      var body = el("narr-body"); body.innerHTML = "";
+      body.appendChild(warn("⚠ " + msg));
+      var ids = document.createElement("div"); ids.className = "narr-meta";
+      ids.innerHTML = (b.job ? '<span class="narr-k">Job</span> <code>' + esc(b.job.id) + "</code> · " : "") + 'request <code>' + esc(b.requestId || requestId) + "</code>" + (e.status ? " · HTTP " + e.status : (e.network ? " · no server response" : ""));
+      body.appendChild(ids);
+      var actions = document.createElement("div"); actions.className = "narr-actions";
+      actions.appendChild(btn("Back", "btn-ghost", function () { refresh(); }));
+      body.appendChild(actions);
+    });
   }
 
   function startPolling(jobId) {
@@ -207,7 +246,7 @@
       api("GET", "/api/narration/jobs/" + jobId).then(function (j) {
         if (j.status === "ready" || j.status === "failed" || j.status === "cancelled") { stop(); refresh(); return; }
         var old = el("narr-body").querySelector(".narr-stages");
-        if (old) old.parentNode.replaceChild(stageBar(j), old); else refresh();
+        if (old) { old.parentNode.replaceChild(stageBar(j), old); var od = el("narr-body").querySelector(".narr-meta"); if (od) od.parentNode.replaceChild(jobDetails(j), od); } else refresh();
       }).catch(function () { /* keep polling */ });
     };
     tick(); state.poll = setInterval(tick, 1500);

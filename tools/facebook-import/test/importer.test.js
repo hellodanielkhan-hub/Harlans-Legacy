@@ -278,3 +278,73 @@ test("credentials: never in URLs, env, serialized clients, errors, ledgers or re
     snapshot: { takenAt: new Date().toISOString(), memories: [] }, secrets: [SECRET] });
   assert.ok(r.stopped && !JSON.stringify(r).includes(SECRET) && !fs.readFileSync(ledFile, "utf8").includes(SECRET));
 });
+
+test("live transport: only new Drafts, their photos and one build; everything else refused before a request", async () => {
+  const { createLiveTransport } = require("../lib/transport.js");
+  const sent = [];
+  const fetch = async (url, init) => { sent.push((init && init.method) + " " + url); return { status: 201, text: async () => "{}", arrayBuffer: async () => new ArrayBuffer(0) }; };
+  const t = createLiveTransport({ base: "https://site.invalid", token: "tok", fetch, allowIds: [700] });
+  const draft = { id: 700, status: "draft", featured: false, importSource: { system: B.IMPORT_SYSTEM, postId: "T950" } };
+  const D = { "x-defer-rebuild": "1" };
+  for (const [m, p, body, h] of [["PUT", "/api/stories/700", draft, D], ["DELETE", "/api/stories/700", null, D], ["POST", "/api/stories", Object.assign({}, draft, { status: "published" }), D],
+    ["POST", "/api/stories", Object.assign({}, draft, { id: 701 }), D], ["POST", "/api/stories", draft, {}], ["POST", "/api/story-photos/305", { filename: "a.jpg" }, D], ["PUT", "/api/story-photos/700", {}, D], ["GET", "/api/narration/1", null, null]])
+    await assert.rejects(() => t.transport(m, p, body, h), /transport refused/, m + " " + p);
+  assert.deepStrictEqual(sent, [], "nothing reached the network");
+  await t.transport("POST", "/api/stories", draft, D);
+  await t.transport("POST", "/api/story-photos/700", { filename: "a.jpg", data: "x" }, D);
+  await t.transport("POST", "/api/build", {});
+  await assert.rejects(() => t.transport("POST", "/api/build", {}), /second build/);
+  assert.strictEqual(sent.length, 3);
+  for (const id of B.PROTECTED_IDS) {
+    const tp = createLiveTransport({ base: "https://site.invalid", token: "tok", fetch, allowIds: [id] });
+    await assert.rejects(() => tp.transport("POST", "/api/stories", Object.assign({}, draft, { id }), D), /protected/);
+  }
+  assert.throws(() => createLiveTransport({ base: "http://site.invalid", token: "t" }), /https/);
+  assert.throws(() => createLiveTransport({ base: "https://site.invalid/?token=x", token: "t" }), /credential/);
+});
+
+test("id allocation: fresh ids after every occupied/protected id; ledger and lost-answer Drafts are kept, never duplicated", () => {
+  const S = require("../lib/snapshot.js");
+  const mem = (id, extra) => Object.assign({ id, status: "published", featured: false, importSource: null }, extra || {});
+  const snapshot = { memories: [mem(303), mem(404, { status: "draft" }), mem(500), mem(502), mem(503, { status: "draft", importSource: { system: B.IMPORT_SYSTEM, postId: "T2" } })] };
+  const items = ["T1", "T2", "T3", "T4"].map(postId => ({ postId }));
+  const a = S.allocateIds(items, snapshot, { T1: { storyId: 501 } });
+  assert.deepStrictEqual(a.ids, { T1: 501, T2: 503, T3: 504, T4: 505 });
+  assert.deepStrictEqual(a.adopted, [503]);
+  assert.deepStrictEqual(a.problems, []);
+  assert.strictEqual(S.allocateIds(items, snapshot, { T1: { storyId: 303 } }).problems.length, 1, "a protected id in the ledger is refused");
+  const two = { memories: snapshot.memories.concat([mem(510, { status: "draft", importSource: { system: B.IMPORT_SYSTEM, postId: "T2" } })]) };
+  assert.match(S.allocateIds(items, two, {}).problems.join(), /2 import Drafts/);
+});
+
+test("authorization: needs a TTY, the exact batch id, fingerprint, a hidden token and the typed phrase; no env or flag bypass", async () => {
+  const A = require("../lib/authorize.js");
+  const P = { batch: 1, items: [] };
+  const exp = { batchId: A.batchIdOf(P), payloadFingerprint: "f".repeat(64), posts: 25, photos: 23 };
+  const io = (answers, o) => { const q = answers.slice(); const asked = []; return { isTTY: !(o && o.notTTY), asked, ask: async x => { asked.push(x); return q.shift(); }, askHidden: async () => (o && "token" in o ? o.token : "tok"), print: () => {} }; };
+  const saved = Object.assign({}, process.env);
+  Object.assign(process.env, { HL_IMPORT_CONFIRM: "1", HL_CONFIRM: "yes", CI: "1", FORCE: "1", HL_ADMIN_TOKEN: "env-token" });
+  try {
+    await assert.rejects(() => A.authorizeRun(io([exp.batchId, exp.payloadFingerprint], { notTTY: true }), exp), /interactive terminal/);
+    await assert.rejects(() => A.authorizeRun(io(["batch-02", exp.payloadFingerprint]), exp), /batch identifier/);
+    await assert.rejects(() => A.authorizeRun(io([exp.batchId, "e".repeat(64)]), exp), /fingerprint/);
+    await assert.rejects(() => A.authorizeRun(io([exp.batchId, exp.payloadFingerprint], { token: "" }), exp), /no token/);
+    assert.strictEqual(await A.authorizeRun(io([exp.batchId, exp.payloadFingerprint]), exp), "tok", "the token comes from the hidden prompt, not HL_ADMIN_TOKEN");
+    await assert.rejects(() => A.confirmWrites(io(["yes"]), exp.batchId, []), /confirmation phrase/);
+    await assert.rejects(() => A.confirmWrites(io([A.confirmPhrase(exp.batchId).toLowerCase()]), exp.batchId, []), /confirmation phrase/);
+    await A.confirmWrites(io([A.confirmPhrase(exp.batchId)]), exp.batchId, []);
+  } finally { for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k]; Object.assign(process.env, saved); }
+  const src = fs.readFileSync(path.join(__dirname, "..", "lib", "authorize.js"), "utf8") + fs.readFileSync(path.join(__dirname, "..", "lib", "run.js"), "utf8");
+  assert.ok(!/process\.env/.test(src) && !/process\.argv/.test(src), "authorization and the run read no environment variable or argument");
+});
+
+test("payload fingerprint ignores story ids but changes with any approved content", () => {
+  const A = require("../lib/authorize.js");
+  const it = sampleItem();
+  const P = { batch: 1, items: [it] };
+  const f0 = A.payloadFingerprint(P);
+  const moved = clone(P); moved.items[0].record.id = 9999;
+  assert.strictEqual(A.payloadFingerprint(moved), f0);
+  const edited = clone(P); edited.items[0].record.summary += ".";
+  assert.notStrictEqual(A.payloadFingerprint(edited), f0);
+});

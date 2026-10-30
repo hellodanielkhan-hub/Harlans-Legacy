@@ -9,10 +9,16 @@
              image upload order (Primary first), duplicate checks and per-post readiness.
              Makes NO network calls. Writes a run folder: plan.json, status.csv, report.md, text-diffs.md.
 
-   Not available in this build (each needs the owner's separate authorization):
-     backup  GET-only snapshot of /api/stories, /api/story-photos, /api/site, /api/entities
-     run     serial create (POST /api/stories) + image uploads (POST /api/story-photos/:id)
-     verify  GET-only read-back of every ledger-created memory against the manifest */
+   Read-only commands (admin token entered at a hidden prompt; nothing is written to the site):
+     node import.js snapshot      --out <snapshot.json>      [--api <origin>]
+     node import.js backup        --out <empty folder>       [--api <origin>]
+     node import.js verify-backup <backup folder>            (offline)
+
+   Production Draft import (interactive only; see README "Production run"):
+     node import.js run --payload <batch-NN-import-payload.json> --backup <backup folder> --ledger <ledger.jsonl> [--api <origin>]
+     It asks for the batch identifier, the payload fingerprint and the hidden admin token, takes a fresh
+     snapshot, allocates ids, shows a summary and needs a typed confirmation before the first write.
+     There is no flag or environment variable that skips any of this. --api defaults to the live site. */
 "use strict";
 
 const fs = require("fs");
@@ -160,11 +166,50 @@ function summarize(result, meta) {
   return lines.join("\n");
 }
 
+const LIVE_SITE = "https://www.harlanslegacy.com";
+
+// Read-only commands: the token comes from a hidden prompt, and only GET requests are possible.
+async function readOnly(cmd, a) {
+  const { ttyIo } = require("./lib/authorize.js");
+  const { createLiveTransport } = require("./lib/transport.js");
+  const snap = require("./lib/snapshot.js");
+  if (cmd === "verify-backup") {
+    const v = snap.verifyBackup(a._[1] || a.dir);
+    console.log(JSON.stringify({ ok: v.ok, fresh: v.fresh, takenAt: v.takenAt, counts: v.counts, problems: v.problems }, null, 1));
+    process.exitCode = v.ok ? 0 : 1; return;
+  }
+  if (!a.out || a.out === true) throw new Error("--out is required");
+  const io = ttyIo();
+  if (!io.isTTY) throw new Error("needs an interactive terminal for the hidden token prompt");
+  const live = createLiveTransport({ base: a.api || LIVE_SITE, token: await io.askHidden("Admin token (input hidden): ") });
+  try {
+    const s = await snap.takeSnapshot(live.transport, live.base);
+    if (cmd === "snapshot") { fs.writeFileSync(a.out, JSON.stringify(s, null, 1)); console.log("snapshot: " + s.count + " memories, highest id " + s.maxId + " -> " + a.out); return; }
+    const b = await snap.backup(live, s, a.out);
+    const v = snap.verifyBackup(a.out);
+    console.log(JSON.stringify({ dir: b.dir, counts: b.counts, verified: v.ok, problems: v.problems }, null, 1));
+    process.exitCode = v.ok ? 0 : 1;
+  } finally { live.close(); }
+}
+
+async function productionRun(a) {
+  const { runProduction } = require("./lib/run.js");
+  const { ttyIo } = require("./lib/authorize.js");
+  for (const k of ["payload", "backup", "ledger"]) if (!a[k] || a[k] === true) throw new Error("--" + k + " is required");
+  const r = await runProduction({ payload: JSON.parse(fs.readFileSync(a.payload, "utf8")), backupDir: a.backup, ledgerPath: a.ledger, base: a.api || LIVE_SITE, io: ttyIo() });
+  const report = path.join(path.dirname(a.ledger), "run-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json");
+  fs.writeFileSync(report, JSON.stringify(r, null, 1));
+  console.log((r.stopped ? "STOPPED at " + r.stage + ": " + r.stopped : "Completed.") + "\nReport: " + report);
+  process.exitCode = r.stopped ? 1 : 0;
+}
+
 function main() {
   const a = args();
   const cmd = a._[0];
+  if (["snapshot", "backup", "verify-backup"].includes(cmd)) return readOnly(cmd, a).catch(e => { console.error(e.message); process.exitCode = 1; });
+  if (cmd === "run") return productionRun(a).catch(e => { console.error(e.message); process.exitCode = 1; });
   if (cmd !== "dry-run") {
-    console.error(cmd ? `"${cmd}" is not available in this dry-run build. Only "dry-run" is enabled.` : "usage: node import.js dry-run --manifest <file> --snapshot <file>");
+    console.error(cmd ? `Unknown command "${cmd}".` : "usage: node import.js dry-run --manifest <file> --snapshot <file>   (see the header for the other commands)");
     process.exit(2);
   }
   const manifest = JSON.parse(fs.readFileSync(a.manifest, "utf8"));

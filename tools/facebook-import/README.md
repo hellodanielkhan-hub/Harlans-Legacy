@@ -4,10 +4,11 @@ Local tool for adding the missing Facebook "Shabbat Shalom" posts to Harlan's Le
 through the **existing Admin API**: the same endpoints and record shape the Editorial Workspace uses.
 Built against `3a327d8` (`main` after PR #1, which lets a batch defer the rebuild on Draft writes).
 
-**Production writes are disabled.**
-- `lib/api.js` refuses every write (`WRITES_ENABLED = false`).
-- `import.js` accepts only `dry-run`.
-- `lib/batch.js` runs a batch only through an injected transport, and today only the isolated rehearsals provide one.
+**Dry-run is the default. A Production write happens only through `import.js run`, interactively** (see "Production run" below):
+- the exact batch identifier and payload fingerprint are typed, the admin token is entered at a hidden prompt, and a typed confirmation phrase is required after the read-only checks;
+- no environment variable, flag or argument can skip any of these steps;
+- `lib/transport.js` can only create new non-featured Drafts, upload their photos and send one build; it refuses every PUT and DELETE and every other path before a request is made;
+- `lib/api.js` stays a read-only client (`WRITES_ENABLED = false`).
 
 Enabling writes needs the owner's separate written authorization.
 
@@ -25,8 +26,12 @@ Enabling writes needs the owner's separate written authorization.
 | `lib/images.js` | File present, JPEG/PNG, dimensions, SHA-256, ≤ 3.2 MB, order 1..n (order 1 = Primary), no repeats, count = Facebook count. |
 | `lib/ledger.js` | Append-only JSON-lines ledger: `created`, `image`, `verified`, `error`, `batch-built`. |
 | `lib/api.js` | Admin API read client. Writes are disabled. |
+| `lib/transport.js` | The live transport: an allow-list of the reads above and the only writes the import needs (new Drafts, their photos, one build). Token in a closure, header only. |
+| `lib/snapshot.js` | Fresh read-only snapshot, collision-free id allocation, local backup (records, site documents, every stored original) and its verification, post-run comparison. |
+| `lib/authorize.js` | The interactive authorization: TTY only, batch identifier, payload fingerprint, hidden token, typed confirmation phrase. |
+| `lib/run.js` | One Production Draft import, start to finish, in the order shown under "Production run". |
 | `fixtures/synthetic-site-snapshot.json` | Synthetic snapshot for the unit tests: fictional ids, titles, dates and text. A real site snapshot is never committed; real runs use a fresh read-only snapshot kept outside the repository. |
-| `SNAPSHOT-AND-BACKUP.md` | Process and tooling design: fresh read-only snapshot, id allocation, backup, integrity checks. |
+| `SNAPSHOT-AND-BACKUP.md` | Snapshot, id allocation, backup and integrity checks (implemented in `lib/snapshot.js`). |
 | `test/importer.test.js` | Unit tests: `node --test tools/facebook-import/test/importer.test.js` |
 | `rehearsal/*.cjs` | Isolated end-to-end rehearsals (below). |
 
@@ -98,16 +103,34 @@ git worktree add --detach <tmp>/t <commit>
 node tools/facebook-import/rehearsal/zero-photo-workflow.cjs <tmp>/t <manifest.json> <snapshot.json> <samples.json> <out.json>
 node tools/facebook-import/rehearsal/pr1-regression.cjs <tmp>/t patched <dry-run plan.json> <out.json>
 node tools/facebook-import/rehearsal/payload-rehearsal.cjs <tmp>/t <batch-NN-import-payload.json> <out.json>
+node tools/facebook-import/rehearsal/first-batch-workflow.cjs <tmp>/a <tmp>/b <tmp>/c <batch-NN-import-payload.json> <out.json>
 git worktree remove --force <tmp>/t
 ```
 
-## How a future authorized batch would run
+## Production run
 
-See `SNAPSHOT-AND-BACKUP.md` for the steps before and after.
+Needs the owner's separate written authorization, and the API change in this PR deployed (header-only auth and
+`GET /api/story-photos/<id>/<photoId>/digest|original`). Strictly serial, with nobody saving in the admin.
 
-1. **Before the run:**
-   - Make a read-only backup, and verify it.
-   - Take a fresh read-only snapshot, and re-plan the ids from it.
-   - Rebuild the payload. The approvals survive a re-plan, because the id is not fingerprinted.
-2. **The run itself:** strictly serial, with nobody saving in the admin. `runBatch()` creates the Drafts with `x-defer-rebuild: 1`, uploads the photos in order, verifies everything, and sends the one build only when every post is verified.
-3. **If the run stops:** a stopped batch never builds, and its Drafts stay unpublished. Re-running resumes the same batch. Only ledger-owned ids may ever be removed, and existing memories are never in scope.
+```
+node tools/facebook-import/import.js backup --out <empty local folder>          # read-only; verifies itself
+node tools/facebook-import/import.js verify-backup <folder>                     # offline re-check
+node tools/facebook-import/import.js run --payload <batch-01-import-payload.json> --backup <folder> --ledger <ledger.jsonl>
+```
+
+`run` (lib/run.js) stops at the first failed step and writes nothing before step 6:
+1. **Payload:** every item matches its approval fingerprint; counts are shown.
+2. **Backup:** verifies (every file's SHA-256, every memory's record, every stored photo equal to the server-side digest) and is under 6 hours old.
+3. **Authorization:** an interactive terminal; type the batch identifier (`batch-01`); paste the payload fingerprint; enter the admin token at the hidden prompt.
+4. **Snapshot:** fresh and read-only. Every memory in the backup must be unchanged; anything new must be this batch's own import Draft.
+5. **Ids:** allocated after the highest occupied, protected or ledger id (the provisional ids in the payload are never used as such); each new id must answer 404 on a direct check.
+6. **Confirmation:** the summary (ids, counts, snapshot) is shown; type `IMPORT batch-01 AS DRAFTS`.
+7. **Import:** `runBatch()` creates the Drafts with `x-defer-rebuild: 1`, uploads photos in order (photo 1 is Primary), reads every record, gallery and stored photo back (SHA-256 through the digest route), and sends **one** build only when every post is verified.
+8. **After:** a second read-only snapshot; every pre-existing memory must be unchanged.
+
+**If it stops** (network, HTTP error, mismatch, interruption): no build is sent. Drafts already created stay in the
+database as **unpublished Drafts**; they are not on the public site. Run the same command with the same ledger to
+resume: posts keep their ids (from the ledger, or found by `importSource` when an answer was lost), photos already
+stored are not uploaded again, and the one build follows only when all 25 are verified. Re-running a completed batch
+sends nothing. Removing Drafts left by an abandoned batch is a separate, separately authorized step; this tool
+cannot delete.

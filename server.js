@@ -151,7 +151,8 @@ async function handleApi(req, res, url) {
   // Provider completion/heartbeat callbacks are machine calls authenticated by
   // HMAC signature inside the route (never by a moderator token).
   const isProviderCallback = parts[1] === "narration" && parts[2] === "staging" && (parts[3] === "complete" || parts[3] === "heartbeat");
-  const auth = identity.authorize(req.headers, { token: url.searchParams.get("token") });
+  if (identity.urlCredentialParams(url.searchParams).length) return sendJSON(res, 400, { error: "Credentials must be sent in a request header, never in the URL." });
+  const auth = identity.authorize(req.headers);
   if (!isPreviewAsset && !isProviderCallback && !auth.ok) return sendJSON(res, 401, { error: "Unauthorized — moderator or admin token required." });
   const actor = auth.actor;
 

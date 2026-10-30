@@ -19,6 +19,7 @@
    ========================================================================= */
 "use strict";
 
+const crypto = require("crypto");
 const store = require("../lib/store.js");
 const records = require("../lib/records.js");
 const narration = require("../lib/narration/service.js");
@@ -99,6 +100,52 @@ async function saveStory(story) {
   }
 }
 
+/* Stored-photo read-back for imports and backups (GET only, admin token only, no side effects).
+   - Who: the shared admin token. Moderators get 403. With no token gate at all (local dev) it works only
+     outside production.
+   - What: the photo is found in the stored gallery manifest of an existing memory, by its photo id. The
+     client never supplies a path or URL; the object path is built here from the manifest entry, whose file
+     name must be a plain name (no slashes, no "..").
+   - How: the bytes are read server-side (service-role download or the local copy). No signed or public URL
+     is created, no bucket setting changes, nothing is written, no rebuild.
+   - digest -> { storyId, photoId, file, bytes, sha256, expected, verification } where verification is
+     "match" / "mismatch" when ?expect=<64 hex> is given, else "not-requested".
+   - original -> the bytes (attachment, no-store), with X-Content-SHA256. */
+const STORED_FILE = /^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*\.(jpe?g|png|webp|gif)$/i;
+const MAX_ORIGINAL_BYTES = 4 * 1024 * 1024;   // stays under the serverless response limit
+async function storedPhotoRead(res, actor, sid, photoId, what, expect, manifest) {
+  const isAdmin = actor && (actor.via === "admin-token" || (actor.via === "no-gate" && process.env.NODE_ENV !== "production"));
+  if (!isAdmin) return json(res, 403, { error: "Admin token required for stored-photo read-back." });
+  if (expect != null && !/^[0-9a-f]{64}$/.test(expect)) return json(res, 400, { error: "expect must be a lowercase SHA-256 hex digest" });
+  const storyId = Number(sid);
+  const stories = await store.getStories();
+  if (!stories.some(s => s.id === storyId)) return json(res, 404, { error: "No story " + storyId });
+  const key = records.storyKey(storyId);
+  const g = manifest[key];
+  const item = g && (g.items || []).find(it => it.id === photoId);
+  if (!item) return json(res, 404, { error: "No such photo in story " + storyId });
+  if (typeof item.file !== "string" || !STORED_FILE.test(item.file)) return json(res, 400, { error: "Stored file name is not a plain file name" });
+  let buf;
+  try { buf = await store.readObject(store.BUCKET_STORY, key + "/" + item.file); }
+  catch (e) {
+    if (e && e.code === "ENOENT") return json(res, 404, { error: "Stored object missing for photo " + photoId });
+    return json(res, 502, { error: "Storage read failed" });
+  }
+  const sha256 = crypto.createHash("sha256").update(buf).digest("hex");
+  if (what === "digest") {
+    return json(res, 200, { storyId, photoId, file: item.file, bytes: buf.length, sha256, expected: expect || null,
+      verification: expect ? (expect === sha256 ? "match" : "mismatch") : "not-requested" });
+  }
+  if (buf.length > MAX_ORIGINAL_BYTES) return json(res, 413, { error: "Original too large for this route", bytes: buf.length, sha256 });
+  res.statusCode = 200;
+  res.setHeader("Content-Type", /\.png$/i.test(item.file) ? "image/png" : /\.webp$/i.test(item.file) ? "image/webp" : /\.gif$/i.test(item.file) ? "image/gif" : "image/jpeg");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Content-Disposition", "attachment; filename=\"" + item.file + "\"");
+  res.setHeader("X-Content-SHA256", sha256);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  return res.end(buf);
+}
+
 module.exports = async (req, res) => {
   try {
     const url = new URL(req.url, "http://localhost");
@@ -124,7 +171,12 @@ module.exports = async (req, res) => {
     const isPreviewAsset = parts[1] === "narration" && parts[3] === "preview-asset";
     // Provider completion/heartbeat callbacks: HMAC-authenticated inside the route.
     const isProviderCallback = parts[1] === "narration" && parts[2] === "staging" && (parts[3] === "complete" || parts[3] === "heartbeat");
-    const auth = identity.authorize(req.headers, { token: url.searchParams.get("token") });
+    // Credentials travel in headers only. A credential-looking query parameter is refused (never logged
+    // or echoed), even when a valid header is also present.
+    if (identity.urlCredentialParams(url.searchParams).length) {
+      return json(res, 400, { error: "Credentials must be sent in a request header, never in the URL." });
+    }
+    const auth = identity.authorize(req.headers);
     const actor = auth.actor;
     if (!isPreviewAsset && !isProviderCallback && !auth.ok) {
       return json(res, 401, { error: "Unauthorized — moderator or admin token required." });
@@ -283,6 +335,11 @@ module.exports = async (req, res) => {
       if (sid != null && !/^[0-9]+$/.test(sid)) return json(res, 400, { error: "Invalid story id for gallery" });
       const key = sid != null ? records.storyKey(sid) : null;
       const manifest = await store.getStoryPhotos();
+      // Admin-only read-back of ONE stored original: /api/story-photos/<storyId>/<photoId>/digest (SHA-256 of
+      // the stored bytes, computed here) or /original (the bytes, for backups). See storedPhotoRead below.
+      if (method === "GET" && sid != null && photoId != null && (parts[4] === "digest" || parts[4] === "original") && parts.length === 5) {
+        return storedPhotoRead(res, actor, sid, photoId, parts[4], url.searchParams.get("expect"), manifest);
+      }
       if (method === "GET" && sid == null) return json(res, 200, manifest);
       if (method === "GET" && sid != null) return json(res, 200, manifest[key] || { primary: null, items: [] });
       if (method === "POST" && sid != null) {

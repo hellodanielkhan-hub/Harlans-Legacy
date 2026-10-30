@@ -53,7 +53,7 @@ function punctuationCandidates(paragraphs) {
   return found;
 }
 
-// A first line that is probably all tags but has typos (#a#b, "# Tag", "#Stanley & Pat"). Never removed
+// A first line that is probably all tags but has typos (#a#b, "# Tag", "#Sample & Family"). Never removed
 // automatically: it is suggested, and removed only when the owner lists it in the entry's removeLines.
 function isProbableTagLine(line) {
   const tags = (line.match(/#/g) || []).length;

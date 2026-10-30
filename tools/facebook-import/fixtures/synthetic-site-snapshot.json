@@ -1,0 +1,11 @@
+{
+  "source": "SYNTHETIC test data for the unit tests. Every id, title, date, post id and line of text here is fictional; none is a real memory, Draft or Facebook post.",
+  "memories": [
+    { "id": 101, "title": "The Lighthouse Postcard", "publishedISO": "2017-05-05", "theme": "family", "status": "published", "featured": false, "images": 1, "facebookPostId": "T201", "lead": "For as long as anyone could remember, a postcard of a lighthouse leaned against the clock on the shelf by the door." },
+    { "id": 102, "title": "The Pocket Watch That Ran Slow", "publishedISO": "2017-06-02", "theme": "funny", "status": "published", "featured": false, "images": 2, "facebookPostId": "T202", "lead": "Every morning the pocket watch ran four minutes slow, and nobody in the house ever thought to fix it." },
+    { "id": 103, "title": "Lemon Cake on Tuesdays", "publishedISO": "2017-07-07", "theme": "shabbat", "status": "published", "featured": true, "images": 3, "facebookPostId": "T203", "lead": "There was always lemon cake on Tuesdays, whether or not anyone had asked for it." },
+    { "id": 104, "title": "The Garden Gate", "publishedISO": "2017-08-04", "theme": "family", "status": "published", "featured": false, "images": 1, "facebookPostId": "T204", "lead": "The garden gate squeaked so loudly that the whole street knew whenever someone came home late." },
+    { "id": 105, "title": "Letters on a Snow Day", "publishedISO": "2017-09-01", "theme": "grief", "status": "published", "featured": false, "images": 0, "facebookPostId": "T205", "lead": "On the first snow day of the year, the kitchen table disappeared under a pile of unfinished letters." },
+    { "id": 106, "title": "A Calm and Bright Evening", "publishedISO": "2018-02-02", "theme": "shabbat", "status": "draft", "featured": false, "images": 1, "facebookPostId": "T101", "lead": "May your evening be calm and bright." }
+  ]
+}

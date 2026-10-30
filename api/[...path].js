@@ -68,6 +68,22 @@ async function triggerRebuild() {
   } catch (e) { return { ok: false, rebuild: "failed", error: String(e.message || e) }; }
 }
 
+// Batch imports: a write may ask to skip its rebuild with `x-defer-rebuild: 1`, but ONLY when the
+// memory it touches is a draft (drafts are not part of the public build, so nothing visible is
+// delayed). Published memories always rebuild. The batch ends with one POST /api/build.
+// Without the header this is exactly triggerRebuild(): the status is not even looked up.
+async function rebuildUnlessDeferred(req, storyStatus) {
+  if (String(req.headers["x-defer-rebuild"] || "") === "1") {
+    const status = typeof storyStatus === "function" ? await storyStatus() : storyStatus;
+    if (status === "draft") return { ok: true, rebuild: "deferred", note: "Draft write; rebuild deferred until POST /api/build." };
+  }
+  return triggerRebuild();
+}
+async function statusOf(storyId) {
+  const s = (await store.getStories()).find(x => String(x.id) === String(storyId));
+  return s ? s.status : null;
+}
+
 function publicUrl(bucket, objPath) {
   return (process.env.SUPABASE_URL || "").replace(/\/$/, "") + "/storage/v1/object/public/" + bucket + "/" + objPath;
 }
@@ -177,7 +193,7 @@ module.exports = async (req, res) => {
         if (blockedP) return json(res, 409, { error: blockedP.message, code: blockedP.code, readiness: blockedP });
         await saveStory(story);
         await audit.record({ action: "story.create", storyId: story.id, actor, detail: story.title || null });
-        return json(res, 201, { ok: true, story, build: await triggerRebuild() });
+        return json(res, 201, { ok: true, story, build: await rebuildUnlessDeferred(req, story.status) });
       }
       if (method === "PUT" && idParam != null) {
         const body = await readBody(req);
@@ -192,7 +208,8 @@ module.exports = async (req, res) => {
         if (blockedU) return json(res, 409, { error: blockedU.message, code: blockedU.code, readiness: blockedU });
         await saveStory(story);
         await audit.record({ action: "story.edit", storyId: idParam, actor, detail: story.title || null });
-        return json(res, 200, { ok: true, story, build: await triggerRebuild() });
+        // a memory that WAS public (published or coming-soon) must still rebuild (it has to leave the site)
+        return json(res, 200, { ok: true, story, build: await rebuildUnlessDeferred(req, existing.status !== "draft" ? existing.status : story.status) });
       }
       if (method === "DELETE" && idParam != null) {
         await store.deleteStory(idParam);
@@ -283,7 +300,7 @@ module.exports = async (req, res) => {
         if (!g.primary) g.primary = g.items[0].id;
         manifest[key] = g;
         await store.putStoryPhotos(manifest);
-        return json(res, 201, { ok: true, gallery: g, build: await triggerRebuild() });
+        return json(res, 201, { ok: true, gallery: g, build: await rebuildUnlessDeferred(req, () => statusOf(sid)) });
       }
       if (method === "PUT" && sid != null) {
         const body = await readBody(req);
@@ -294,7 +311,7 @@ module.exports = async (req, res) => {
         let primary = body.primary; if (!primary || !items.find(it => it.id === primary)) primary = items[0] ? items[0].id : null;
         manifest[key] = { primary, items };
         await store.putStoryPhotos(manifest);
-        return json(res, 200, { ok: true, gallery: manifest[key], build: await triggerRebuild() });
+        return json(res, 200, { ok: true, gallery: manifest[key], build: await rebuildUnlessDeferred(req, () => statusOf(sid)) });
       }
       if (method === "DELETE" && sid != null && photoId) {
         const g = manifest[key]; if (!g) return json(res, 404, { error: "No gallery " + key });

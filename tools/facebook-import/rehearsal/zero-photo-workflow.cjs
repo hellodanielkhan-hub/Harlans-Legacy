@@ -255,11 +255,15 @@ async function main() {
     ["publish a Draft, with header", async () => { await transport("POST", "/api/stories", rec(9412), D); return transport("PUT", "/api/stories/9412", rec(9412, { status: "published" }), D); }, 1, 200],
     ["un-publish (published -> Draft), with header", () => transport("PUT", "/api/stories/9411", rec(9411), D), 1, 200],
     ["no token (refused)", () => transport("POST", "/api/stories", rec(9421), D, { token: "" }), 0, 401],
-    ["Coming Soon -> Draft, with header (it leaves the site, so it rebuilds)", async () => { await transport("POST", "/api/stories", rec(9431, { status: "coming-soon" })); return transport("PUT", "/api/stories/9431", rec(9431), D); }, 1, 200],
-    ["edit Coming Soon, with header", async () => { await transport("POST", "/api/stories", rec(9432, { status: "coming-soon" })); return transport("PUT", "/api/stories/9432", rec(9432, { status: "coming-soon", title: "TEST 9432 e" }), D); }, 1, 200],
+    ["Coming Soon -> Draft, with header (it leaves the site, so it rebuilds)", () => transport("PUT", "/api/stories/9431", rec(9431), D), 1, 200],
+    ["edit Coming Soon, with header", () => transport("PUT", "/api/stories/9432", rec(9432, { status: "coming-soon", title: "TEST 9432 e" }), D), 1, 200],
     ["upload photo to Coming Soon, with header", () => transport("POST", "/api/story-photos/9432", img(3), D), 1, 201],
-    ["Draft -> Coming Soon, with header", async () => { await transport("POST", "/api/stories", rec(9433), D); return transport("PUT", "/api/stories/9433", rec(9433, { status: "coming-soon" }), D); }, 1, 200]
+    ["Draft -> Coming Soon, with header", () => transport("PUT", "/api/stories/9433", rec(9433, { status: "coming-soon" }), D), 1, 200]
   ];
+  // Coming Soon set-up happens before the counted cases (its own saves rebuild, as they always have).
+  await transport("POST", "/api/stories", rec(9431, { status: "coming-soon" }));
+  await transport("POST", "/api/stories", rec(9432, { status: "coming-soon" }));
+  await transport("POST", "/api/stories", rec(9433), D);
   const rows = [];
   for (const [name, fn, eb, es] of cases) { const c = await counted(fn); rows.push({ name, status: c.r.status, builds: c.builds }); check("9", name + " -> " + eb + " build(s), HTTP " + es, c.builds === eb && c.r.status === es, c.r.status + " / " + c.builds); }
   S("9_admin_saves", rows);

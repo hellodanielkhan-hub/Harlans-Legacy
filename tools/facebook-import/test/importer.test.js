@@ -127,7 +127,7 @@ test("API client refuses every write in this build and needs a token to read", a
 });
 
 test("zero-photo posts: text-only plan uploads nothing; every post must declare photoMode (fails closed)", () => {
-  const { preflight, approvalFingerprint } = require("../lib/batch.js");
+  const { preflight, approvalFingerprint, toBatchItem } = require("../lib/batch.js");
   const img = tmpImage("01__a.png");
   const entry = (id, date, extra) => Object.assign({ postId: id, facebookUrl: null, facebookTimeChicago: date + " 17:00 Fri", publishedISO: date, title: "Title " + id, category: "shabbat",
     sourceText: "#ShabbatShalom\nUnique zero-photo text for " + id + " about a family story.", flags: [], hold: false, approved: true, photos: { expectedCount: 1, expectedIsEstimate: false, files: [{ order: 1, path: img }] } }, extra || {});
@@ -139,7 +139,7 @@ test("zero-photo posts: text-only plan uploads nothing; every post must declare 
   assert.strictEqual(t.images.length, 0); assert.strictEqual(t.imagesExcluded, 1);
   assert.deepStrictEqual(t.requests.filter(q => q.method === "POST").map(q => q.path), ["/api/stories"]);
   assert.deepStrictEqual(n.requests.filter(q => q.method === "POST").map(q => q.path), ["/api/stories"]);
-  const it = x => ({ postId: x.postId, photoMode: x.photoMode, images: x.images, record: x.record });
+  const it = toBatchItem;
   const items = r.items.map(it);
   const ok = Object.fromEntries(items.map(i => [i.postId, approvalFingerprint(i)]));
   const read = f => fs.readFileSync(f);
@@ -158,4 +158,122 @@ test("zero-photo posts: text-only plan uploads nothing; every post must declare 
   assert.match(preflight([lost], { P903: approvalFingerprint(lost) }, read).join(), /approved with photos but none listed/);
   // switching a post from photos to none after approval changes its fingerprint
   assert.notStrictEqual(approvalFingerprint(items[2]), approvalFingerprint(Object.assign({}, items[2], { photoMode: "none", images: [] })));
+});
+
+/* ---- hardening: complete fingerprint, unknown fields, protected ids, deferred mode, credentials ---- */
+const B = require("../lib/batch.js");
+function sampleItem() {
+  const img = tmpImage("01__sample.png");
+  const e = { postId: "P950", facebookUrl: "https://example.invalid/p", facebookTimeChicago: "2019-06-07 17:00 Fri", publishedISO: "2019-06-07", title: "Sample Title", category: "shabbat",
+    sourceText: "#ShabbatShalom\nA unique sample paragraph for the fingerprint tests.\nA second paragraph.", flags: [], hold: false, approved: true,
+    photos: { expectedCount: 1, expectedIsEstimate: false, files: [{ order: 1, path: img }] } };
+  return B.toBatchItem(plan({ entries: [e] }, snapshot, {}).items[0]);
+}
+const clone = x => JSON.parse(JSON.stringify(x));
+
+test("fingerprint: deterministic, covers every supported field, ignores only the provisional id", () => {
+  const it = sampleItem(), fp = B.approvalFingerprint(it);
+  const reordered = clone(it); reordered.record = Object.fromEntries(Object.entries(reordered.record).reverse());
+  assert.strictEqual(B.approvalFingerprint(reordered), fp, "key order must not matter");
+  const idOnly = clone(it); idOnly.record.id = 9999;
+  assert.strictEqual(B.approvalFingerprint(idOnly), fp, "the provisional id is re-planned, so it is not fingerprinted");
+  const changeValue = v => v === null || v === undefined ? "x" : typeof v === "string" ? v + " changed" : typeof v === "number" ? v + 1 : typeof v === "boolean" ? !v : Array.isArray(v) ? v.concat(["x"]) : Object.assign({}, v, { extra: 1 });
+  const unchanged = [];
+  for (const k of B.RECORD_FIELDS.filter(k => k !== "id" && k !== "importSource")) {
+    const m = clone(it); m.record[k] = changeValue(m.record[k]);
+    if (B.approvalFingerprint(m) === fp) unchanged.push(k);
+  }
+  for (const k of ["facebookUrl", "facebookTimeChicago"]) { const m = clone(it); m.record.importSource[k] = "changed"; if (B.approvalFingerprint(m) === fp) unchanged.push("importSource." + k); }
+  const mut = { photoMode: m => { m.photoMode = "none"; }, postId: m => { m.postId = "P951"; m.record.importSource.postId = "P951"; },
+    "photo order": m => { m.images[0].order = 2; }, "photo primary": m => { m.images[0].primary = false; }, "photo sha256": m => { m.images[0].sha256 = "0".repeat(64); },
+    "photo file name": m => { m.images[0].file = m.images[0].file.replace("sample", "other"); }, "photo removed": m => { m.images = []; } };
+  for (const [k, f] of Object.entries(mut)) { const m = clone(it); f(m); if (B.approvalFingerprint(m) === fp) unchanged.push(k); }
+  assert.deepStrictEqual(unchanged, [], "these changes did not change the fingerprint: " + unchanged.join(", "));
+  assert.ok(B.RECORD_FIELDS.includes("summary") && B.RECORD_FIELDS.includes("description") && B.RECORD_FIELDS.includes("slug"));
+});
+
+test("unknown fields are refused at every level, never ignored", () => {
+  const it = sampleItem(), read = f => fs.readFileSync(f);
+  const cases = { item: m => { m.protectedIds = [1]; }, record: m => { m.record.extraField = "x"; }, importSource: m => { m.record.importSource.extra = 1; }, photo: m => { m.images[0].bytes = 5; } };
+  for (const [level, f] of Object.entries(cases)) {
+    const m = clone(it); f(m);
+    assert.throws(() => B.approvalFingerprint(m), /unknown/, level);
+    assert.match(B.preflight([m], { P950: B.approvalFingerprint(it) }, read).join(), /unknown/, level);
+  }
+  const foreign = clone(it); foreign.record.importSource.system = "other";
+  assert.match(B.preflight([foreign], {}, read).join(), /importSource.system/);
+  const mismatch = clone(it); mismatch.record.importSource.postId = "P001";
+  assert.match(B.preflight([mismatch], {}, read).join(), /does not match the post/);
+});
+
+test("protected ids: fixed list, snapshot occupancy, only the same post's own import Draft may be resumed", () => {
+  const now = Date.now(), takenAt = new Date(now).toISOString();
+  assert.deepStrictEqual(B.PROTECTED_IDS, [303, 304, 305, 388, 389, 390, 391, 392, 393, 394, 395, 396, 397, 398, 399, 400, 401, 402, 403, 404]);
+  assert.ok(Object.isFrozen(B.PROTECTED_IDS));
+  const it = sampleItem();
+  for (const id of B.PROTECTED_IDS) {
+    const m = clone(it); m.record.id = id;
+    const own = { takenAt, memories: [{ id, status: "draft", featured: false, importSource: { system: B.IMPORT_SYSTEM, postId: m.postId } }] };
+    assert.match(B.protectionProblems([m], own, now).join(), /protected existing memory/, "id " + id + " even when the snapshot calls it this post's Draft");
+  }
+  const at = id => { const m = clone(it); m.record.id = id; return m; };
+  const snap = memories => ({ takenAt, memories });
+  assert.match(B.protectionProblems([at(500)], snap([{ id: 500, status: "published" }]), now).join(), /occupied/);
+  assert.match(B.protectionProblems([at(500)], snap([{ id: 500, status: "draft" }]), now).join(), /occupied/, "an editor Draft");
+  assert.match(B.protectionProblems([at(500)], snap([{ id: 500, status: "draft", importSource: { system: B.IMPORT_SYSTEM, postId: "P001" } }]), now).join(), /occupied/, "another post's import Draft");
+  assert.match(B.protectionProblems([at(500)], snap([{ id: 500, status: "draft", featured: true, importSource: { system: B.IMPORT_SYSTEM, postId: "P950" } }]), now).join(), /occupied/, "featured");
+  assert.deepStrictEqual(B.protectionProblems([at(500)], snap([{ id: 500, status: "draft", importSource: { system: B.IMPORT_SYSTEM, postId: "P950" } }]), now), [], "own import Draft (resume)");
+  assert.deepStrictEqual(B.protectionProblems([at(500)], snap([{ id: 499, status: "published" }]), now), []);
+  assert.match(B.protectionProblems([at(500)], undefined, now).join(), /no fresh read-only snapshot/);
+  assert.match(B.protectionProblems([at(500)], { memories: [] }, now).join(), /takenAt/);
+  assert.match(B.protectionProblems([at(500)], { takenAt: new Date(now - 7 * 3600e3).toISOString(), memories: [] }, now).join(), /not fresh/);
+});
+
+test("runBatch requires deferred mode, a fresh snapshot and a stored-photo digest before sending anything", async () => {
+  const { Ledger } = require("../lib/ledger.js");
+  const it = clone(sampleItem()); it.record.id = 600;
+  const approved = { P950: B.approvalFingerprint(it) };
+  const fresh = { takenAt: new Date().toISOString(), memories: [] };
+  const digest = async () => ({ status: 200, body: {} });
+  const calls = [];
+  const transport = async (m, p) => { calls.push(m + " " + p); throw new Error("must not be called"); };
+  const led = () => new Ledger(path.join(fs.mkdtempSync(path.join(os.tmpdir(), "hlled-")), "l.jsonl"));
+  for (const defer of [undefined, false, "true", 1, "1"]) {
+    process.env.HL_IMPORT_DEFER = "1"; process.env.DEFER = "true";   // no environment variable can stand in for it
+    const r = await B.runBatch({ items: [it], transport, ledger: led(), batchId: "d", approved, snapshot: fresh, storedPhotoDigest: digest, defer });
+    delete process.env.HL_IMPORT_DEFER; delete process.env.DEFER;
+    assert.match(r.stopped && r.stopped.error, /deferred rebuild mode is required/, String(defer));
+    assert.strictEqual(r.finalBuild.sent, false);
+  }
+  const noSnap = await B.runBatch({ items: [it], transport, ledger: led(), batchId: "s", approved, defer: true, storedPhotoDigest: digest });
+  assert.match(noSnap.stopped.error, /no fresh read-only snapshot/);
+  const noDigest = await B.runBatch({ items: [it], transport, ledger: led(), batchId: "g", approved, defer: true, snapshot: fresh });
+  assert.match(noDigest.stopped.error, /no storedPhotoDigest/);
+  assert.deepStrictEqual(calls, [], "nothing may be sent when preflight fails");
+});
+
+test("credentials: never in URLs, env, serialized clients, errors, ledgers or results", async () => {
+  const util = require("util");
+  const { scrub, assertNoUrlCredentials } = require("../lib/secrets.js");
+  const SECRET = "tok_" + "9f8e7d6c5b4a39281706";
+  process.env.HL_ADMIN_TOKEN = SECRET;
+  const api = new AdminApi({ fetch: async (url) => { throw new Error("connect failed for " + url + " with x-admin-token: " + SECRET); } });
+  assert.strictEqual(process.env.HL_ADMIN_TOKEN, undefined, "the variable is cleared as soon as it is read");
+  assert.ok(!JSON.stringify(api).includes(SECRET) && !util.inspect(api, { depth: 5, showHidden: true }).includes(SECRET), "not visible on the client object");
+  await assert.rejects(() => api.listStories(), e => !e.message.includes(SECRET) && /\[redacted\]/.test(e.message));
+  await assert.rejects(() => api.get("/api/stories?token=abc"), /refusing a URL that carries a credential/);
+  assert.throws(() => new AdminApi({ base: "https://x.invalid/?token=abc", token: "t" }), /credential/);
+  api.close();
+  await assert.rejects(() => api.listStories(), /HL_ADMIN_TOKEN is not set/);
+  assert.throws(() => assertNoUrlCredentials("https://x.invalid/a?admin_token=1"));
+  assert.doesNotThrow(() => assertNoUrlCredentials("https://x.invalid/api/stories/5"));
+  assert.ok(!scrub("GET /a?token=" + SECRET + " x-admin-token: " + SECRET, [SECRET]).includes(SECRET));
+  // a server error body that echoes a secret never reaches the ledger or the result
+  const { Ledger } = require("../lib/ledger.js");
+  const it = clone(sampleItem()); it.record.id = 601; it.images = []; it.photoMode = "none";
+  const ledFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "hlled-")), "l.jsonl");
+  const transport = async (m) => m === "GET" ? { status: 404, body: {} } : { status: 500, body: { error: "bad token " + SECRET + " x-admin-token: \"" + SECRET + "\" ?token=" + SECRET } };
+  const r = await B.runBatch({ items: [it], transport, ledger: new Ledger(ledFile), batchId: "x", approved: { P950: B.approvalFingerprint(it) }, defer: true,
+    snapshot: { takenAt: new Date().toISOString(), memories: [] }, secrets: [SECRET] });
+  assert.ok(r.stopped && !JSON.stringify(r).includes(SECRET) && !fs.readFileSync(ledFile, "utf8").includes(SECRET));
 });

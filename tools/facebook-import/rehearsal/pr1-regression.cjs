@@ -21,10 +21,11 @@ const { execFileSync } = require("child_process");
 
 const [dir, mode, planFile, outFile] = process.argv.slice(2).map((v, i) => i === 1 ? v : path.resolve(v));
 const PATCHED = mode === "patched";
-const { runBatch, approvalFingerprint, uploadName, storedName } = require("../lib/batch.js");
+const { runBatch, approvalFingerprint, toBatchItem, uploadName, storedName } = require("../lib/batch.js");
 const { Ledger } = require("../lib/ledger.js");
 
-for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "HL_DATA_DIR", "HARLAN_NARRATION_PUBLISH_GATE", "HARLAN_ENV_FILE"]) delete process.env[k];
+for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "HL_DATA_DIR", "HARLAN_NARRATION_PUBLISH_GATE", "HARLAN_ENV_FILE", "HL_ADMIN_TOKEN"]) delete process.env[k];
+if (mode !== "patched") throw new Error("only 'patched' is supported: the batch runner requires deferred rebuild mode (merged in 3a327d8)");
 const TOKEN = crypto.randomBytes(16).toString("hex"), MOD = crypto.randomBytes(16).toString("hex");
 process.env.ADMIN_TOKEN = TOKEN;
 process.env.HARLAN_MODERATORS = JSON.stringify({ [MOD]: { id: "mod1", name: "Test Moderator" } });
@@ -39,8 +40,20 @@ store.uploadObject = async (bucket, objPath, buf) => {
 };
 store.removeObject = async (bucket, objPath) => { try { fs.unlinkSync(path.join(dir, bucket, objPath)); } catch (e) {} };
 const realPutStory = store.putStory, realPutGalleries = store.putStoryPhotos;
-const readStoredPhoto = async (id, item) => fs.readFileSync(path.join(dir, store.BUCKET_STORY, "story-" + id, item.file));
-const run = o => runBatch(Object.assign({ readStoredPhoto }, o));
+// Stored-photo digest: stands in for the planned admin-only verification endpoint (C1). It reads the stored
+// original from the storage stub and answers like an API: { status, body: { file, sha256 } }.
+let digestFault = null;
+const storedPhotoDigest = async (id, item) => {
+  if (digestFault) { const d = digestFault(id, item); if (d) return d; }
+  const f = path.join(dir, store.BUCKET_STORY, "story-" + id, item.file);
+  if (!fs.existsSync(f)) return { status: 404, body: { error: "no stored object" } };
+  const b = fs.readFileSync(f);
+  return { status: 200, body: { storyId: id, file: item.file, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") } };
+};
+// A fresh read-only snapshot taken through the API, as a Production run would take one.
+const takeSnapshot = async () => { const r = await transport("GET", "/api/stories"); return { takenAt: new Date().toISOString(), source: "GET /api/stories (rehearsal API)", memories: r.body.map(s => ({ id: s.id, status: s.status, featured: !!s.featured, importSource: s.importSource || null })) }; };
+const run = async o => runBatch(Object.assign({ storedPhotoDigest, snapshot: await takeSnapshot() }, o));
+process.on("exit", () => { delete process.env.ADMIN_TOKEN; delete process.env.HL_ADMIN_TOKEN; });
 store.putStory = async rec => { if (fault.create && fault.create(rec)) throw new Error("simulated database failure"); return realPutStory(rec); };
 store.putStoryPhotos = async m => { if (fault.gallery) fault.gallery(m); return realPutGalleries(m); };
 
@@ -74,7 +87,7 @@ function pick(n) {
   const step = rest.length / (n - must.length);
   return must.concat(Array.from({ length: n - must.length }, (_, i) => rest[Math.floor(i * step)])).sort((a, b) => a.publishedISO.localeCompare(b.publishedISO));
 }
-const asTest = (x, id) => ({ postId: x.postId, photoMode: x.photoMode, images: x.images, record: Object.assign({}, x.record, { id, title: "TEST " + id + " - " + x.record.title, status: "draft", featured: false }) });
+const asTest = (x, id) => ({ postId: x.postId, photoMode: x.photoMode, images: toBatchItem(x).images, record: Object.assign({}, x.record, { id, title: "TEST " + id + " - " + x.record.title, status: "draft", featured: false }) });
 const approve = items => Object.fromEntries(items.map(it => [it.postId, approvalFingerprint(it)]));
 const ledgerDir = fs.mkdtempSync(path.join(os.tmpdir(), "hl-pr1-ledger-"));
 const newLedger = name => new Ledger(path.join(ledgerDir, name + ".jsonl"));

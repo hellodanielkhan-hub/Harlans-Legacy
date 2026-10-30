@@ -7,7 +7,9 @@
    local HTTP server in FILE mode (data/*.json of the worktree). Stubs: Supabase Storage (writes under
    <checkout>/story-photos/) and the Vercel deploy hook (a local counter). Test items are planned from
    the local import manifest with the importer's own plan(), then given throwaway ids (9301+) and
-   titles prefixed "TEST". Local photo files are only read; corrupted/missing cases use temp copies. */
+   titles prefixed "TEST". Local photo files are only read; corrupted/missing cases use temp copies.
+   Scenario H covers the hardening safeguards: protected ids, snapshot occupancy, deferred mode,
+   read-back HTTP status, the stored record field by field, and credentials kept out of results. */
 "use strict";
 const fs = require("fs");
 const os = require("os");
@@ -17,7 +19,7 @@ const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 
 const [dir, manifestFile, snapshotFile, outFile] = process.argv.slice(2).map(v => path.resolve(v));
-const { runBatch, approvalFingerprint, uploadName, storedName } = require("../lib/batch.js");
+const { runBatch, approvalFingerprint, toBatchItem, uploadName, storedName, PROTECTED_IDS, IMPORT_SYSTEM } = require("../lib/batch.js");
 const { Ledger } = require("../lib/ledger.js");
 const { plan } = require("../import.js");
 
@@ -28,7 +30,7 @@ process.env.ADMIN_TOKEN = TOKEN;
 /* ---- stubs and fault injection ---- */
 const store = require(path.join(dir, "lib", "store.js"));
 if (store.USE_SUPABASE) throw new Error("must run in file mode");
-const fault = { create: null, upload: null, corrupt: null };
+const fault = { create: null, upload: null, corrupt: null, mutate: null };
 store.uploadObject = async (bucket, objPath, buf) => {
   if (fault.upload && fault.upload(objPath)) throw new Error("simulated storage failure");
   if (fault.corrupt && fault.corrupt(objPath)) buf = Buffer.concat([buf, Buffer.from([0])]);   // storage keeps different bytes
@@ -36,10 +38,21 @@ store.uploadObject = async (bucket, objPath, buf) => {
 };
 store.removeObject = async (bucket, objPath) => { try { fs.unlinkSync(path.join(dir, bucket, objPath)); } catch (e) {} };
 const realPutStory = store.putStory;
-// The stored original, read back for the byte check (production: the gallery item's public URL).
-const readStoredPhoto = async (id, item) => fs.readFileSync(path.join(dir, store.BUCKET_STORY, "story-" + id, item.file));
-const run = o => runBatch(Object.assign({ readStoredPhoto }, o));
-store.putStory = async rec => { if (fault.create && fault.create(rec)) throw new Error("simulated database failure"); return realPutStory(rec); };
+// Stored-photo digest: stands in for the planned admin-only verification endpoint (C1). It reads the stored
+// original from the storage stub and answers like an API: { status, body: { file, sha256 } }.
+let digestFault = null;
+const storedPhotoDigest = async (id, item) => {
+  if (digestFault) { const d = digestFault(id, item); if (d) return d; }
+  const f = path.join(dir, store.BUCKET_STORY, "story-" + id, item.file);
+  if (!fs.existsSync(f)) return { status: 404, body: { error: "no stored object" } };
+  const b = fs.readFileSync(f);
+  return { status: 200, body: { storyId: id, file: item.file, bytes: b.length, sha256: crypto.createHash("sha256").update(b).digest("hex") } };
+};
+// A fresh read-only snapshot taken through the API, as a Production run would take one.
+const takeSnapshot = async () => { const r = await transport("GET", "/api/stories"); return { takenAt: new Date().toISOString(), source: "GET /api/stories (rehearsal API)", memories: r.body.map(s => ({ id: s.id, status: s.status, featured: !!s.featured, importSource: s.importSource || null })) }; };
+const run = async o => runBatch(Object.assign({ storedPhotoDigest, snapshot: await takeSnapshot() }, o));
+process.on("exit", () => { delete process.env.ADMIN_TOKEN; delete process.env.HL_ADMIN_TOKEN; });
+store.putStory = async rec => { if (fault.create && fault.create(rec)) throw new Error("simulated database failure"); if (fault.mutate) rec = fault.mutate(rec) || rec; return realPutStory(rec); };
 
 const hooks = []; let hookFailNext = 0;
 const hookServer = http.createServer((req, res) => { if (req.method === "POST") { hooks.push(Date.now()); if (hookFailNext > 0) { hookFailNext--; res.statusCode = 500; } } res.end("ok"); });
@@ -75,7 +88,7 @@ const entries = manifest.entries.filter(e => wanted.has(e.postId)).map(e => TEXT
 const planned = plan({ entries }, snapshot, { assumeApproved: true }).items;
 const byPost = Object.fromEntries(planned.map(x => [x.postId, x]));
 let nextId = 9301;
-const asTest = postId => { const x = byPost[postId]; return { postId, photoMode: x.photoMode, images: x.images, record: Object.assign({}, x.record, { id: nextId++, title: "TEST " + nextId + " - " + x.record.title, status: "draft", featured: false }) }; };
+const asTest = postId => { const x = toBatchItem(byPost[postId]); x.record = Object.assign({}, x.record, { id: nextId++, title: "TEST " + nextId + " - " + x.record.title, status: "draft", featured: false }); return x; };
 const approve = items => Object.fromEntries(items.map(it => [it.postId, approvalFingerprint(it)]));
 const ledgerDir = fs.mkdtempSync(path.join(os.tmpdir(), "hl-nophoto-ledger-"));
 const newLedger = name => new Ledger(path.join(ledgerDir, name + ".jsonl"));
@@ -102,6 +115,8 @@ async function main() {
   await new Promise(r => apiServer.listen(0, "127.0.0.1", r));
   process.env.VERCEL_DEPLOY_HOOK_URL = "http://127.0.0.1:" + hookServer.address().port + "/hook";
   base = "http://127.0.0.1:" + apiServer.address().port;
+  // A stand-in for pilot Draft No. 404 (an import Draft of P003), so adoption of a protected id can be attempted.
+  await transport("POST", "/api/stories", Object.assign({}, byPost[NONE[0]].record, { id: 404, title: "PILOT STAND-IN", importSource: { system: IMPORT_SYSTEM, postId: "P003", facebookUrl: null, facebookTimeChicago: null } }), { "x-defer-rebuild": "1" });
   const before = readStories(), galleriesBefore = JSON.stringify(readGalleries());
   const notReady = planned.filter(x => x.readiness !== "READY");
   check("setup", "every sampled post plans as READY (text-only, none, one-photo, multi-photo)", !notReady.length, notReady.map(x => x.postId + ":" + x.readiness + " " + x.reasons.join(";")).join(" | "));
@@ -144,7 +159,7 @@ async function main() {
   await transport("POST", "/api/stories", Object.assign({}, Z[0].record, { importSource: undefined }), { "x-defer-rebuild": "1" });   // a different memory already holds this id
   await transport("POST", "/api/story-photos/" + Z[0].record.id, { filename: "stray.jpg", data: "data:image/jpeg;base64," + fs.readFileSync(byPost[ONE[0]].images[0].file).toString("base64") }, { "x-defer-rebuild": "1" });
   const rZ = await counted(() => run({ items: Z, transport, ledger: lz, defer: true, batchId: "Z", approved: approve(Z) }));
-  check("3", "a Draft approved without photos whose id is not this post's Draft is refused (no adoption, no writes, no build)", rZ.r.stopped && rZ.r.stopped.step === "create" && rZ.r.writes === 0 && rZ.builds === 0, JSON.stringify(rZ.r.stopped));
+  check("3", "a Draft approved without photos whose id is not this post's Draft is refused in preflight (occupied in the snapshot; no adoption, no writes, no build)", rZ.r.stopped && rZ.r.stopped.step === "preflight" && /occupied in the snapshot/.test(rZ.r.stopped.error) && rZ.r.writes === 0 && rZ.builds === 0, JSON.stringify(rZ.r.stopped));
   // the same, but it IS this post's own Draft (importSource matches) with a stray photo: gallery check stops it
   const Z2 = [asTest(NONE[3])], lz2 = newLedger("Z2");
   await transport("POST", "/api/stories", Z2[0].record, { "x-defer-rebuild": "1" });
@@ -203,8 +218,9 @@ async function main() {
   const C4c = await counted(() => run({ items: [invalid], transport, ledger: newLedger("C4c"), defer: true, batchId: "C4c", approved: approve([invalid]) }));
   check("1,7", "an invalid photoMode (\"None\") fails closed before any write", C4c.r.stopped && /invalid photoMode "None"/.test(C4c.r.stopped.error) && C4c.r.writes === 0, JSON.stringify(C4c.r.stopped));
   const noReader = [asTest(ONE[3])];
-  const C4d = await counted(() => runBatch({ items: noReader, transport, ledger: newLedger("C4d"), defer: true, batchId: "C4d", approved: approve(noReader) }));
-  check("7", "a batch with photos but no way to read back stored bytes fails closed before any write", C4d.r.stopped && /no readStoredPhoto/.test(C4d.r.stopped.error) && C4d.r.writes === 0, JSON.stringify(C4d.r.stopped));
+  const C4dSnap = await takeSnapshot();
+  const C4d = await counted(() => runBatch({ items: noReader, transport, ledger: newLedger("C4d"), defer: true, batchId: "C4d", approved: approve(noReader), snapshot: C4dSnap }));
+  check("7", "a batch with photos but no way to read back stored bytes fails closed before any write", C4d.r.stopped && /no storedPhotoDigest/.test(C4d.r.stopped.error) && C4d.r.writes === 0, JSON.stringify(C4d.r.stopped));
   const Cx = [asTest(TEXT_ONLY[5]), asTest(MULTI[3])];
   const corruptKey = "story-" + Cx[1].record.id + "/" + storedName(uploadName(Cx[1].images[1].file));
   fault.corrupt = p => p === corruptKey;
@@ -230,6 +246,100 @@ async function main() {
   const G2 = await counted(() => run({ items: G, transport, ledger: lg, defer: true, batchId: "G", approved: approve(G) }));
   check("8", "a failed closing build is reported and not recorded; the re-run sends it once with no writes", G1.r.stopped && G1.r.stopped.step === "final build" && !builtAfterG1 && G2.r.writes === 0 && G2.builds === 1 && lg.batchBuilt("G"), JSON.stringify({ g1: G1.r.stopped, w: G2.r.writes, b: G2.builds }));
   check("8", "no stopped batch in this test ever sent a build (Z3's one build is the simulated editor's own upload)", [rZ, rZ2, B1, B2, B3, C1, C2, C3, C4, C4b, C4c, C4d, C5, C6, C7].every(x => x.builds === 0) && !rZ3.r.finalBuild.sent);
+
+  /* ===== H: hardening - protected ids, occupancy, deferred mode, read-back status, stored fields, credentials ===== */
+  const H = { "x-defer-rebuild": "1" };
+  const touches = (cs, id) => cs.filter(([, p]) => p === "/api/stories/" + id || p === "/api/story-photos/" + id).length;
+  const protectedState = () => JSON.stringify(readStories().filter(s => PROTECTED_IDS.includes(s.id))) + JSON.stringify(Object.entries(readGalleries()).filter(([k]) => PROTECTED_IDS.includes(Number(k.replace("story-", "")))));
+  const protectedBefore = protectedState();
+  const hp = [];
+  for (const id of [303, 304, 305, 388, 396, 403, 404]) {
+    for (const postId of [ONE[0], NONE[0]]) {
+      const x = asTest(postId); x.record.id = id;
+      const r = await counted(() => run({ items: [x], transport, ledger: newLedger("H" + id + postId), defer: true, batchId: "H" + id + postId, approved: approve([x]) }));
+      hp.push({ id, postId, stopped: r.r.stopped && r.r.stopped.step, ok: !!(r.r.stopped && r.r.stopped.step === "preflight" && /protected existing memory/.test(r.r.stopped.error) && r.r.writes === 0 && r.builds === 0 && touches(r.calls, id) === 0) });
+    }
+  }
+  check("C3", "every protected id (303, 304, 305, 388, 396, 403, 404) is refused before any request, for a photo post and a zero-photo post", hp.every(x => x.ok), JSON.stringify(hp.filter(x => !x.ok)));
+  // adopt / attach photos to the No. 404 stand-in: an item claiming to be P003's import Draft, with photos
+  const pilot = asTest(ONE[1]); pilot.postId = "P003"; pilot.record.id = 404; pilot.record.importSource = Object.assign({}, pilot.record.importSource, { postId: "P003" });
+  const rp = await counted(() => run({ items: [pilot], transport, ledger: newLedger("Hpilot"), defer: true, batchId: "Hpilot", approved: approve([pilot]) }));
+  check("C3", "adopting No. 404 as 'this post's own import Draft' and attaching photos to it is refused before any request", rp.r.stopped && rp.r.stopped.step === "preflight" && /protected existing memory/.test(rp.r.stopped.error) && rp.r.writes === 0 && touches(rp.calls, 404) === 0, JSON.stringify(rp.r.stopped));
+  // an edited ledger that claims a protected id as created and verified changes nothing
+  const forged = asTest(NONE[1]); forged.record.id = 403;
+  const lf403 = newLedger("Hforged"); lf403.append({ batchId: "Hforged", postId: forged.postId, step: "created", storyId: 403 }); lf403.append({ batchId: "Hforged", postId: forged.postId, step: "verified", storyId: 403 });
+  const rf = await counted(() => run({ items: [forged], transport, ledger: lf403, defer: true, batchId: "Hforged", approved: approve([forged]) }));
+  check("C3", "a ledger edited to claim No. 403 as created and verified does not let the batch use or skip it", rf.r.stopped && /protected existing memory/.test(rf.r.stopped.error) && rf.r.writes === 0 && rf.builds === 0, JSON.stringify(rf.r.stopped));
+  // ids occupied in the fresh snapshot by memories that are not this post's own import Draft
+  const plain = (id, extra) => Object.assign({}, byPost[ONE[0]].record, { id, title: "TEST " + id }, extra || {});
+  await transport("POST", "/api/stories", Object.assign(plain(9450, { status: "published" }), { importSource: undefined }), H);
+  await transport("POST", "/api/stories", Object.assign(plain(9451), { importSource: undefined }), H);
+  await transport("POST", "/api/stories", plain(9452, { importSource: { system: IMPORT_SYSTEM, postId: "P999", facebookUrl: null, facebookTimeChicago: null } }), H);
+  await transport("POST", "/api/story-photos/9450", { filename: "existing.jpg", data: "data:image/jpeg;base64," + fs.readFileSync(byPost[ONE[0]].images[0].file).toString("base64") }, H);
+  const occ = [];
+  for (const [id, what] of [[9450, "a published memory with a photo"], [9451, "an editor's Draft"], [9452, "another post's import Draft"], [304, "existing No. 304 with photos"]]) {
+    const x = asTest(ONE[2]); x.record.id = id;
+    const g0 = JSON.stringify(readGalleries()["story-" + id] || null), s0 = JSON.stringify(readStories().find(s => s.id === id));
+    const r = await counted(() => run({ items: [x], transport, ledger: newLedger("Hocc" + id), defer: true, batchId: "Hocc" + id, approved: approve([x]) }));
+    occ.push({ id, what, ok: !!(r.r.stopped && r.r.stopped.step === "preflight" && /occupied|protected/.test(r.r.stopped.error) && r.r.writes === 0 && r.builds === 0 && touches(r.calls, id) === 0 && g0 === JSON.stringify(readGalleries()["story-" + id] || null) && s0 === JSON.stringify(readStories().find(s => s.id === id))) });
+  }
+  check("C3", "ids occupied in the fresh snapshot (published, editor Draft, another post's import Draft, No. 304) are refused; nothing about them changes", occ.every(x => x.ok), JSON.stringify(occ.filter(x => !x.ok)));
+  const dup409 = await counted(() => transport("POST", "/api/stories", plain(9450), H));
+  check("C3", "the API-side guard is intact: creating an existing id answers 409, no build", dup409.r.status === 409 && dup409.builds === 0, dup409.r.status);
+  const snapless = [asTest(NONE[2])];
+  const rs1 = await counted(() => runBatch({ items: snapless, transport, ledger: newLedger("Hs1"), defer: true, batchId: "Hs1", approved: approve(snapless), storedPhotoDigest }));
+  const rs2 = await counted(() => runBatch({ items: snapless, transport, ledger: newLedger("Hs2"), defer: true, batchId: "Hs2", approved: approve(snapless), storedPhotoDigest, snapshot: { takenAt: new Date(Date.now() - 7 * 3600e3).toISOString(), memories: [] } }));
+  check("C3", "no snapshot, or a stale one (7 h), stops the batch before any request", rs1.r.stopped && /no fresh read-only snapshot/.test(rs1.r.stopped.error) && rs2.r.stopped && /not fresh/.test(rs2.r.stopped.error) && rs1.calls.length === 0 && rs2.calls.length === 0, JSON.stringify([rs1.r.stopped, rs2.r.stopped]));
+  const smuggle = Object.assign(asTest(NONE[2]), { protectedIds: [], snapshot: { memories: [] } });
+  const rsm = await counted(() => run({ items: [smuggle], transport, ledger: newLedger("Hsm"), defer: true, batchId: "Hsm", approved: {} }));
+  check("C3", "a payload cannot carry its own protected-id list or snapshot (unknown fields are refused)", rsm.r.stopped && /unknown item field "protectedIds"/.test(rsm.r.stopped.error) && /unknown item field "snapshot"/.test(rsm.r.stopped.error) && rsm.r.writes === 0, JSON.stringify(rsm.r.stopped));
+  check("C3", "protected memories and their galleries are byte-identical after every attempt", protectedState() === protectedBefore);
+
+  // deferred mode is required
+  const dm = [];
+  for (const defer of [undefined, false]) {
+    const x = [asTest(NONE[3])];
+    const r = await counted(() => run(Object.assign({ items: x, transport, ledger: newLedger("Hd" + defer), batchId: "Hd" + defer, approved: approve(x) }, defer === undefined ? {} : { defer })));
+    dm.push({ defer: String(defer), ok: !!(r.r.stopped && /deferred rebuild mode is required/.test(r.r.stopped.error) && r.r.writes === 0 && r.builds === 0 && !r.r.finalBuild.sent && r.calls.every(([m, p]) => m === "GET" && p === "/api/stories")) });
+  }
+  check("C4", "missing defer and defer:false both stop before any write; no build", dm.every(x => x.ok), JSON.stringify(dm));
+  const okDefer = [asTest(NONE[3])];
+  const rdo = await counted(() => run({ items: okDefer, transport, ledger: newLedger("Hdok"), defer: true, batchId: "Hdok", approved: approve(okDefer) }));
+  check("C4", "the same post with defer:true completes with exactly one final build", !rdo.r.stopped && rdo.builds === 1 && rdo.r.finalBuild.sent, JSON.stringify(rdo.r.stopped));
+
+  // read-back HTTP status and the stored record, field by field
+  const rb = [];
+  // opts: { digest(id,item), mutate(rec), transport }; each is undone after the run.
+  const readBack = async (label, items, make, expect) => {
+    const o = make(items[0].record.id, items);
+    digestFault = o.digest || null; fault.mutate = o.mutate || null;
+    const r = await counted(() => run({ items, transport: o.transport || transport, ledger: newLedger("Hrb" + label), defer: true, batchId: "Hrb" + label, approved: approve(items) }));
+    digestFault = null; fault.mutate = null;
+    rb.push({ label, error: r.r.stopped && r.r.stopped.error, ok: !!(r.r.stopped && r.r.stopped.step === "verify" && expect.test(r.r.stopped.error) && r.builds === 0 && !r.r.finalBuild.sent) });
+  };
+  const failNth = (p, n, status) => { let k = 0; return async (m, q, b, h) => (m === "GET" && q === p && ++k === n) ? { status, body: { error: "unavailable" } } : transport(m, q, b, h); };
+  await readBack("digest500", [asTest(ONE[3])], id0 => ({ digest: id => id === id0 ? { status: 500, body: { error: "storage unavailable" } } : null }), /stored-bytes read-back answered HTTP 500/);
+  await readBack("digest404", [asTest(ONE[3])], id0 => ({ digest: id => id === id0 ? { status: 404, body: {} } : null }), /stored-bytes read-back answered HTTP 404/);
+  await readBack("digestOtherFile", [asTest(ONE[3])], (id0, items) => ({ digest: id => id === id0 ? { status: 200, body: { file: "other.jpg", sha256: items[0].images[0].sha256 } } : null }), /read-back is for another file/);
+  await readBack("gallery503", [asTest(NONE[0])], id0 => ({ transport: failNth("/api/story-photos/" + id0, 2, 503) }), /gallery read-back answered HTTP 503/);
+  await readBack("story500", [asTest(NONE[1])], id0 => ({ transport: failNth("/api/stories/" + id0, 2, 500) }), /story read-back answered HTTP 500/);
+  await readBack("summaryTampered", [asTest(NONE[2])], id0 => ({ mutate: rec => rec.id === id0 ? Object.assign({}, rec, { summary: "changed in storage" }) : rec }), /summary differs/);
+  await readBack("slugTampered", [asTest(NONE[3])], id0 => ({ mutate: rec => rec.id === id0 ? Object.assign({}, rec, { slug: "something-else" }) : rec }), /slug differs/);
+  check("PART4", "read-back: non-200 photo digest, gallery or story answers, a digest for another file, and stored fields that differ all stop the batch; no build", rb.every(x => x.ok), JSON.stringify(rb.filter(x => !x.ok)));
+
+  // the complete record is approved: a field changed after approval, or an unknown field, stops in preflight
+  const ch = asTest(NONE[3]); const chApproved = approve([ch]); ch.record.summary = "edited after approval";
+  const rch = await counted(() => run({ items: [ch], transport, ledger: newLedger("Hch"), defer: true, batchId: "Hch", approved: chApproved }));
+  const uk = asTest(NONE[3]); uk.record.notAField = 1;
+  const ruk = await counted(() => run({ items: [uk], transport, ledger: newLedger("Huk"), defer: true, batchId: "Huk", approved: {} }));
+  check("C2", "a summary edited after approval, and an unknown record field, both stop before any write", rch.r.stopped && /does not match its approved manifest entry/.test(rch.r.stopped.error) && ruk.r.stopped && /unknown record field "notAField"/.test(ruk.r.stopped.error) && rch.r.writes === 0 && ruk.r.writes === 0, JSON.stringify([rch.r.stopped, ruk.r.stopped]));
+
+  // credentials never reach the ledger or the result, even when a server error echoes one
+  const sec = [asTest(NONE[0])], lsec = newLedger("Hsec");
+  const echo = async (m, q, b, h) => (m === "POST" && q === "/api/stories") ? { status: 500, body: { error: "rejected token " + TOKEN + " x-admin-token: " + TOKEN } } : transport(m, q, b, h);
+  const rsec = await counted(() => run({ items: sec, transport: echo, ledger: lsec, defer: true, batchId: "Hsec", approved: approve(sec), secrets: [TOKEN] }));
+  check("PART4", "a server error that echoes the admin token never reaches the ledger or the result", rsec.r.stopped && !JSON.stringify(rsec.r).includes(TOKEN) && !fs.readFileSync(path.join(ledgerDir, "Hsec.jsonl"), "utf8").includes(TOKEN), JSON.stringify(rsec.r.stopped));
+  S("H_hardening", { protectedIds: hp, occupied: occ, deferred: dm, readBack: rb });
 
   /* ===== 9: ordinary Admin saves and published-memory rebuilds (merged 3a327d8 behaviour) ===== */
   const D = { "x-defer-rebuild": "1" };

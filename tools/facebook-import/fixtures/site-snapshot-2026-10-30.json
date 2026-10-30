@@ -1,0 +1,29 @@
+{
+  "source": "Read-only views of the Editorial Workspace (harlanslegacy.com/admin) on 2026-10-30. Lead = opening characters of 'The story' as shown in the editor. Not fetched with a token.",
+  "liveCount": 19,
+  "draftCount": 1,
+  "featuredId": 403,
+  "protectedIds": [403, 400, 396, 395, 393, 391, 392, 390, 389, 388, 305, 304, 303, 394, 397, 398, 399, 401, 402, 404],
+  "memories": [
+    { "id": 403, "title": "The Anniversary in the Kodachrome Slides", "publishedISO": "2026-10-23", "theme": "grief", "status": "published", "featured": true, "images": 5, "facebookPostId": "P407", "lead": "Somewhere around 1970, a photographer captured a celebration at Northwood Villa in Erie, M" },
+    { "id": 400, "title": "There’s Always Room for One More Story", "publishedISO": "2026-10-16", "theme": "grief", "status": "published", "featured": false, "images": 10, "facebookPostId": "P406", "lead": "There he is.  Baby Harlan. May 1962.  Just a few weeks old, comfortably tucked into his bl" },
+    { "id": 396, "title": "Tora, Tora, Tora!", "publishedISO": "2026-10-09", "theme": "funny", "status": "published", "featured": false, "images": 1, "facebookPostId": "P405", "lead": "Weekly followers of our Legacy Blog will know that last week we discussed Sukkot. This wee" },
+    { "id": 395, "title": "The Pitom", "publishedISO": "2026-10-02", "theme": "shabbat", "status": "published", "featured": false, "images": 2, "facebookPostId": "P404", "lead": "When Harlan and I were young, we did not fully understand that we were celebrating Sukkot." },
+    { "id": 393, "title": "Shofart", "publishedISO": "2026-09-25", "theme": "shabbat", "status": "published", "featured": false, "images": 2, "facebookPostId": "P403", "lead": "Did your family play Shofart?  Our writings have found a rhythm of their own—week after we" },
+    { "id": 391, "title": "The Mailbox Grandpa Harry Could See", "publishedISO": "2026-09-18", "theme": "funny", "status": "published", "featured": false, "images": 3, "facebookPostId": "P402", "lead": "No matter how many Rosh Hashanahs and Yom Kippurs we are given, eventually there comes a y" },
+    { "id": 392, "title": "The Bigger Walk", "publishedISO": "2026-09-11", "theme": "shabbat", "status": "published", "featured": false, "images": 4, "facebookPostId": "P400", "lead": "Issue 391 — Friday, September 11, 2026  When Harlan and" },
+    { "id": 390, "title": "History Arrives One Name at a Time", "publishedISO": "2026-09-04", "theme": "funny", "status": "published", "featured": false, "images": 7, "facebookPostId": "P399", "lead": "Some weeks, history arrives one name at a time.  This w" },
+    { "id": 389, "title": "Dad’s Bass Voice to Barbra Streisand to Phish", "publishedISO": "2026-08-28", "theme": "shabbat", "status": "published", "featured": false, "images": 2, "facebookPostId": "P398", "lead": "Avinu Malkeinu.  Two Hebrew words. Four words in Englis" },
+    { "id": 388, "title": "When One Voice Is Missing", "publishedISO": "2026-08-21", "theme": "shabbat", "status": "published", "featured": false, "images": 1, "facebookPostId": "P397", "lead": "If the books of our lives were organized according to t" },
+    { "id": 305, "title": "The Tattoo That Wasn’t", "publishedISO": "2026-08-14", "theme": "funny", "status": "published", "featured": false, "images": 1, "facebookPostId": "P396", "lead": "This week’s memorial blog is number 388, and " },
+    { "id": 304, "title": "The Red Suitcase", "publishedISO": "2026-08-07", "theme": "grief", "status": "published", "featured": false, "images": 1, "facebookPostId": "P395", "lead": "Harlan and I were old enough to remember hard" },
+    { "id": 303, "title": "Following the Trail Harlan Left Us", "publishedISO": "2026-07-31", "theme": "shabbat", "status": "published", "featured": false, "images": 3, "facebookPostId": "P394", "lead": "Six months ago, we shared a Shabbat Shalom po" },
+    { "id": 394, "title": "Be Somebody", "publishedISO": "2026-07-24", "theme": "funny", "status": "published", "featured": false, "images": 1, "facebookPostId": "P393", "lead": "Be somebody who makes everybody feel like a s" },
+    { "id": 397, "title": "The Charcoal House", "publishedISO": "2026-07-17", "theme": "funny", "status": "published", "featured": false, "images": 2, "facebookPostId": "P392", "lead": "Shabbat Shalom.  This week's Torah portion, V" },
+    { "id": 398, "title": "The Original Helicopter Parent", "publishedISO": "2026-07-10", "theme": "funny", "status": "published", "featured": false, "images": 2, "facebookPostId": "P391", "lead": "Shabbat Shalom.  As we enter the peacefulness" },
+    { "id": 399, "title": "The Furniture Remembers", "publishedISO": "2026-07-03", "theme": "grief", "status": "published", "featured": false, "images": 6, "facebookPostId": "P390", "lead": "There’s a certain honesty in furniture.  It h" },
+    { "id": 401, "title": "The Agam Over My Bed", "publishedISO": "2026-06-26", "theme": "grief", "status": "published", "featured": false, "images": 6, "facebookPostId": "P389", "lead": "As Friday night arrives and Shabbat begins, w" },
+    { "id": 402, "title": "Deli Was the Soul Food of Our Youth", "publishedISO": "2026-06-19", "theme": "funny", "status": "published", "featured": false, "images": 19, "facebookPostId": "P388", "lead": "Many, many years of spending the summer in De" },
+    { "id": 404, "title": "The Warm Glow of Peace and Love", "publishedISO": "2019-03-01", "theme": "shabbat", "status": "draft", "featured": false, "images": 1, "facebookPostId": "P003", "pilot": true, "lead": "May your Sabbath be filled with the warm glow of peace and love." }
+  ]
+}

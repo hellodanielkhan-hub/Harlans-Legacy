@@ -1,51 +1,111 @@
 /* One import batch through the Admin API (the same endpoints the Editorial Workspace uses).
 
-   1. Preflight, before any write: every post must be in the owner's approved manifest with the
-      same content fingerprint, be a non-featured Draft, have photos numbered 1..n with photo 1 as
-      Primary, and every local photo file must still match its recorded SHA-256. Every post must
-      declare its photoMode: "photos" (1..n photos) or "none" (approved to import without any photo:
-      a post that has none, or a text-only import whose images were excluded). A missing or unknown
-      photoMode, "none" with photos listed, or "photos" with none listed fails closed. photoMode is
-      part of the approval fingerprint. Any problem stops the batch with nothing written.
-   2. Per post: create the Draft, upload its photos in order, read both back and verify (status,
-      featured, title, text, photo files and order, Primary, and the SHA-256 of every stored photo
-      through opts.readStoredPhoto). The first failure of any kind stops the batch.
-   3. Only when EVERY post of the batch is verified does the batch send its one POST /api/build
-      (with `defer`), and the ledger records "batch-built". A stopped batch never builds; its Drafts
-      stay unpublished and invisible, and re-running the same batch resumes it.
-
-   Resuming never duplicates: a Draft is created only after GET says the id is free; a Draft whose
-   create answer was lost is adopted only if it is this post's own Draft; a photo already stored is
-   never re-uploaded, and an existing gallery must be an exact prefix of the expected order.
+   1. Preflight, before any request is sent. Any problem stops the batch with nothing written:
+      - Every item has only known fields (item, record, importSource, photo); unknown fields are refused.
+      - Every post is in the owner's approved list with the same fingerprint. The fingerprint covers the
+        complete canonical import record (every record field except the provisional id), the photo
+        mode and every photo's file name, order, Primary flag and SHA-256, serialized deterministically.
+      - Every record is a non-featured Draft from this importer, for this post.
+      - photoMode is declared: "photos" (1..n photos) or "none" (approved to import without any photo).
+        Missing or unknown, "none" with photos, or "photos" without photos fails closed.
+      - Photos are numbered 1..n, photo 1 is the only Primary, every local file matches its SHA-256.
+      - Deferred rebuild mode is required (opts.defer === true). There is no other mode.
+      - Protected ids: no item may use an id in PROTECTED_IDS (fixed here, never read from a payload),
+        nor any id occupied in the fresh read-only snapshot (opts.snapshot) unless the snapshot shows
+        it is this importer's own Draft for this same post (a resumed batch).
+      - A batch with photos needs opts.storedPhotoDigest to verify the stored bytes.
+   2. Per post: create the Draft (only after GET says the id is free, or adopt this post's own Draft),
+      upload its photos in order, read everything back and verify: every record field as stored,
+      photo files and order, Primary, and the SHA-256 of every stored photo. Every read-back must
+      answer HTTP 200. The first failure of any kind stops the batch.
+   3. Only when EVERY post is verified does the batch send its one POST /api/build, and the ledger
+      records "batch-built". A stopped batch never builds; its Drafts stay unpublished, and re-running
+      the same batch resumes it without duplicates.
 
    The transport is injected: transport(method, path, body, headers) -> { status, body }. Only the
-   isolated tests pass one today; lib/api.js keeps production writes disabled. */
+   isolated rehearsals pass one today; lib/api.js keeps production writes disabled. Messages that reach
+   the ledger or the result are scrubbed of opts.secrets and of anything that looks like a credential. */
 "use strict";
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const records = require(path.join(__dirname, "..", "..", "..", "lib", "records.js"));
+const { scrub } = require("./secrets.js");
 
-const DEFER = { "x-defer-rebuild": "1" };
+const DEFER = Object.freeze({ "x-defer-rebuild": "1" });
 const sha256 = buf => crypto.createHash("sha256").update(buf).digest("hex");
+
+// Existing memories the importer must never touch, whatever a payload or snapshot says:
+// Nos. 303-305, 388-403 and 404.
+const PROTECTED_IDS = Object.freeze([303, 304, 305, ...Array.from({ length: 16 }, (_, i) => 388 + i), 404]);
+const IMPORT_SYSTEM = "facebook-shabbat-import";
+const SNAPSHOT_MAX_AGE_MS = 6 * 3600 * 1000;
+
+// The complete set of fields an import item may carry (lib/record.js buildRecord + the batch fields).
+const ITEM_FIELDS = ["postId", "photoMode", "images", "record"];
+const RECORD_FIELDS = ["id", "title", "slug", "status", "featured", "theme", "publishedISO", "dateLong", "dateLabel", "memoryDate", "summary", "description", "ogDescription",
+  "lead", "body", "people", "places", "objects", "events", "bookPart", "keywords", "echoStories", "readingTime", "readerImages", "importSource"];
+const IMPORT_SOURCE_FIELDS = ["system", "postId", "facebookUrl", "facebookTimeChicago"];
+const IMAGE_FIELDS = ["order", "primary", "file", "sha256"];
+const PHOTO_MODES = ["photos", "none"];
 
 // Upload under the Facebook file name, without the local "NN__" order prefix.
 function uploadName(file) { return path.basename(file).replace(/^\d+__/, ""); }
 // The stored file name the API derives from an upload name (api/[...path].js, story-photos POST).
 function storedName(name) { return records.photoSlug(name) + (/\.png$/i.test(name) ? ".png" : ".jpg"); }
 
-// Declared per post; there is no default. Anything else fails preflight.
-const PHOTO_MODES = ["photos", "none"];
+// Deterministic JSON: object keys sorted at every level; undefined values dropped.
+function canonical(v) {
+  if (v === undefined) return undefined;
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return "[" + v.map(x => canonical(x) === undefined ? "null" : canonical(x)).join(",") + "]";
+  return "{" + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}";
+}
 
-// Everything the owner approves for one post: what the website will show. Story ids are left out
-// (they are assigned when a batch is planned); the post is identified by its Facebook post id.
-function approvalFingerprint(it) {
+const unknownKeys = (obj, allowed) => (obj && typeof obj === "object" && !Array.isArray(obj) ? Object.keys(obj).filter(k => !allowed.includes(k)) : []);
+
+// Structural problems with one item (unknown fields at any level, wrong types). Empty = well formed.
+function itemProblems(it) {
+  const out = [];
+  if (!it || typeof it !== "object" || Array.isArray(it)) return ["item is not an object"];
+  unknownKeys(it, ITEM_FIELDS).forEach(k => out.push("unknown item field " + JSON.stringify(k)));
+  if (typeof it.postId !== "string" || !it.postId) out.push("postId missing");
   const r = it.record;
-  return sha256(JSON.stringify({
-    postId: it.postId, title: r.title, theme: r.theme, publishedISO: r.publishedISO, lead: r.lead, body: r.body,
-    status: r.status, featured: !!r.featured, photoMode: it.photoMode === undefined ? null : it.photoMode,
+  if (!r || typeof r !== "object" || Array.isArray(r)) return out.concat(["record missing"]);
+  unknownKeys(r, RECORD_FIELDS).forEach(k => out.push("unknown record field " + JSON.stringify(k)));
+  if (!Number.isInteger(r.id) || r.id <= 0) out.push("record.id must be a positive integer");
+  const src = r.importSource;
+  if (!src || typeof src !== "object" || Array.isArray(src)) out.push("record.importSource missing");
+  else {
+    unknownKeys(src, IMPORT_SOURCE_FIELDS).forEach(k => out.push("unknown importSource field " + JSON.stringify(k)));
+    if (src.system !== IMPORT_SYSTEM) out.push("importSource.system must be " + JSON.stringify(IMPORT_SYSTEM));
+    if (src.postId !== it.postId) out.push("importSource.postId does not match the post");
+  }
+  if (!Array.isArray(it.images)) out.push("images must be a list");
+  else it.images.forEach((im, i) => {
+    if (!im || typeof im !== "object" || Array.isArray(im)) { out.push("photo " + (i + 1) + " is not an object"); return; }
+    unknownKeys(im, IMAGE_FIELDS).forEach(k => out.push("unknown photo field " + JSON.stringify(k)));
+    if (typeof im.file !== "string" || !/^[0-9a-f]{64}$/.test(String(im.sha256))) out.push("photo " + (i + 1) + " needs a file and a SHA-256");
+  });
+  return out;
+}
+
+// Everything the owner approves for one post: the complete canonical import record (all fields except the
+// provisional story id, which is re-planned from a fresh snapshot), the photo mode and every photo.
+// Throws on a malformed item, so an unknown field can never be fingerprinted around.
+function approvalFingerprint(it) {
+  const bad = itemProblems(it);
+  if (bad.length) throw new Error("cannot fingerprint " + (it && it.postId) + ": " + bad.join("; "));
+  const record = Object.assign({}, it.record); delete record.id;
+  return sha256(canonical({
+    v: 2, postId: it.postId, photoMode: it.photoMode === undefined ? null : it.photoMode, record,
     images: it.images.map(im => ({ order: im.order, primary: !!im.primary, sha256: im.sha256, name: uploadName(im.file) }))
   }));
+}
+
+// A batch item from an import.js plan() item: only the fields a batch accepts.
+function toBatchItem(x) {
+  return { postId: x.postId, photoMode: x.photoMode, images: (x.images || []).map(im => ({ order: im.order, primary: !!im.primary, file: im.file, sha256: im.sha256 })), record: x.record };
 }
 
 class BatchStop extends Error {
@@ -55,8 +115,11 @@ class BatchStop extends Error {
 function preflight(items, approved, readFile) {
   const problems = [];
   const ids = new Set(), posts = new Set();
+  if (!Array.isArray(items) || !items.length) return ["no items"];
   for (const it of items) {
-    const p = msg => problems.push(it.postId + ": " + msg);
+    const p = msg => problems.push((it && it.postId) + ": " + msg);
+    const shape = itemProblems(it);
+    if (shape.length) { shape.forEach(p); continue; }
     if (posts.has(it.postId)) p("listed twice"); posts.add(it.postId);
     if (ids.has(it.record.id)) p("story id " + it.record.id + " used twice"); ids.add(it.record.id);
     if (!approved[it.postId]) { p("not in the approved manifest"); continue; }
@@ -76,20 +139,49 @@ function preflight(items, approved, readFile) {
   return problems;
 }
 
+// Ids the batch must not use: the fixed PROTECTED_IDS, plus every id the fresh snapshot shows as occupied,
+// except this importer's own Draft for the same post (so an interrupted batch can resume).
+function protectionProblems(items, snapshot, now) {
+  const problems = [];
+  if (!snapshot || typeof snapshot !== "object" || !Array.isArray(snapshot.memories)) return ["no fresh read-only snapshot (opts.snapshot with memories) - cannot rule out occupied ids"];
+  const taken = Date.parse(snapshot.takenAt);
+  if (!Number.isFinite(taken)) problems.push("snapshot has no valid takenAt time");
+  else if (now - taken > SNAPSHOT_MAX_AGE_MS || taken - now > 5 * 60 * 1000) problems.push("snapshot is not fresh (taken " + snapshot.takenAt + "); take a new read-only snapshot");
+  const occupied = new Map();
+  for (const m of snapshot.memories) {
+    if (!m || !Number.isInteger(m.id)) { problems.push("snapshot entry without an integer id"); continue; }
+    occupied.set(m.id, m);
+  }
+  for (const it of items) {
+    const id = it.record.id;
+    if (PROTECTED_IDS.includes(id)) { problems.push(it.postId + ": id " + id + " is a protected existing memory"); continue; }
+    const m = occupied.get(id);
+    if (m && !(m.status === "draft" && !m.featured && m.importSource && m.importSource.system === IMPORT_SYSTEM && m.importSource.postId === it.postId)) {
+      problems.push(it.postId + ": id " + id + " is occupied in the snapshot by a memory that is not this post's own import Draft");
+    }
+  }
+  return problems;
+}
+
 async function runBatch(opts) {
-  const { items, transport, ledger, defer, batchId } = opts;
+  opts = opts || {};
+  const { items, transport, ledger, batchId } = opts;
   const readFile = opts.readFile || fs.readFileSync;
+  const secrets = Array.isArray(opts.secrets) ? opts.secrets : [];
+  const clean = s => scrub(s, secrets);
   if (!batchId) throw new Error("runBatch needs a batchId");
-  const h = defer ? DEFER : {};
   const out = { batchId, posts: [], writes: 0, rebuilds: { triggered: 0, deferred: 0, other: 0 }, stopped: null, finalBuild: null };
   const tally = r => { const b = r.body && r.body.build && r.body.build.rebuild; if (b === "triggered") out.rebuilds.triggered++; else if (b === "deferred") out.rebuilds.deferred++; else out.rebuilds.other++; };
-  const log = e => ledger.append(Object.assign({ batchId }, e));
+  const cleanDeep = v => typeof v === "string" ? clean(v) : Array.isArray(v) ? v.map(cleanDeep) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, cleanDeep(x)])) : v;
+  const log = e => ledger.append(cleanDeep(Object.assign({ batchId }, e)));
+  const digest = opts.storedPhotoDigest;   // async (storyId, galleryItem) -> { status, body: { file, sha256 } } for the stored original
 
-  const readStored = opts.readStoredPhoto;   // async (storyId, galleryItem) -> Buffer of the stored original
-  const problems = preflight(items, opts.approved || {}, readFile);
-  if (typeof readStored !== "function" && items.some(it => it.images.length)) problems.push("no readStoredPhoto: the batch has photos and could not verify their stored bytes");
+  let problems = preflight(items, opts.approved || {}, readFile);
+  if (opts.defer !== true) problems.push("deferred rebuild mode is required (defer: true); a batch never rebuilds per write");
+  if (!problems.length) problems = problems.concat(protectionProblems(items, opts.snapshot, Date.now()));
+  if (!problems.length && typeof digest !== "function" && items.some(it => it.images.length)) problems.push("no storedPhotoDigest: the batch has photos and could not verify their stored bytes");
   if (problems.length) {
-    out.stopped = { postId: null, step: "preflight", error: problems.join("; ") };
+    out.stopped = { postId: null, step: "preflight", error: clean(problems.join("; ")) };
     log({ postId: null, step: "error", error: "preflight: " + out.stopped.error });
     out.finalBuild = { sent: false, reason: "batch stopped in preflight; nothing written" };
     return out;
@@ -101,14 +193,15 @@ async function runBatch(opts) {
     for (const it of items) {
       current = it.postId;
       const id = it.record.id, mine = state[it.postId] || {};
+      if (PROTECTED_IDS.includes(id)) throw new BatchStop(it.postId, "protected", "id " + id + " is protected");   // belt and braces
       if (mine.verified && mine.storyId === id) { out.posts.push({ postId: it.postId, id, result: "already verified" }); continue; }
 
       const got = await transport("GET", "/api/stories/" + id);
       if (got.status === 404) {
-        const r = await transport("POST", "/api/stories", it.record, h); out.writes++; tally(r);
+        const r = await transport("POST", "/api/stories", it.record, DEFER); out.writes++; tally(r);
         if (r.status !== 201) throw new BatchStop(it.postId, "create", r.status + " " + JSON.stringify(r.body).slice(0, 200));
         log({ postId: it.postId, step: "created", storyId: id });
-      } else if (got.status === 200 && got.body && got.body.importSource && got.body.importSource.postId === it.postId && got.body.status === "draft") {
+      } else if (got.status === 200 && got.body && got.body.importSource && got.body.importSource.system === IMPORT_SYSTEM && got.body.importSource.postId === it.postId && got.body.status === "draft" && !got.body.featured) {
         if (mine.storyId !== id) log({ postId: it.postId, step: "created", storyId: id, adopted: true });   // create answered, answer lost
       } else {
         throw new BatchStop(it.postId, "create", got.status === 200 ? "id " + id + " already exists and is not this post's Draft" : "could not read id " + id + " (" + got.status + ")");
@@ -116,7 +209,7 @@ async function runBatch(opts) {
 
       const want = it.images.map(im => storedName(uploadName(im.file)));
       const g0 = await transport("GET", "/api/story-photos/" + id);
-      if (g0.status !== 200) throw new BatchStop(it.postId, "gallery read", String(g0.status));
+      if (g0.status !== 200 || !g0.body) throw new BatchStop(it.postId, "gallery read", String(g0.status));
       const have = (g0.body.items || []).map(x => x.file);
       if (!want.length && have.length) {
         throw new BatchStop(it.postId, "gallery check", "post is approved without photos but its gallery already holds [" + have.join(", ") + "]");
@@ -129,47 +222,48 @@ async function runBatch(opts) {
         const name = uploadName(im.file);
         const mime = /\.png$/i.test(name) ? "image/png" : "image/jpeg";
         const data = "data:" + mime + ";base64," + readFile(im.file).toString("base64");
-        const r = await transport("POST", "/api/story-photos/" + id, { filename: name, data }, h); out.writes++; tally(r);
+        const r = await transport("POST", "/api/story-photos/" + id, { filename: name, data }, DEFER); out.writes++; tally(r);
         if (r.status !== 201) throw new BatchStop(it.postId, "photo " + im.order, r.status + " " + JSON.stringify(r.body).slice(0, 200));
         log({ postId: it.postId, step: "image", storyId: id, order: im.order });
         uploaded++;
       }
 
-      // Read back and check before calling the post done.
-      const s = (await transport("GET", "/api/stories/" + id)).body || {};
-      const g = (await transport("GET", "/api/story-photos/" + id)).body || { items: [] };
-      const bad = [];
-      if (s.status !== "draft") bad.push("status " + s.status);
-      if (s.featured) bad.push("featured");
-      if (s.title !== it.record.title) bad.push("title differs");
-      if (s.lead !== it.record.lead || JSON.stringify(s.body) !== JSON.stringify(it.record.body)) bad.push("text differs");
-      if (s.publishedISO !== it.record.publishedISO || s.theme !== it.record.theme) bad.push("date or category differs");
+      // Read back and check before calling the post done. Every read must answer 200.
+      const sr = await transport("GET", "/api/stories/" + id);
+      if (sr.status !== 200 || !sr.body) throw new BatchStop(it.postId, "verify", "story read-back answered HTTP " + sr.status);
+      const gr = await transport("GET", "/api/story-photos/" + id);
+      if (gr.status !== 200 || !gr.body) throw new BatchStop(it.postId, "verify", "gallery read-back answered HTTP " + gr.status);
+      const s = sr.body, g = gr.body, bad = [];
+      const expected = records.normalize(Object.assign({}, it.record));
+      if (s.id !== id) bad.push("id differs");
+      for (const k of RECORD_FIELDS) if (k !== "id" && canonical(s[k]) !== canonical(expected[k])) bad.push(k + " differs");
       if (JSON.stringify((g.items || []).map(x => x.file)) !== JSON.stringify(want)) bad.push("photos/order differ");
       if (want.length && (!g.items || !g.items[0] || g.primary !== g.items[0].id)) bad.push("Primary is not photo 1");
       if (!want.length && g.primary != null) bad.push("a Primary is set on a post that should have no photos");
       if (!bad.length) for (let i = 0; i < it.images.length; i++) {
-        let buf; try { buf = await readStored(id, g.items[i]); } catch (e) { bad.push("photo " + (i + 1) + " stored bytes unreadable (" + String(e.message || e).slice(0, 80) + ")"); break; }
-        if (!buf || sha256(buf) !== it.images[i].sha256) bad.push("photo " + (i + 1) + " stored bytes differ from the approved file");
+        let d;
+        try { d = await digest(id, g.items[i]); } catch (e) { bad.push("photo " + (i + 1) + " stored bytes unreadable (" + String(e.message || e).slice(0, 80) + ")"); break; }
+        if (!d || d.status !== 200 || !d.body) { bad.push("photo " + (i + 1) + " stored-bytes read-back answered HTTP " + (d && d.status)); break; }
+        if (d.body.file !== g.items[i].file) bad.push("photo " + (i + 1) + " read-back is for another file");
+        else if (d.body.sha256 !== it.images[i].sha256) bad.push("photo " + (i + 1) + " stored bytes differ from the approved file");
       }
       if (bad.length) throw new BatchStop(it.postId, "verify", bad.join(", "));
       log({ postId: it.postId, step: "verified", storyId: id, photos: want.length, photoMode: it.photoMode });
       out.posts.push({ postId: it.postId, id, result: "verified", photosUploaded: uploaded, photos: want.length, photoMode: it.photoMode });
     }
   } catch (e) {
-    out.stopped = { postId: e.postId || current, step: e.step || "transport", error: String(e.message || e) };
+    out.stopped = { postId: e.postId || current, step: e.step || "transport", error: clean(String(e.message || e)) };
     try { log({ postId: out.stopped.postId, step: "error", error: out.stopped.error }); } catch (x) {}
   }
 
   // The one closing build: only when every post of this batch is verified, and only once per batch.
   if (out.stopped) {
     out.finalBuild = { sent: false, reason: "batch incomplete; no build. Drafts stay unpublished. Re-run the same batch to resume." };
-  } else if (!defer) {
-    out.finalBuild = { sent: false, reason: "not deferring: every write already rebuilt" };
   } else if (ledger.batchBuilt(batchId)) {
     out.finalBuild = { sent: false, reason: "this batch's build was already sent" };
   } else {
     let r;
-    try { r = await transport("POST", "/api/build", {}); } catch (e) { r = { status: 0, body: { error: String(e.message || e) } }; }
+    try { r = await transport("POST", "/api/build", {}); } catch (e) { r = { status: 0, body: { error: clean(String(e.message || e)) } }; }
     out.finalBuild = { sent: true, status: r.status, rebuild: r.body && r.body.rebuild };
     if (r.status === 200 && r.body && r.body.rebuild === "triggered") log({ postId: null, step: "batch-built", posts: items.length });
     else {
@@ -180,4 +274,5 @@ async function runBatch(opts) {
   return out;
 }
 
-module.exports = { runBatch, preflight, approvalFingerprint, uploadName, storedName, DEFER, PHOTO_MODES };
+module.exports = { runBatch, preflight, protectionProblems, approvalFingerprint, itemProblems, toBatchItem, canonical, uploadName, storedName,
+  DEFER, PHOTO_MODES, PROTECTED_IDS, RECORD_FIELDS, ITEM_FIELDS, IMAGE_FIELDS, IMPORT_SOURCE_FIELDS, IMPORT_SYSTEM, SNAPSHOT_MAX_AGE_MS };

@@ -263,7 +263,7 @@ test("credentials: never in URLs, env, serialized clients, errors, ledgers or re
   assert.ok(!JSON.stringify(api).includes(SECRET) && !util.inspect(api, { depth: 5, showHidden: true }).includes(SECRET), "not visible on the client object");
   await assert.rejects(() => api.listStories(), e => !e.message.includes(SECRET) && /\[redacted\]/.test(e.message));
   await assert.rejects(() => api.get("/api/stories?token=abc"), /refusing a URL that carries a credential/);
-  assert.throws(() => new AdminApi({ base: "https://x.invalid/?token=abc", token: "t" }), /credential/);
+  assert.throws(() => new AdminApi({ base: "https://x.invalid/?token=abc", token: "t" }), /destination refused/);
   api.close();
   await assert.rejects(() => api.listStories(), /HL_ADMIN_TOKEN is not set/);
   assert.throws(() => assertNoUrlCredentials("https://x.invalid/a?admin_token=1"));
@@ -277,4 +277,172 @@ test("credentials: never in URLs, env, serialized clients, errors, ledgers or re
   const r = await B.runBatch({ items: [it], transport, ledger: new Ledger(ledFile), batchId: "x", approved: { T950: B.approvalFingerprint(it) }, defer: true,
     snapshot: { takenAt: new Date().toISOString(), memories: [] }, secrets: [SECRET] });
   assert.ok(r.stopped && !JSON.stringify(r).includes(SECRET) && !fs.readFileSync(ledFile, "utf8").includes(SECRET));
+});
+
+test("live transport: only new Drafts, their photos and one build; everything else refused before a request", async () => {
+  const { createLiveTransport } = require("../lib/transport.js");
+  const sent = [];
+  const fetch = async (url, init) => { sent.push((init && init.method) + " " + url); return { status: 201, text: async () => "{}", arrayBuffer: async () => new ArrayBuffer(0) }; };
+  const t = createLiveTransport({ token: "tok", fetch, allowIds: [700] });
+  const draft = { id: 700, status: "draft", featured: false, importSource: { system: B.IMPORT_SYSTEM, postId: "T950" } };
+  const D = { "x-defer-rebuild": "1" };
+  for (const [m, p, body, h] of [["PUT", "/api/stories/700", draft, D], ["DELETE", "/api/stories/700", null, D], ["POST", "/api/stories", Object.assign({}, draft, { status: "published" }), D],
+    ["POST", "/api/stories", Object.assign({}, draft, { id: 701 }), D], ["POST", "/api/stories", draft, {}], ["POST", "/api/story-photos/305", { filename: "a.jpg" }, D], ["PUT", "/api/story-photos/700", {}, D], ["GET", "/api/narration/1", null, null]])
+    await assert.rejects(() => t.transport(m, p, body, h), /transport refused/, m + " " + p);
+  assert.deepStrictEqual(sent, [], "nothing reached the network");
+  await t.transport("POST", "/api/stories", draft, D);
+  await t.transport("POST", "/api/story-photos/700", { filename: "a.jpg", data: "x" }, D);
+  await t.transport("POST", "/api/build", {});
+  await assert.rejects(() => t.transport("POST", "/api/build", {}), /second build/);
+  assert.strictEqual(sent.length, 3);
+  for (const id of B.PROTECTED_IDS) {
+    const tp = createLiveTransport({ token: "tok", fetch, allowIds: [id] });
+    await assert.rejects(() => tp.transport("POST", "/api/stories", Object.assign({}, draft, { id }), D), /protected/);
+  }
+  assert.ok(sent.every(x => x.includes(" https://www.harlanslegacy.com/api/")), "only the production origin is used");
+});
+
+test("id allocation: fresh ids after every occupied/protected id; ledger and lost-answer Drafts are kept, never duplicated", () => {
+  const S = require("../lib/snapshot.js");
+  const mem = (id, extra) => Object.assign({ id, status: "published", featured: false, importSource: null }, extra || {});
+  const snapshot = { memories: [mem(303), mem(404, { status: "draft" }), mem(500), mem(502), mem(503, { status: "draft", importSource: { system: B.IMPORT_SYSTEM, postId: "T2" } })] };
+  const items = ["T1", "T2", "T3", "T4"].map(postId => ({ postId }));
+  const a = S.allocateIds(items, snapshot, { T1: { storyId: 501 } });
+  assert.deepStrictEqual(a.ids, { T1: 501, T2: 503, T3: 504, T4: 505 });
+  assert.deepStrictEqual(a.adopted, [503]);
+  assert.deepStrictEqual(a.problems, []);
+  assert.strictEqual(S.allocateIds(items, snapshot, { T1: { storyId: 303 } }).problems.length, 1, "a protected id in the ledger is refused");
+  const two = { memories: snapshot.memories.concat([mem(510, { status: "draft", importSource: { system: B.IMPORT_SYSTEM, postId: "T2" } })]) };
+  assert.match(S.allocateIds(items, two, {}).problems.join(), /2 import Drafts/);
+});
+
+test("authorization: needs a TTY, the exact batch id, fingerprint, a hidden token and the typed phrase; no env or flag bypass", async () => {
+  const A = require("../lib/authorize.js");
+  const P = { batch: 1, items: [] };
+  const exp = { batchId: A.batchIdOf(P), payloadFingerprint: "f".repeat(64), posts: 25, photos: 23, destination: "https://www.harlanslegacy.com" };
+  const io = (answers, o) => { const q = answers.slice(); const asked = []; return { isTTY: !(o && o.notTTY), asked, ask: async x => { asked.push(x); return q.shift(); }, askHidden: async () => (o && "token" in o ? o.token : "tok"), print: () => {} }; };
+  const saved = Object.assign({}, process.env);
+  Object.assign(process.env, { HL_IMPORT_CONFIRM: "1", HL_CONFIRM: "yes", CI: "1", FORCE: "1", HL_ADMIN_TOKEN: "env-token" });
+  try {
+    await assert.rejects(() => A.authorizeRun(io([exp.batchId, exp.payloadFingerprint], { notTTY: true }), exp), /interactive terminal/);
+    await assert.rejects(() => A.authorizeRun(io(["batch-02", exp.payloadFingerprint]), exp), /batch identifier/);
+    await assert.rejects(() => A.authorizeRun(io([exp.batchId, "e".repeat(64)]), exp), /fingerprint/);
+    await assert.rejects(() => A.authorizeRun(io([exp.batchId, exp.payloadFingerprint], { token: "" }), exp), /no token/);
+    assert.strictEqual(await A.authorizeRun(io([exp.batchId, exp.payloadFingerprint]), exp), "tok", "the token comes from the hidden prompt, not HL_ADMIN_TOKEN");
+    await assert.rejects(() => A.confirmWrites(io(["yes"]), exp.batchId, []), /confirmation phrase/);
+    await assert.rejects(() => A.confirmWrites(io([A.confirmPhrase(exp.batchId).toLowerCase()]), exp.batchId, []), /confirmation phrase/);
+    await A.confirmWrites(io([A.confirmPhrase(exp.batchId)]), exp.batchId, []);
+  } finally { for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k]; Object.assign(process.env, saved); }
+  const src = fs.readFileSync(path.join(__dirname, "..", "lib", "authorize.js"), "utf8") + fs.readFileSync(path.join(__dirname, "..", "lib", "run.js"), "utf8");
+  assert.ok(!/process\.env/.test(src) && !/process\.argv/.test(src), "authorization and the run read no environment variable or argument");
+});
+
+test("payload fingerprint ignores story ids but changes with any approved content", () => {
+  const A = require("../lib/authorize.js");
+  const it = sampleItem();
+  const P = { batch: 1, items: [it] };
+  const f0 = A.payloadFingerprint(P);
+  const moved = clone(P); moved.items[0].record.id = 9999;
+  assert.strictEqual(A.payloadFingerprint(moved), f0);
+  const edited = clone(P); edited.items[0].record.summary += ".";
+  assert.notStrictEqual(A.payloadFingerprint(edited), f0);
+});
+
+/* ---------------- destination security: the admin token can only ever go to the production origin ---------------- */
+const BAD_DESTINATIONS = [
+  "https://attacker.example", "https://www.harlanslegacy.com.attacker.example", "https://harlanslegacy.com",
+  "https://www.harIanslegacy.com", "https://www.harlanslegacy.co", "https://xn--hrlanslegacy-pcb.com", "https://wwwharlanslegacy.com",
+  "https://76.76.21.21", "https://[2606:4700::1111]", "http://www.harlanslegacy.com",
+  "https://www.harlanslegacy.com:8443", "https://www.harlanslegacy.com:443", "https://www.harlanslegacy.com:80",
+  "https://user:pw-secret@www.harlanslegacy.com", "https://admin@www.harlanslegacy.com",
+  "https://www.harlanslegacy.com/", "https://www.harlanslegacy.com/api", "https://www.harlanslegacy.com?token=x",
+  "https://www.harlanslegacy.com?x=1", "https://www.harlanslegacy.com#frag", "https://www.harlanslegacy.com/.attacker.example",
+  "http://127.0.0.1:3000", "http://localhost", "https://localhost", " https://www.harlanslegacy.com", "HTTPS://WWW.HARLANSLEGACY.COM", ""
+];
+
+test("destination: only the exact production origin is accepted; every other destination is refused before any request", async () => {
+  const T = require("../lib/transport.js");
+  assert.strictEqual(T.PRODUCTION_ORIGIN, "https://www.harlanslegacy.com");
+  assert.strictEqual(T.productionDestination(undefined), T.PRODUCTION_ORIGIN);
+  assert.strictEqual(T.productionDestination("https://www.harlanslegacy.com"), T.PRODUCTION_ORIGIN);
+  const calls = []; const fetch = async (url) => { calls.push(url); return { status: 200, text: async () => "[]" }; };
+  for (const bad of BAD_DESTINATIONS) {
+    assert.throws(() => T.productionDestination(bad), /destination refused/, bad);
+    assert.throws(() => T.createLiveTransport({ base: bad, token: "tok-SECRET", fetch }), /destination refused/, bad);
+    assert.throws(() => new AdminApi({ base: bad, token: "tok-SECRET", fetch }), /destination refused/, bad);
+    try { T.productionDestination(bad); } catch (e) { assert.ok(!/pw-secret|tok-SECRET|token=x/.test(e.message), "refusal never echoes a credential: " + e.message); }
+  }
+  assert.deepStrictEqual(calls, [], "no request to any refused destination");
+  // the accepted transport sends only to the production origin, with redirects refused
+  const seen = []; const t = T.createLiveTransport({ token: "tok", fetch: async (url, init) => { seen.push([url, init.redirect, init.headers["x-admin-token"]]); return { status: 200, text: async () => "{}" }; } });
+  await t.transport("GET", "/api/stories");
+  assert.deepStrictEqual(seen, [["https://www.harlanslegacy.com/api/stories", "error", "tok"]]);
+});
+
+test("destination: a Production run refuses a requested base before the payload, backup or token prompt; the destination is shown first", async () => {
+  const { runProduction } = require("../lib/run.js");
+  const A = require("../lib/authorize.js");
+  for (const bad of ["https://attacker.example", "https://www.harlanslegacy.com/", "https://user:pw@www.harlanslegacy.com", "http://127.0.0.1:8080"]) {
+    const asked = []; const calls = [];
+    const io = { isTTY: true, ask: async q => { asked.push(q); return ""; }, askHidden: async q => { asked.push(q); return "tok"; }, print: () => {} };
+    const r = await runProduction({ payload: { batch: 1, items: [] }, backupDir: "nope", ledgerPath: "nope", base: bad, io, fetch: async u => { calls.push(u); return {}; } });
+    assert.strictEqual(r.stage, "destination", bad);
+    assert.match(r.stopped, /destination refused/);
+    assert.deepStrictEqual(asked, [], "no prompt (and no token) for " + bad);
+    assert.deepStrictEqual(calls, [], "no request for " + bad);
+  }
+  // the authorization shows the destination before asking anything; without a validated destination it asks nothing
+  const events = [];
+  const io = { isTTY: true, print: l => events.push("print " + l), ask: async q => { events.push("ask " + q); return "batch-01"; }, askHidden: async q => { events.push("hidden " + q); return "tok"; } };
+  await assert.rejects(() => A.authorizeRun(io, { batchId: "batch-01", payloadFingerprint: "a".repeat(64), posts: 1, photos: 0, destination: "https://www.harlanslegacy.com" }), /fingerprint/);
+  assert.match(events[0], /^print Destination: https:\/\/www\.harlanslegacy\.com /);
+  assert.ok(events.findIndex(e => e.startsWith("ask")) > 0 && !events.some(e => e.startsWith("hidden")), events.join(" | "));
+  const none = [];
+  await assert.rejects(() => A.authorizeRun({ isTTY: true, print: l => none.push(l), ask: async () => { none.push("ask"); }, askHidden: async () => { none.push("hidden"); } }, { batchId: "x" }), /no validated destination/);
+  assert.deepStrictEqual(none, []);
+});
+
+test("destination: the CLI refuses --api for snapshot, backup and run before the token prompt and before any connection", async () => {
+  const cp = require("child_process"), http = require("http");
+  let connections = 0;
+  const trap = http.createServer((q, s) => { s.end("{}"); }); trap.on("connection", () => connections++);
+  await new Promise(r => trap.listen(0, "127.0.0.1", r));
+  const local = "http://127.0.0.1:" + trap.address().port;
+  const cli = path.join(__dirname, "..", "import.js"), tmp = fs.mkdtempSync(path.join(os.tmpdir(), "hlcli-"));
+  const runCli = args => new Promise(res => cp.execFile(process.execPath, [cli, ...args], { env: Object.assign({}, process.env, { HL_ADMIN_TOKEN: "env-SECRET" }) }, (err, stdout, stderr) => res({ code: err ? err.code : 0, stdout, stderr })));
+  for (const dest of [local, "https://attacker.example", "https://www.harlanslegacy.com.attacker.example", "https://www.harlanslegacy.com:8443", "https://user:pw@www.harlanslegacy.com", "https://www.harlanslegacy.com"]) {
+    for (const args of [["snapshot", "--out", path.join(tmp, "s.json")], ["backup", "--out", path.join(tmp, "b")], ["run", "--payload", "p.json", "--backup", tmp, "--ledger", path.join(tmp, "l.jsonl")]]) {
+      const r = await runCli(args.concat(["--api", dest]));
+      assert.strictEqual(r.code, 1, args[0] + " " + dest);
+      assert.match(r.stderr, /--api is not accepted/, args[0] + " " + dest);
+      assert.ok(!/Admin token|Destination:/.test(r.stdout), "refused before the destination banner and the token prompt: " + args[0] + " " + dest);
+    }
+  }
+  // without --api: the fixed destination is shown first; with no terminal there is no token prompt and nothing is sent
+  const plain = await runCli(["snapshot", "--out", path.join(tmp, "s.json")]);
+  assert.match(plain.stdout, /^Destination: https:\/\/www\.harlanslegacy\.com /m);
+  assert.match(plain.stderr, /interactive terminal/);
+  await new Promise(r => setTimeout(r, 100));
+  trap.close();
+  assert.strictEqual(connections, 0, "the local trap server never saw a connection");
+});
+
+test("destination: a redirect is refused and the token is never forwarded; the CLI never loads the rehearsal transport", async () => {
+  const http = require("http"), T = require("../lib/transport.js");
+  const got = [];
+  const target = http.createServer((q, s) => { got.push(q.headers["x-admin-token"] || "(none)"); s.end("[]"); });
+  await new Promise(r => target.listen(0, "127.0.0.1", r));
+  const hop = http.createServer((q, s) => { s.writeHead(302, { Location: "http://127.0.0.1:" + target.address().port + "/api/stories" }); s.end(); });
+  await new Promise(r => hop.listen(0, "127.0.0.1", r));
+  const t = T.createRehearsalTransport({ base: "http://127.0.0.1:" + hop.address().port, token: "tok-REDIRECT" });
+  await assert.rejects(() => t.transport("GET", "/api/stories"), e => !e.message.includes("tok-REDIRECT"));
+  hop.close(); target.close();
+  assert.deepStrictEqual(got, [], "the redirect target received nothing");
+  assert.throws(() => T.createRehearsalTransport({ base: "https://www.harlanslegacy.com", token: "t" }), /loopback only/);
+  assert.throws(() => T.createRehearsalTransport({ base: "http://attacker.example", token: "t" }), /loopback only/);
+  for (const f of ["import.js", path.join("lib", "run.js"), path.join("lib", "snapshot.js"), path.join("lib", "authorize.js")]) {
+    const src = fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+    assert.ok(!/createRehearsalTransport/.test(src), f + " must not reference the rehearsal transport");
+  }
+  assert.ok(!/connect\s*:/.test(fs.readFileSync(path.join(__dirname, "..", "import.js"), "utf8")), "the CLI never passes a connect override");
 });

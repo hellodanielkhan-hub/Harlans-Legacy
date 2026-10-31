@@ -333,10 +333,12 @@ async function main() {
 
 function finish() {
   report.finished = new Date().toISOString();
-  report.passed = report.checks.length > 0 && report.checks.every(c => c.ok);
+  // a run that aborted part-way is a failure, however many of the checks it reached passed
+  report.passed = !report.error && report.checks.length > 0 && report.checks.every(c => c.ok);
   report.totalProductionBuildsCounted = hooks.length;
   fs.writeFileSync(outFile, JSON.stringify(report, null, 1));
-  console.log((report.passed ? "PASS" : "FAIL") + " " + mode + ": " + report.checks.filter(c => c.ok).length + "/" + report.checks.length + " checks");
+  const aborted = report.error ? " (ABORTED: " + report.error.split(/\r?\n/)[0] + ")" : "";
+  console.log((report.passed ? "PASS" : "FAIL") + " " + mode + ": " + report.checks.filter(c => c.ok).length + "/" + report.checks.length + " checks" + aborted);
   hookServer.close(); apiServer.close();
   process.exitCode = report.passed ? 0 : 1;
 }

@@ -1,6 +1,6 @@
 # Snapshot, id allocation and backup: process and tooling design
 
-**Status: design only.** Nothing here has been run against Production. No backup has been made and no Production credential has been used. The commands below (`snapshot`, `backup`, `verify-backup`, `check-protected`) are **not implemented yet**; they are the proposed shape for review. `lib/api.js` already has the read methods they would use, and it stays write-disabled.
+**Status: implemented** in `lib/snapshot.js` (`import.js snapshot`, `backup`, `verify-backup`; the comparison after a run is part of `import.js run`). Rehearsed only against isolated local copies; it has not been run against Production. Where the implementation differs from the design below, the code and the README's "Production run" section are authoritative: the token is entered at a hidden prompt, and stored originals are read through the admin-only `GET /api/story-photos/<id>/<photoId>/original` route.
 
 Every step is **read-only (GET)**. Credentials come only from `HL_ADMIN_TOKEN`, entered as described in the README ("safe token entry"). They are deleted from the environment when read, sent only in the `x-admin-token` header, and never written to any file below.
 

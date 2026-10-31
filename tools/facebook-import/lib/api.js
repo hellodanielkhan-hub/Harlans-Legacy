@@ -1,8 +1,9 @@
-/* Client for the existing Admin API (the same endpoints the Editorial Workspace uses).
+/* Read-only client for the existing Admin API (the same endpoints the Editorial Workspace uses).
 
-   This build is DRY-RUN ONLY: every write method throws before any network call.
-   Read methods (used by future `snapshot` / `backup` / `verify` commands) need HL_ADMIN_TOKEN in the
-   environment of the person running them (see README: safe token entry).
+   This client never writes: every write method throws before any network call. The only write path in
+   the tool is lib/transport.js, reached only through the interactive authorization in lib/run.js.
+   Read methods need HL_ADMIN_TOKEN in the environment of the person running them (see README: safe
+   token entry); the snapshot/backup commands use a hidden prompt instead.
 
    Token handling:
    - the token is taken from HL_ADMIN_TOKEN once, and the variable is deleted from this process's environment
@@ -19,8 +20,8 @@ const WRITES_ENABLED = false; // Turning this on requires the owner's separate w
 class AdminApi {
   constructor(opts) {
     opts = opts || {};
-    this.base = (opts.base || "https://www.harlanslegacy.com").replace(/\/$/, "");
-    assertNoUrlCredentials(this.base);
+    // Same single destination as the live transport: exactly https://www.harlanslegacy.com, nothing else.
+    this.base = require("./transport.js").productionDestination(opts.base);
     let token = opts.token !== undefined ? opts.token : process.env.HL_ADMIN_TOKEN;
     delete process.env.HL_ADMIN_TOKEN;
     const fetchFn = opts.fetch || globalThis.fetch;

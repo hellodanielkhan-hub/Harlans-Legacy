@@ -28,7 +28,10 @@ process.env.HARLAN_MODERATORS = JSON.stringify({ [MOD]: { id: "mod1", name: "Tes
 process.on("exit", () => { delete process.env.ADMIN_TOKEN; delete process.env.HARLAN_MODERATORS; });
 
 const { IMPORT_SYSTEM, PROTECTED_IDS, uploadName, storedName } = require("../lib/batch.js");
-const { createLiveTransport } = require("../lib/transport.js");
+// The rehearsals talk to isolated loopback copies through the rehearsal-only transport; the live transport
+// (createLiveTransport) only ever accepts https://www.harlanslegacy.com and is used here only to prove that.
+const { createLiveTransport, createRehearsalTransport } = require("../lib/transport.js");
+const connectTo = (base, fetch) => ({ origin: new URL(base).origin, open: token => createRehearsalTransport({ base, token, fetch }) });
 const snap = require("../lib/snapshot.js");
 const { runProduction } = require("../lib/run.js");
 const { payloadFingerprint, batchIdOf, confirmPhrase } = require("../lib/authorize.js");
@@ -163,7 +166,7 @@ async function main() {
   /* ================= A3: transport allow-list (nothing leaves the process) ================= */
   {
     const c = counter();
-    const t = createLiveTransport({ base: A.base, token: TOKEN, fetch: c.fetch, allowIds: [9001] });
+    const t = createRehearsalTransport({ base: A.base, token: TOKEN, fetch: c.fetch, allowIds: [9001] });
     const tries = [
       ["PUT an existing memory", () => t.transport("PUT", "/api/stories/304", { title: "x" })],
       ["DELETE a memory", () => t.transport("DELETE", "/api/stories/9001")],
@@ -182,17 +185,18 @@ async function main() {
     const res = [];
     for (const [n, f] of tries) { try { await f(); res.push(n + ": SENT"); } catch (e) { res.push(n + ": " + (/transport refused/.test(e.message) ? "refused" : e.message)); } }
     check("A3 transport", "every non-import write is refused before any request (" + tries.length + " cases)", res.every(x => /: refused$/.test(x)) && c.POST + c.PUT + c.DELETE + c.GET === 0, res.join(" | "));
-    const prot = PROTECTED_IDS.map(id => { const t2 = createLiveTransport({ base: A.base, token: TOKEN, fetch: c.fetch, allowIds: [id] }); return t2.transport("POST", "/api/stories", { id, status: "draft", featured: false, importSource: { system: IMPORT_SYSTEM } }, { "x-defer-rebuild": "1" }).then(() => "SENT " + id, e => /protected/.test(e.message) ? "refused" : e.message); });
+    const prot = PROTECTED_IDS.map(id => { const t2 = createRehearsalTransport({ base: A.base, token: TOKEN, fetch: c.fetch, allowIds: [id] }); return t2.transport("POST", "/api/stories", { id, status: "draft", featured: false, importSource: { system: IMPORT_SYSTEM } }, { "x-defer-rebuild": "1" }).then(() => "SENT " + id, e => /protected/.test(e.message) ? "refused" : e.message); });
     const pr = await Promise.all(prot);
     check("A3 transport", "a create at any protected id is refused even if allocated (303-305, 388-404)", pr.every(x => x === "refused") && c.POST === 0, pr.filter(x => x !== "refused").join(","));
     const b1 = await t.transport("POST", "/api/build", {}); let second; try { await t.transport("POST", "/api/build", {}); second = "SENT"; } catch (e) { second = "refused"; }
     check("A3 transport", "at most one build per run", b1.status === 200 && second === "refused");
     const bad = [];
-    for (const base of ["http://example.com", "https://user:pw@www.harlanslegacy.com", "https://www.harlanslegacy.com/?token=x", "https://www.harlanslegacy.com/api"]) { try { createLiveTransport({ base, token: TOKEN }); bad.push(base + " accepted"); } catch (e) { } }
-    check("A3 transport", "insecure, credentialed or non-origin API bases are refused", !bad.length, bad.join(", "));
-    let leaked = ""; try { await createLiveTransport({ base: A.base, token: TOKEN, fetch: async () => { throw new Error("boom " + TOKEN + " x-admin-token: " + TOKEN); } }).transport("GET", "/api/stories"); } catch (e) { leaked = e.message; }
+    for (const base of ["http://example.com", "https://attacker.example", "https://www.harlanslegacy.com.attacker.example", "https://user:pw@www.harlanslegacy.com", "https://www.harlanslegacy.com/?token=x", "https://www.harlanslegacy.com/api", "https://www.harlanslegacy.com:8443", A.base]) { try { createLiveTransport({ base, token: TOKEN }); bad.push(base + " accepted"); } catch (e) { if (!/destination refused/.test(e.message)) bad.push(base + ": " + e.message); } }
+    for (const base of ["https://www.harlanslegacy.com", "http://attacker.example"]) { try { createRehearsalTransport({ base, token: TOKEN }); bad.push("rehearsal transport accepted " + base); } catch (e) { } }
+    check("A3 transport", "the live transport refuses every destination but the production origin (incl. this loopback copy); the rehearsal transport is loopback only", !bad.length, bad.join(", "));
+    let leaked = ""; try { await createRehearsalTransport({ base: A.base, token: TOKEN, fetch: async () => { throw new Error("boom " + TOKEN + " x-admin-token: " + TOKEN); } }).transport("GET", "/api/stories"); } catch (e) { leaked = e.message; }
     check("A3 transport", "errors never carry the token", leaked && !leaked.includes(TOKEN), leaked);
-    const t3 = createLiveTransport({ base: A.base, token: TOKEN }); t3.close(); let closed = ""; try { await t3.transport("GET", "/api/stories"); } catch (e) { closed = e.message; }
+    const t3 = createRehearsalTransport({ base: A.base, token: TOKEN }); t3.close(); let closed = ""; try { await t3.transport("GET", "/api/stories"); } catch (e) { closed = e.message; }
     check("A3 transport", "close() forgets the token", /closed/.test(closed) && !JSON.stringify(t3).includes(TOKEN));
     hooks.length = hooks.length;  // the one build above is A's own; B and C measure their own windows
   }
@@ -200,11 +204,11 @@ async function main() {
   /* ================= A4: collision-free id allocation ================= */
   {
     // occupy max+1 and max+3 with ordinary (non-import) records
-    const s0 = await snap.takeSnapshot(createLiveTransport({ base: A.base, token: TOKEN }).transport);
+    const s0 = await snap.takeSnapshot(createRehearsalTransport({ base: A.base, token: TOKEN }).transport);
     const max = s0.maxId;
     const list = A.stories(); for (const id of [max + 1, max + 3]) list.push({ id, title: "OCCUPIED " + id, status: "draft", featured: false });
     fs.writeFileSync(path.join(A.dir, "data", "stories.json"), JSON.stringify(list, null, 2));
-    const t = createLiveTransport({ base: A.base, token: TOKEN });
+    const t = createRehearsalTransport({ base: A.base, token: TOKEN });
     const s1 = await snap.takeSnapshot(t.transport);
     const items = P.items.slice(0, 5);
     const al = snap.allocateIds(items, s1, {});
@@ -222,7 +226,7 @@ async function main() {
   /* ================= B1: snapshot and backup ================= */
   const bkB = path.join(tmp, "backup-B");
   {
-    const live = createLiveTransport({ base: B.base, token: TOKEN });
+    const live = createRehearsalTransport({ base: B.base, token: TOKEN });
     const s = await snap.takeSnapshot(live.transport, live.base);
     const b = await snap.backup(live, s, bkB);
     const v = snap.verifyBackup(bkB);
@@ -246,7 +250,7 @@ async function main() {
   /* ================= B2: mandatory explicit authorization ================= */
   const ledB = path.join(tmp, "ledger-B.jsonl");
   {
-    const go = async (io, extra) => { const c = counter(); const r = await runProduction(Object.assign({ payload: P, backupDir: bkB, ledgerPath: ledB, base: B.base, io, fetch: c.fetch }, extra || {})); return { r, c }; };
+    const go = async (io, extra) => { const c = counter(); const r = await runProduction(Object.assign({ payload: P, backupDir: bkB, ledgerPath: ledB, connect: connectTo(B.base, c.fetch), io }, extra || {})); return { r, c }; };
     const before = B.stateHash(), h0 = hooks.length;
     const cases = [
       ["no interactive terminal", await go(scriptedIo([BATCH, FP, PHRASE], { notTTY: true })), "authorize", 0],
@@ -266,6 +270,13 @@ async function main() {
     process.argv.splice(-3);
     for (const k of Object.keys(envs)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
     check("B2 authorization", "confirmation/yes/force environment variables and --yes/--force/--confirm flags change nothing", e1.r.stage === "confirm" && e2.r.stage === "authorize" && e1.c.POST + e2.c.POST + e2.c.GET === 0);
+    const dests = [];
+    for (const bad of ["https://attacker.example", "https://www.harlanslegacy.com.attacker.example", "https://user:pw@www.harlanslegacy.com", B.base]) {
+      const asked = []; const c = counter();
+      const r = await runProduction({ payload: P, backupDir: bkB, ledgerPath: ledB, base: bad, io: { isTTY: true, ask: async q => { asked.push(q); return BATCH; }, askHidden: async q => { asked.push(q); return TOKEN; }, print: () => {} }, fetch: c.fetch });
+      dests.push({ bad, ok: r.stage === "destination" && !asked.length && c.GET + c.POST === 0 });
+    }
+    check("B2 authorization", "a requested destination other than the production origin (incl. this loopback copy) stops the run before the token prompt and any request", dests.every(d => d.ok), JSON.stringify(dests.filter(d => !d.ok)));
     const tampered = JSON.parse(JSON.stringify(P)); tampered.items[3].record.title += " (edited)";
     const tp = await go(goodIo(), { payload: tampered });
     check("B2 authorization", "a payload edited after approval stops before any request", tp.r.stage === "payload" && tp.c.GET + tp.c.POST === 0, tp.r.stopped);
@@ -277,7 +288,7 @@ async function main() {
   {
     const before = B.stories(), gBefore = B.galleries(), h0 = hooks.length;
     const c = counter();
-    resB = await runProduction({ payload: P, backupDir: bkB, ledgerPath: ledB, base: B.base, io: goodIo(), fetch: c.fetch });
+    resB = await runProduction({ payload: P, backupDir: bkB, ledgerPath: ledB, connect: connectTo(B.base, c.fetch), io: goodIo() });
     const r = resB;
     report.phases.B3 = { stage: r.stage, stopped: r.stopped, ids: r.ids, finalBuild: r.run && r.run.finalBuild, writes: r.run && r.run.writes, counts: r.counts, requests: c };
     check("B3 import", "batch completes: 25 Drafts verified, nothing stopped", !r.stopped && r.run && r.run.posts.length === 25 && r.run.posts.every(p => p.result === "verified"), r.stopped);
@@ -307,36 +318,36 @@ async function main() {
     check("B3 import", "every pre-existing memory and gallery (incl. 303-305, 388-404) is byte-identical; the post-run snapshot agrees", unchanged && r.after.unchangedProblems.length === 0, r.after.unchangedProblems.join("; "));
     // running the same command again changes nothing
     const h1 = hooks.length, c2 = counter();
-    const again = await runProduction({ payload: P, backupDir: bkB, ledgerPath: ledB, base: B.base, io: goodIo(), fetch: c2.fetch });
+    const again = await runProduction({ payload: P, backupDir: bkB, ledgerPath: ledB, connect: connectTo(B.base, c2.fetch), io: goodIo() });
     check("B3 import", "re-running the completed batch: no new Draft, photo or build", !again.stopped && c2.POST === 0 && hooks.length === h1 && B.stories().length === after.length && again.run.finalBuild.sent === false, JSON.stringify(again.run && again.run.finalBuild) + " POST=" + c2.POST);
   }
 
   /* ================= C: interruption, partial failure, resume ================= */
   {
     const bkC = path.join(tmp, "backup-C"), ledC = path.join(tmp, "ledger-C.jsonl");
-    const live = createLiveTransport({ base: C.base, token: TOKEN });
+    const live = createRehearsalTransport({ base: C.base, token: TOKEN });
     await snap.backup(live, await snap.takeSnapshot(live.transport, live.base), bkC); live.close();
     const before = C.stories(), h0 = hooks.length;
     // 1. the connection drops after 9 writes (mid-batch, between a create and its photos)
     const c1 = counter({ dropAfterPosts: 9 });
-    const r1 = await runProduction({ payload: P, backupDir: bkC, ledgerPath: ledC, base: C.base, io: goodIo(), fetch: c1.fetch });
+    const r1 = await runProduction({ payload: P, backupDir: bkC, ledgerPath: ledC, connect: connectTo(C.base, c1.fetch), io: goodIo() });
     const imported1 = C.stories().filter(s => s.importSource && s.importSource.system === IMPORT_SYSTEM);
     check("C interruption", "a dropped connection stops the batch with no build; created posts stay unpublished Drafts", r1.stopped && hooks.length === h0 && imported1.length > 0 && imported1.every(s => s.status === "draft" && !s.featured), r1.stopped + " drafts=" + imported1.length);
     // 1b. resume, but the answer to the next create is lost after the server saved it (no ledger line)
     const cL = counter({ loseResponse: (m, u) => m === "POST" && /\/api\/stories$/.test(u) });
-    const rL = await runProduction({ payload: P, backupDir: bkC, ledgerPath: ledC, base: C.base, io: goodIo(), fetch: cL.fetch });
+    const rL = await runProduction({ payload: P, backupDir: bkC, ledgerPath: ledC, connect: connectTo(C.base, cL.fetch), io: goodIo() });
     const importedL = C.stories().filter(s => s.importSource && s.importSource.system === IMPORT_SYSTEM);
     check("C interruption", "a create whose answer is lost stops the batch with no build; the Draft exists without a ledger line", rL.stopped && cL.lost.length === 1 && hooks.length === h0 && importedL.length === imported1.length + 1, rL.stopped + " drafts=" + importedL.length + " lost=" + cL.lost.join(""));
     // 2. the resume hits a storage failure on one upload (HTTP 500 from the API)
     const victim = P.items.filter(i => i.images.length).slice(-1)[0];
     C.fault.upload = p => p.includes(storedName(uploadName(victim.images[0].file)));
     const c2 = counter();
-    const r2 = await runProduction({ payload: P, backupDir: bkC, ledgerPath: ledC, base: C.base, io: goodIo(), fetch: c2.fetch });
+    const r2 = await runProduction({ payload: P, backupDir: bkC, ledgerPath: ledC, connect: connectTo(C.base, c2.fetch), io: goodIo() });
     C.fault.upload = null;
     check("C partial failure", "an upload failure (HTTP 500) stops the batch with no build", r2.stopped && hooks.length === h0 && /500|upload/i.test(r2.stopped), r2.stopped);
     // 3. resume to completion
     const c3 = counter();
-    const r3 = await runProduction({ payload: P, backupDir: bkC, ledgerPath: ledC, base: C.base, io: goodIo(), fetch: c3.fetch });
+    const r3 = await runProduction({ payload: P, backupDir: bkC, ledgerPath: ledC, connect: connectTo(C.base, c3.fetch), io: goodIo() });
     const imported = C.stories().filter(s => s.importSource && s.importSource.system === IMPORT_SYSTEM);
     const g = C.galleries();
     const dupPhotos = imported.filter(s => { const it = P.items.find(i => i.postId === s.importSource.postId); return ((g["story-" + s.id] || { items: [] }).items.length) !== it.images.length; });

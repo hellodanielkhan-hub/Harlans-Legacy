@@ -26,7 +26,7 @@ Enabling writes needs the owner's separate written authorization.
 | `lib/images.js` | File present, JPEG/PNG, dimensions, SHA-256, ≤ 3.2 MB, order 1..n (order 1 = Primary), no repeats, count = Facebook count. |
 | `lib/ledger.js` | Append-only JSON-lines ledger: `created`, `image`, `verified`, `error`, `batch-built`. |
 | `lib/api.js` | Admin API read client. Writes are disabled. |
-| `lib/transport.js` | The live transport: an allow-list of the reads above and the only writes the import needs (new Drafts, their photos, one build). Token in a closure, header only. |
+| `lib/transport.js` | The live transport: an allow-list of the reads above and the only writes the import needs (new Drafts, their photos, one build). It talks **only** to `https://www.harlanslegacy.com` (exact match), refuses redirects, and keeps the token in a closure, header only. `createRehearsalTransport()` is the separate loopback-only interface the rehearsals use; the CLI never loads it. |
 | `lib/snapshot.js` | Fresh read-only snapshot, collision-free id allocation, local backup (records, site documents, every stored original) and its verification, post-run comparison. |
 | `lib/authorize.js` | The interactive authorization: TTY only, batch identifier, payload fingerprint, hidden token, typed confirmation phrase. |
 | `lib/run.js` | One Production Draft import, start to finish, in the order shown under "Production run". |
@@ -111,6 +111,12 @@ git worktree remove --force <tmp>/t
 
 Needs the owner's separate written authorization, and the API change in this PR deployed (header-only auth and
 `GET /api/story-photos/<id>/<photoId>/digest|original`). Strictly serial, with nobody saving in the admin.
+
+**Destination:**
+- `snapshot`, `backup` and `run` talk only to `https://www.harlanslegacy.com`.
+- There is no `--api` option. Passing one is refused before the token prompt and before any request.
+- The destination is printed before the token is asked for.
+- A redirect is refused, never followed with the token.
 
 ```
 node tools/facebook-import/import.js backup --out <empty local folder>          # read-only; verifies itself

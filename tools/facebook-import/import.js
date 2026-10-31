@@ -10,15 +10,18 @@
              Makes NO network calls. Writes a run folder: plan.json, status.csv, report.md, text-diffs.md.
 
    Read-only commands (admin token entered at a hidden prompt; nothing is written to the site):
-     node import.js snapshot      --out <snapshot.json>      [--api <origin>]
-     node import.js backup        --out <empty folder>       [--api <origin>]
+     node import.js snapshot      --out <snapshot.json>
+     node import.js backup        --out <empty folder>
      node import.js verify-backup <backup folder>            (offline)
 
    Production Draft import (interactive only; see README "Production run"):
-     node import.js run --payload <batch-NN-import-payload.json> --backup <backup folder> --ledger <ledger.jsonl> [--api <origin>]
+     node import.js run --payload <batch-NN-import-payload.json> --backup <backup folder> --ledger <ledger.jsonl>
      It asks for the batch identifier, the payload fingerprint and the hidden admin token, takes a fresh
      snapshot, allocates ids, shows a summary and needs a typed confirmation before the first write.
-     There is no flag or environment variable that skips any of this. --api defaults to the live site. */
+     There is no flag or environment variable that skips any of this.
+
+   Destination: every credentialed command talks only to https://www.harlanslegacy.com. There is no --api
+   option; passing one (or any other destination) is refused before the token prompt and before any request. */
 "use strict";
 
 const fs = require("fs");
@@ -166,7 +169,13 @@ function summarize(result, meta) {
   return lines.join("\n");
 }
 
-const LIVE_SITE = "https://www.harlanslegacy.com";
+// Credentialed commands have exactly one destination. --api is refused rather than validated, so no value
+// typed on a command line can redirect the admin token.
+function liveDestination(a) {
+  const { PRODUCTION_ORIGIN } = require("./lib/transport.js");
+  if (a.api !== undefined) throw new Error("--api is not accepted: Production commands only talk to " + PRODUCTION_ORIGIN + "; nothing was sent");
+  return PRODUCTION_ORIGIN;
+}
 
 // Read-only commands: the token comes from a hidden prompt, and only GET requests are possible.
 async function readOnly(cmd, a) {
@@ -178,10 +187,12 @@ async function readOnly(cmd, a) {
     console.log(JSON.stringify({ ok: v.ok, fresh: v.fresh, takenAt: v.takenAt, counts: v.counts, problems: v.problems }, null, 1));
     process.exitCode = v.ok ? 0 : 1; return;
   }
+  const destination = liveDestination(a);
   if (!a.out || a.out === true) throw new Error("--out is required");
+  console.log("Destination: " + destination + "  (the admin token will be sent only here; GET requests only)");
   const io = ttyIo();
   if (!io.isTTY) throw new Error("needs an interactive terminal for the hidden token prompt");
-  const live = createLiveTransport({ base: a.api || LIVE_SITE, token: await io.askHidden("Admin token (input hidden): ") });
+  const live = createLiveTransport({ token: await io.askHidden("Admin token (input hidden): ") });
   try {
     const s = await snap.takeSnapshot(live.transport, live.base);
     if (cmd === "snapshot") { fs.writeFileSync(a.out, JSON.stringify(s, null, 1)); console.log("snapshot: " + s.count + " memories, highest id " + s.maxId + " -> " + a.out); return; }
@@ -195,8 +206,9 @@ async function readOnly(cmd, a) {
 async function productionRun(a) {
   const { runProduction } = require("./lib/run.js");
   const { ttyIo } = require("./lib/authorize.js");
+  liveDestination(a);
   for (const k of ["payload", "backup", "ledger"]) if (!a[k] || a[k] === true) throw new Error("--" + k + " is required");
-  const r = await runProduction({ payload: JSON.parse(fs.readFileSync(a.payload, "utf8")), backupDir: a.backup, ledgerPath: a.ledger, base: a.api || LIVE_SITE, io: ttyIo() });
+  const r = await runProduction({ payload: JSON.parse(fs.readFileSync(a.payload, "utf8")), backupDir: a.backup, ledgerPath: a.ledger, io: ttyIo() });
   const report = path.join(path.dirname(a.ledger), "run-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json");
   fs.writeFileSync(report, JSON.stringify(r, null, 1));
   console.log((r.stopped ? "STOPPED at " + r.stage + ": " + r.stopped : "Completed.") + "\nReport: " + report);

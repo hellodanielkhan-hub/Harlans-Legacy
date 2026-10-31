@@ -1,4 +1,5 @@
 /* Interactive authorization for a Production import. There is deliberately no other way in:
+   - the destination (already validated by the caller) is shown first, before anything is asked;
    - it needs a real interactive terminal (stdin and stdout are TTYs);
    - the person types the exact batch identifier and pastes the exact payload fingerprint;
    - the admin token is entered at a hidden prompt (never an argument, never an environment variable);
@@ -20,6 +21,8 @@ function payloadFingerprint(P) {
 }
 
 async function authorizeRun(io, expect) {
+  if (!expect || !expect.destination) throw new Error("no validated destination; nothing was sent");
+  if (io && io.print) io.print("Destination: " + expect.destination + "  (the admin token will be sent only here)");
   if (!io || !io.isTTY) throw new Error("a Production import needs an interactive terminal; nothing was sent");
   io.print("Production Draft import: " + expect.batchId + " (" + expect.posts + " posts, " + expect.photos + " photos).");
   const b = String(await io.ask("Type the batch identifier: ") || "").trim();

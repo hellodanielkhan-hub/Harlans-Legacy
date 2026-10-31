@@ -20,8 +20,8 @@ const WRITES_ENABLED = false; // Turning this on requires the owner's separate w
 class AdminApi {
   constructor(opts) {
     opts = opts || {};
-    this.base = (opts.base || "https://www.harlanslegacy.com").replace(/\/$/, "");
-    assertNoUrlCredentials(this.base);
+    // Same single destination as the live transport: exactly https://www.harlanslegacy.com, nothing else.
+    this.base = require("./transport.js").productionDestination(opts.base);
     let token = opts.token !== undefined ? opts.token : process.env.HL_ADMIN_TOKEN;
     delete process.env.HL_ADMIN_TOKEN;
     const fetchFn = opts.fetch || globalThis.fetch;

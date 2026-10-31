@@ -1,6 +1,10 @@
 /* One Production Draft import, start to finish. Nothing is written until every step before the final
    confirmation has passed:
 
+   0. destination  always https://www.harlanslegacy.com (lib/transport.js PRODUCTION_ORIGIN); a requested base
+                   is refused unless it is exactly that. It is shown to the operator before the token prompt.
+                   (The rehearsals pass o.connect, an isolated loopback interface; the CLI never does.)
+
    1. payload    every item matches its approval fingerprint; counts are reported
    2. backup     the local backup verifies (files, hashes, completeness) and is under 6 hours old
    3. authorize  interactive: batch identifier, payload fingerprint, hidden admin token (lib/authorize.js)
@@ -18,7 +22,7 @@
 const fs = require("fs");
 const { runBatch, preflight, approvalFingerprint, IMPORT_SYSTEM } = require("./batch.js");
 const { Ledger } = require("./ledger.js");
-const { createLiveTransport } = require("./transport.js");
+const { createLiveTransport, productionDestination } = require("./transport.js");
 const snap = require("./snapshot.js");
 const { authorizeRun, confirmWrites, payloadFingerprint, batchIdOf } = require("./authorize.js");
 
@@ -39,8 +43,15 @@ async function runProduction(o) {
   const say = o.io ? o.io.print : () => {};
   const P = JSON.parse(JSON.stringify(o.payload));           // ids are set on a copy; the approved file is never changed
   const batchId = batchIdOf(P);
-  const result = { batchId, stage: "payload", stopped: null, ids: null, run: null, after: null };
+  const result = { batchId, stage: "destination", stopped: null, ids: null, run: null, after: null };
   const stop = (stage, why) => { result.stage = stage; result.stopped = why; return result; };
+
+  // 0. destination: validated before anything else, and long before any credential is asked for
+  let destination;
+  try { destination = o.connect ? o.connect.origin : productionDestination(o.base); }
+  catch (e) { return stop("destination", e.message); }
+  result.destination = destination;
+  result.stage = "payload";
 
   const pc = checkPayload(P, o.readFile || fs.readFileSync);
   if (pc.problems.length) return stop("payload", pc.problems.join("; "));
@@ -53,10 +64,11 @@ async function runProduction(o) {
   if (!bk.fresh) return stop("backup", "backup is older than 6 hours; take a new one");
 
   let token;
-  try { token = await authorizeRun(o.io, { batchId, payloadFingerprint: fingerprint, posts: pc.counts.posts, photos: pc.counts.photos }); }
+  try { token = await authorizeRun(o.io, { batchId, payloadFingerprint: fingerprint, posts: pc.counts.posts, photos: pc.counts.photos, destination }); }
   catch (e) { return stop("authorize", e.message); }
 
-  const live = createLiveTransport({ base: o.base, token, fetch: o.fetch });
+  const live = o.connect ? o.connect.open(token) : createLiveTransport({ token, fetch: o.fetch });
+  if (live.base !== destination) { live.close(); return stop("destination", "transport origin differs from the confirmed destination; nothing was sent"); }
   token = null;
   try {
     result.stage = "snapshot";

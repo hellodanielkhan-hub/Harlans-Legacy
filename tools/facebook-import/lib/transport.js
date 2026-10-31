@@ -12,8 +12,13 @@
    no way to publish, edit, delete or reschedule a memory.
 
    Token: passed in once, held in a closure, sent only as x-admin-token, scrubbed from every error, and
-   forgotten by close(). The base URL must be https (or http on a loopback address for rehearsals) and may
-   not carry a credential. */
+   forgotten by close(). Redirects are refused (fetch redirect: "error"), so the token never follows one.
+
+   Destination: createLiveTransport() talks ONLY to PRODUCTION_ORIGIN, compared as an exact string. Any other
+   value (another domain, a look-alike, an IP, a port, user:password@, a path, query or fragment, even
+   "https://www.harlanslegacy.com/") is refused before the token is used. createRehearsalTransport() is the
+   isolated testing interface for the local rehearsals: loopback http(s) only. import.js and lib/run.js never
+   load it (a unit test enforces that). */
 "use strict";
 
 const { scrub, assertNoUrlCredentials } = require("./secrets.js");
@@ -21,18 +26,36 @@ const { PROTECTED_IDS, IMPORT_SYSTEM } = require("./batch.js");
 
 const READ_PATHS = [/^\/api\/stories(\/\d+)?$/, /^\/api\/story-photos(\/\d+)?$/, /^\/api\/story-photos\/\d+\/[^/]+\/(digest|original)$/, /^\/api\/(site|entities|photos)$/];
 
-function checkBase(base) {
+const PRODUCTION_ORIGIN = "https://www.harlanslegacy.com";
+
+// Describe a refused destination without echoing anything that could be a credential.
+function describe(v) {
+  if (typeof v !== "string") return "a non-text value";
+  try { const u = new URL(v); return u.protocol + "//" + u.hostname + (u.port ? ":" + u.port : "") + (u.username || u.password ? " (with credentials)" : "") + (u.pathname !== "/" || u.search || u.hash || v.endsWith("/") ? " (with path/query/fragment)" : ""); }
+  catch (e) { return "an invalid URL"; }
+}
+
+// The only destination a live (credentialed) command may use. Exact string match, nothing derived.
+function productionDestination(requested) {
+  if (requested === undefined || requested === null) return PRODUCTION_ORIGIN;
+  if (requested !== PRODUCTION_ORIGIN) throw new Error("destination refused: Production commands only talk to " + PRODUCTION_ORIGIN + " (got " + describe(requested) + "); nothing was sent");
+  return PRODUCTION_ORIGIN;
+}
+
+// Rehearsals only: an isolated local API on a loopback address.
+function rehearsalDestination(base) {
   assertNoUrlCredentials(base);
   const u = new URL(base);
-  if (u.username || u.password) throw new Error("API base must not carry a user name or password");
-  const loopback = ["127.0.0.1", "localhost", "[::1]"].includes(u.hostname);
-  if (!(u.protocol === "https:" || (u.protocol === "http:" && loopback))) throw new Error("API base must be https (or http on a loopback address): " + u.origin);
-  if (u.pathname !== "/" || u.search || u.hash) throw new Error("API base must be an origin only: " + base);
+  if (u.username || u.password) throw new Error("rehearsal base must not carry a user name or password");
+  if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname)) throw new Error("rehearsal transport is loopback only: " + describe(base));
+  if (!/^https?:$/.test(u.protocol) || u.pathname !== "/" || u.search || u.hash) throw new Error("rehearsal base must be a loopback origin: " + describe(base));
   return u.origin;
 }
 
-function createLiveTransport(opts) {
-  const base = checkBase(opts.base);
+function createLiveTransport(opts) { return core(productionDestination(opts && opts.base), opts || {}); }
+function createRehearsalTransport(opts) { return core(rehearsalDestination(opts.base), opts); }
+
+function core(base, opts) {
   let token = opts.token;
   if (!token || typeof token !== "string") throw new Error("an admin token is required");
   const fetchFn = opts.fetch || globalThis.fetch;
@@ -101,4 +124,4 @@ function createLiveTransport(opts) {
   };
 }
 
-module.exports = { createLiveTransport, READ_PATHS };
+module.exports = { createLiveTransport, createRehearsalTransport, productionDestination, PRODUCTION_ORIGIN, READ_PATHS };

@@ -147,9 +147,9 @@ async function main() {
     check("A2 digest", "expect=<wrong hash> -> verification mismatch (SHA-256 mismatch reported)", m2.status === 200 && m2.body.verification === "mismatch" && m2.body.sha256 === want);
     check("A2 digest", "malformed expect -> 400", m3.status === 400);
     const inv = [["/api/story-photos/abc/standin-a/digest", 400], ["/api/story-photos/99999/standin-a/digest", 404], ["/api/story-photos/403/nope/digest", 404],
-      ["/api/story-photos/403/..%2F..%2F.env/digest", 404], ["/api/story-photos/403/%2e%2e%2fdata%2fstories.json/digest", 404], ["/api/story-photos/302/x/digest", 404]];
+      ["/api/story-photos/403/..%2F..%2F.env/digest", 400], ["/api/story-photos/403/%2e%2e%2fdata%2fstories.json/digest", 400], ["/api/story-photos/302/x/digest", 404]];
     const invR = []; for (const [p, w] of inv) { const x = await A.raw("GET", p, ADM); invR.push(p + "=" + x.status); if (x.status !== w) invR.push("!want " + w); }
-    check("A2 digest", "invalid id 400; unknown story/photo and traversal attempts 404 (looked up in the manifest, never used as a path)", !invR.some(s => s.startsWith("!")), invR.join(" "));
+    check("A2 digest", "invalid id 400; unknown story/photo 404; traversal attempts 400 before any lookup (see photo-route-security.cjs)", !invR.some(s => s.startsWith("!")), invR.join(" "));
     // unsafe file name in a manifest entry, and a missing stored object
     const mf = path.join(A.dir, "data", "story-photos.json"), m0 = fs.readFileSync(mf);
     const m = JSON.parse(m0); m["story-402"] = { primary: "evil", items: [{ id: "evil", file: "../../data/stories.json" }, { id: "gone", file: "gone.jpg" }] }; fs.writeFileSync(mf, JSON.stringify(m));

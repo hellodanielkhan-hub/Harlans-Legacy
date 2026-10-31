@@ -112,15 +112,19 @@ async function saveStory(story) {
      "match" / "mismatch" when ?expect=<64 hex> is given, else "not-requested".
    - original -> the bytes (attachment, no-store), with X-Content-SHA256. */
 const STORED_FILE = /^[A-Za-z0-9][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*\.(jpe?g|png|webp|gif)$/i;
+const STORY_ID = /^[0-9]{1,9}$/;
+const PHOTO_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;   // records.photoSlug output; never a path
 const MAX_ORIGINAL_BYTES = 4 * 1024 * 1024;   // stays under the serverless response limit
-async function storedPhotoRead(res, actor, sid, photoId, what, expect, manifest) {
+async function storedPhotoRead(res, actor, sid, photoId, what, expect) {
   const isAdmin = actor && (actor.via === "admin-token" || (actor.via === "no-gate" && process.env.NODE_ENV !== "production"));
   if (!isAdmin) return json(res, 403, { error: "Admin token required for stored-photo read-back." });
+  if (!STORY_ID.test(String(sid)) || !PHOTO_ID.test(String(photoId))) return json(res, 400, { error: "Invalid story or photo id" });
   if (expect != null && !/^[0-9a-f]{64}$/.test(expect)) return json(res, 400, { error: "expect must be a lowercase SHA-256 hex digest" });
   const storyId = Number(sid);
   const stories = await store.getStories();
   if (!stories.some(s => s.id === storyId)) return json(res, 404, { error: "No story " + storyId });
   const key = records.storyKey(storyId);
+  const manifest = await store.getStoryPhotos();
   const g = manifest[key];
   const item = g && (g.items || []).find(it => it.id === photoId);
   if (!item) return json(res, 404, { error: "No such photo in story " + storyId });
@@ -330,16 +334,27 @@ module.exports = async (req, res) => {
 
     /* ---------------- per-story editorial images ---------------- */
     if (resource === "story-photos") {
-      const sid = parts[2] ? decodeURIComponent(parts[2]) : null;
-      const photoId = parts[3] ? decodeURIComponent(parts[3]) : null;
-      if (sid != null && !/^[0-9]+$/.test(sid)) return json(res, 400, { error: "Invalid story id for gallery" });
-      const key = sid != null ? records.storyKey(sid) : null;
-      const manifest = await store.getStoryPhotos();
+      // Segments are checked as received, BEFORE any manifest or storage read, and are never decoded: a
+      // valid story id or photo id never needs percent-encoding. Vercel hands the rewrite already-decoded
+      // segments (so "..%2F.env" arrives as "..", ".env"); the raw pathname keeps "%2F" inside one segment.
+      // Either way a dot segment, slash, backslash, "%", NUL or any other character fails here with 400.
+      const sid = parts.length > 2 ? parts[2] : null;
+      const photoId = parts.length > 3 ? parts[3] : null;
+      if (sid != null && !STORY_ID.test(sid)) return json(res, 400, { error: "Invalid story id for gallery" });
+      if (parts.slice(3).some(s => !PHOTO_ID.test(s))) return json(res, 400, { error: "Invalid photo id" });
+      // Only these shapes exist; anything else (extra segments, a photo id without an action) is 404.
+      const what = parts.length === 5 ? parts[4] : null;
+      const shapeOk = parts.length === 2 ? method === "GET"
+        : parts.length === 3 ? (method === "GET" || method === "POST" || method === "PUT")
+        : parts.length === 4 ? method === "DELETE"
+        : parts.length === 5 ? method === "GET" && (what === "digest" || what === "original")
+        : false;
+      if (!shapeOk) return json(res, 404, { error: "Unknown endpoint " + method + " " + url.pathname });
       // Admin-only read-back of ONE stored original: /api/story-photos/<storyId>/<photoId>/digest (SHA-256 of
       // the stored bytes, computed here) or /original (the bytes, for backups). See storedPhotoRead below.
-      if (method === "GET" && sid != null && photoId != null && (parts[4] === "digest" || parts[4] === "original") && parts.length === 5) {
-        return storedPhotoRead(res, actor, sid, photoId, parts[4], url.searchParams.get("expect"), manifest);
-      }
+      if (what) return storedPhotoRead(res, actor, sid, photoId, what, url.searchParams.get("expect"));
+      const key = sid != null ? records.storyKey(sid) : null;
+      const manifest = await store.getStoryPhotos();
       if (method === "GET" && sid == null) return json(res, 200, manifest);
       if (method === "GET" && sid != null) return json(res, 200, manifest[key] || { primary: null, items: [] });
       if (method === "POST" && sid != null) {

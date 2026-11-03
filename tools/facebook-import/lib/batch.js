@@ -43,7 +43,7 @@ const SNAPSHOT_MAX_AGE_MS = 6 * 3600 * 1000;
 
 // The complete set of fields an import item may carry (lib/record.js buildRecord + the batch fields).
 const ITEM_FIELDS = ["postId", "photoMode", "images", "record"];
-const RECORD_FIELDS = ["id", "title", "slug", "status", "featured", "theme", "publishedISO", "dateLong", "dateLabel", "memoryDate", "summary", "description", "ogDescription",
+const RECORD_FIELDS = ["id", "storyNumber", "title", "slug", "status", "featured", "theme", "publishedISO", "dateLong", "dateLabel", "memoryDate", "summary", "description", "ogDescription",
   "lead", "body", "people", "places", "objects", "events", "bookPart", "keywords", "echoStories", "readingTime", "readerImages", "importSource"];
 const IMPORT_SOURCE_FIELDS = ["system", "postId", "facebookUrl", "facebookTimeChicago"];
 const IMAGE_FIELDS = ["order", "primary", "file", "sha256"];

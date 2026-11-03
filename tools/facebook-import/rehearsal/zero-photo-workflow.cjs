@@ -94,7 +94,8 @@ const entries = manifest.entries.filter(e => wanted.has(e.postId)).map(e => TEXT
 const planned = plan({ entries }, snapshot, { assumeApproved: true }).items;
 const byPost = Object.fromEntries(planned.map(x => [x.postId, x]));
 let nextId = 9301;
-const asTest = postId => { const x = toBatchItem(byPost[postId]); x.record = Object.assign({}, x.record, { id: nextId++, title: "TEST " + nextId + " - " + x.record.title, status: "draft", featured: false }); return x; };
+// A TEST copy is not the real post, so it never claims the post's reserved Story Number (lib/numbering.js).
+const asTest = postId => { const x = toBatchItem(byPost[postId]); x.record = Object.assign({}, x.record, { id: nextId++, title: "TEST " + nextId + " - " + x.record.title, status: "draft", featured: false, storyNumber: null }); return x; };
 const approve = items => Object.fromEntries(items.map(it => [it.postId, approvalFingerprint(it)]));
 const ledgerDir = fs.mkdtempSync(path.join(os.tmpdir(), "hl-nophoto-ledger-"));
 const newLedger = name => new Ledger(path.join(ledgerDir, name + ".jsonl"));
@@ -277,8 +278,8 @@ async function main() {
   const rf = await counted(() => run({ items: [forged], transport, ledger: lf403, defer: true, batchId: "Hforged", approved: approve([forged]) }));
   check("C3", "a ledger edited to claim No. 403 as created and verified does not let the batch use or skip it", rf.r.stopped && /protected existing memory/.test(rf.r.stopped.error) && rf.r.writes === 0 && rf.builds === 0, JSON.stringify(rf.r.stopped));
   // ids occupied in the fresh snapshot by memories that are not this post's own import Draft
-  const plain = (id, extra) => Object.assign({}, byPost[ONE[0]].record, { id, title: "TEST " + id }, extra || {});
-  await transport("POST", "/api/stories", Object.assign(plain(9450, { status: "published" }), { importSource: undefined }), H);
+  const plain = (id, extra) => Object.assign({}, byPost[ONE[0]].record, { id, title: "TEST " + id, storyNumber: undefined }, extra || {});
+  await transport("POST", "/api/stories", Object.assign(plain(9450, { status: "published", storyNumber: 9450 }), { importSource: undefined }), H);
   await transport("POST", "/api/stories", Object.assign(plain(9451), { importSource: undefined }), H);
   await transport("POST", "/api/stories", plain(9452, { importSource: { system: IMPORT_SYSTEM, postId: "T999", facebookUrl: null, facebookTimeChicago: null } }), H);
   await transport("POST", "/api/story-photos/9450", { filename: "existing.jpg", data: "data:image/jpeg;base64," + fs.readFileSync(byPost[ONE[0]].images[0].file).toString("base64") }, H);
@@ -351,18 +352,19 @@ async function main() {
   const D = { "x-defer-rebuild": "1" };
   const sample = byPost[ONE[0]];
   const img = n => ({ filename: "editor" + n + ".jpg", data: "data:image/jpeg;base64," + fs.readFileSync(sample.images[0].file).toString("base64") });
-  const rec = (id, extra) => Object.assign({}, sample.record, { id, title: "TEST " + id, importSource: undefined }, extra || {});
+  // Editor-style saves of TEST records: no Story Number unless a case gives one (omitted = keep the stored one).
+  const rec = (id, extra) => Object.assign({}, sample.record, { id, title: "TEST " + id, importSource: undefined, storyNumber: undefined }, extra || {});
   const cases = [
     ["Editorial Workspace: create Draft (no header)", () => transport("POST", "/api/stories", rec(9401)), 1, 201],
     ["Editorial Workspace: edit Draft", () => transport("PUT", "/api/stories/9401", rec(9401, { title: "TEST 9401 edited" })), 1, 200],
     ["Editorial Workspace: upload photo to Draft", () => transport("POST", "/api/story-photos/9401", img(1)), 1, 201],
     ["Editorial Workspace: reorder Draft gallery", () => transport("PUT", "/api/story-photos/9401", { items: [] }), 1, 200],
     ["Editorial Workspace: delete Draft", () => transport("DELETE", "/api/stories/9401"), 1, 200],
-    ["create PUBLISHED, even with the defer header", () => transport("POST", "/api/stories", rec(9411, { status: "published" }), D), 1, 201],
+    ["create PUBLISHED, even with the defer header", () => transport("POST", "/api/stories", rec(9411, { status: "published", storyNumber: 9411 }), D), 1, 201],
     ["edit published, with header", () => transport("PUT", "/api/stories/9411", rec(9411, { status: "published", title: "TEST 9411 e" }), D), 1, 200],
     ["upload photo to published, with header", () => transport("POST", "/api/story-photos/9411", img(2), D), 1, 201],
     ["edit published, no header", () => transport("PUT", "/api/stories/9411", rec(9411, { status: "published", title: "TEST 9411 e2" })), 1, 200],
-    ["publish a Draft, with header", async () => { await transport("POST", "/api/stories", rec(9412), D); return transport("PUT", "/api/stories/9412", rec(9412, { status: "published" }), D); }, 1, 200],
+    ["publish a Draft, with header", async () => { await transport("POST", "/api/stories", rec(9412), D); return transport("PUT", "/api/stories/9412", rec(9412, { status: "published", storyNumber: 9412 }), D); }, 1, 200],
     ["un-publish (published -> Draft), with header", () => transport("PUT", "/api/stories/9411", rec(9411), D), 1, 200],
     ["no token (refused)", () => transport("POST", "/api/stories", rec(9421), D, { token: "" }), 0, 401],
     ["Coming Soon -> Draft, with header (it leaves the site, so it rebuilds)", () => transport("PUT", "/api/stories/9431", rec(9431), D), 1, 200],

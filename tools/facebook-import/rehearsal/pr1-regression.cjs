@@ -90,7 +90,8 @@ function pick(n) {
   const step = rest.length / (n - must.length);
   return must.concat(Array.from({ length: n - must.length }, (_, i) => rest[Math.floor(i * step)])).sort((a, b) => a.publishedISO.localeCompare(b.publishedISO));
 }
-const asTest = (x, id) => ({ postId: x.postId, photoMode: x.photoMode, images: toBatchItem(x).images, record: Object.assign({}, x.record, { id, title: "TEST " + id + " - " + x.record.title, status: "draft", featured: false }) });
+// A TEST copy is not the real post, so it never claims the post's reserved Story Number (lib/numbering.js).
+const asTest = (x, id) => ({ postId: x.postId, photoMode: x.photoMode, images: toBatchItem(x).images, record: Object.assign({}, x.record, { id, title: "TEST " + id + " - " + x.record.title, status: "draft", featured: false, storyNumber: null }) });
 const approve = items => Object.fromEntries(items.map(it => [it.postId, approvalFingerprint(it)]));
 const ledgerDir = fs.mkdtempSync(path.join(os.tmpdir(), "hl-pr1-ledger-"));
 const newLedger = name => new Ledger(path.join(ledgerDir, name + ".jsonl"));
@@ -161,7 +162,8 @@ async function main() {
   if (!PATCHED) return finish();
   const D = { "x-defer-rebuild": "1" };
   const img = n => ({ filename: "editor" + n + ".jpg", data: "data:image/jpeg;base64," + fs.readFileSync(sample[0].images[0].file).toString("base64") });
-  const rec = (id, extra) => Object.assign({}, sample[0].record, { id, title: "TEST " + id, importSource: undefined }, extra || {});
+  // Editor-style saves of TEST records: no Story Number unless a case gives one (omitted = keep the stored one).
+  const rec = (id, extra) => Object.assign({}, sample[0].record, { id, title: "TEST " + id, importSource: undefined, storyNumber: undefined }, extra || {});
   async function cases(scn, list) {
     const rows = [];
     for (const [name, fn, expectBuilds, expectStatus] of list) {
@@ -183,12 +185,12 @@ async function main() {
 
   /* ===== 4: published memories always rebuild ===== */
   S("4_published", await cases("4", [
-    ["create PUBLISHED with header", () => transport("POST", "/api/stories", rec(9211, { status: "published" }), D), 1, 201],
+    ["create PUBLISHED with header", () => transport("POST", "/api/stories", rec(9211, { status: "published", storyNumber: 9211 }), D), 1, 201],
     ["edit published, with header", () => transport("PUT", "/api/stories/9211", rec(9211, { status: "published", title: "TEST 9211 e" }), D), 1, 200],
     ["upload photo to published, with header", () => transport("POST", "/api/story-photos/9211", img(2), D), 1, 201],
     ["reorder published gallery, with header", () => transport("PUT", "/api/story-photos/9211", { items: [] }, D), 1, 200],
     ["edit published, no header (Editorial Workspace)", () => transport("PUT", "/api/stories/9211", rec(9211, { status: "published", title: "TEST 9211 e2" })), 1, 200],
-    ["publish a Draft (Draft -> published), with header", async () => { await transport("POST", "/api/stories", rec(9212), D); return transport("PUT", "/api/stories/9212", rec(9212, { status: "published" }), D); }, 1, 200],
+    ["publish a Draft (Draft -> published), with header", async () => { await transport("POST", "/api/stories", rec(9212), D); return transport("PUT", "/api/stories/9212", rec(9212, { status: "published", storyNumber: 9212 }), D); }, 1, 200],
     ["un-publish (published -> Draft), with header", () => transport("PUT", "/api/stories/9211", rec(9211), D), 1, 200]
   ]));
 

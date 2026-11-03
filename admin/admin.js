@@ -70,8 +70,10 @@
     status("Could not reach the archive.");
   }
   function loadAll(retried) {
-    return Promise.all([api("GET", "/api/stories"), api("GET", "/api/site"), api("GET", "/api/entities")]).then(function (res) {
-      state.stories = res[0]; state.site = res[1]; state.entities = res[2];
+    // Story Number facts (next new number) are optional: the editor still loads if this call fails.
+    var numbers = api("GET", "/api/story-numbers").catch(function () { return null; });
+    return Promise.all([api("GET", "/api/stories"), api("GET", "/api/site"), api("GET", "/api/entities"), numbers]).then(function (res) {
+      state.stories = res[0]; state.site = res[1]; state.entities = res[2]; state.numbers = res[3];
       populateThemeSelect(); renderStats(); renderList();
     }).catch(function (e) {
       if (e.status === 401 && !retried) { promptToken("This archive is protected. Enter the admin token:"); return loadAll(true); }
@@ -95,7 +97,7 @@
   }
   function renderList() {
     var q = state.filter.toLowerCase(), listEl = $("story-list");
-    var items = state.stories.filter(function (s) { return !q || (s.title + " " + s.theme + " " + s.id + " " + s.status).toLowerCase().indexOf(q) !== -1; });
+    var items = state.stories.filter(function (s) { return !q || (s.title + " " + s.theme + " no " + (s.storyNumber || "") + " record " + s.id + " " + s.status).toLowerCase().indexOf(q) !== -1; });
     listEl.innerHTML = "";
     if (!items.length) { listEl.innerHTML = '<li class="list-empty">No memories match “' + esc(state.filter) + '”.</li>'; return; }
     items.sort(function (a, b) { return (b.publishedISO || "").localeCompare(a.publishedISO || "") || b.id - a.id; });
@@ -107,7 +109,7 @@
       var label = state.site.themes[s.theme] ? state.site.themes[s.theme].label : s.theme;
       var pill = '<span class="pill ' + s.status + '">' + s.status.replace("-", " ") + '</span>';
       if (s.featured && s.status === "published") pill = '<span class="pill featured">This week</span>' + pill;
-      b.innerHTML = '<span class="im"><span class="it">' + esc(s.title || "Untitled") + '</span><span class="is">No. ' + s.id + ' · ' + esc(label) + '</span></span>' + pill;
+      b.innerHTML = '<span class="im"><span class="it">' + esc(s.title || "Untitled") + '</span><span class="is">' + esc(storyNoText(s)) + ' · Record ' + s.id + ' · ' + esc(label) + '</span></span>' + pill;
       b.addEventListener("click", function () { attemptSelect(s.id); });
       li.appendChild(b); listEl.appendChild(li);
     });
@@ -126,6 +128,24 @@
       { label: "Discard", kind: "btn-danger", act: function () { discardCurrent(); proceed(); } },
       { label: "Cancel", kind: "btn-ghost", act: null }
     ]);
+  }
+
+  /* ---------------- Story Number / Record ID labels ---------------- */
+  // The Story Number is the only number readers see; the Record ID is internal. Never substitute one for the other.
+  function storyNoText(s) { return s && s.storyNumber ? "No. " + s.storyNumber : "No Story No."; }
+  function storyRef(id) { var s = (state.stories || []).filter(function (x) { return x.id === id; })[0]; return s && s.storyNumber ? "No. " + s.storyNumber : "Record " + id; }
+  function eyebrowFor(s) { return (s.storyNumber ? "Editing Story No. " + s.storyNumber : "Editing memory (no Story No. yet)") + " · Record " + s.id; }
+  function numberOrNull(id) { var v = String($(id).value || "").trim(); if (!v) return null; var n = Number(v); return Number.isInteger(n) && n > 0 ? n : v; }
+  function fillNumbers(s) {
+    var has = !!s.storyNumber;
+    $("f-storynumber").value = has ? s.storyNumber : "";
+    $("f-storynumber").readOnly = has;                       // permanent once saved (the API refuses a change too)
+    var next = state.numbers && state.numbers.nextNewStoryNumber;
+    $("f-storynumber").placeholder = has ? "" : (next ? "e.g. " + next : "");
+    $("storynumber-hint").textContent = has
+      ? "Permanent. This number is never changed or reused."
+      : "Enter it when the memory is ready to publish" + (next ? " — the next new Story No. is " + next : "") + ". Permanent once saved; retired and reserved numbers are refused.";
+    $("f-blognumber").value = s.originalBlogNumber ? s.originalBlogNumber : "";
   }
 
   /* ---------------- select / new ---------------- */
@@ -168,11 +188,12 @@
   function isoToDateInput(iso) { return /^\d{4}-\d{2}-\d{2}/.test(iso || "") ? String(iso).slice(0, 10) : ""; }
   function fill(s, isNew) {
     $("empty-state").hidden = true; $("editor").hidden = false;
-    $("editor-eyebrow").textContent = isNew ? "New memory" : "Editing Story No. " + s.id;
+    $("editor-eyebrow").textContent = isNew ? "New memory" : eyebrowFor(s);
     $("form-title").textContent = s.title || "Untitled";
     $("f-title").value = s.title || "";
     $("f-slug").value = s.slug || "";
     $("f-id").value = s.id;
+    fillNumbers(s);
     $("f-theme").value = s.theme || "ordinary";
     $("f-date").value = isoToDateInput(s.publishedISO);
     $("f-featured").checked = !!s.featured;
@@ -232,7 +253,9 @@
     var iso = $("f-date").value, dateLong = iso ? longDate(iso) : ($("f-memory").value.trim() || "");
     var host = $("pv-story");
     if (!title && !paras.length) { host.innerHTML = '<p class="pv-empty">Start writing — the memory appears here as readers will see it.</p>'; return; }
-    var html = '<p class="stamp">Story No. ' + esc($("f-id").value) + (themeLabel ? ' · ' + esc(themeLabel) : "") + '</p>' +
+    var sn = String($("f-storynumber").value || "").trim();
+    var stamp = [sn ? "Story No. " + sn : "", themeLabel].filter(Boolean).join(" · ");
+    var html = (stamp ? '<p class="stamp">' + esc(stamp) + '</p>' : "") +
       '<h1>' + (esc(title) || "Untitled") + '</h1>' +
       (dateLong ? '<p class="pv-date">' + esc(dateLong) + '</p>' : "") +
       '<div class="pv-prose">' + paras.map(function (p) { return "<p>" + allowEm(p) + "</p>"; }).join("") + '</div>';
@@ -275,6 +298,8 @@
     var reading = $("f-reading").value.trim();
     return {
       id: parseInt($("f-id").value, 10),
+      storyNumber: numberOrNull("f-storynumber"),
+      originalBlogNumber: numberOrNull("f-blognumber"),
       title: $("f-title").value.trim(),
       slug: $("f-slug").value.trim(),
       status: state.status,
@@ -347,7 +372,7 @@
   function del() {
     if (state.selectedId == null || state.isNew) return;
     var s = state.stories.filter(function (x) { return x.id === state.selectedId; })[0];
-    if (!confirm("Delete “" + (s ? s.title : "this memory") + "” (No. " + state.selectedId + ")? This removes its story page too. This cannot be undone.")) return;
+    if (!confirm("Delete “" + (s ? s.title : "this memory") + "” (" + (s && s.storyNumber ? "Story No. " + s.storyNumber + ", " : "") + "Record " + state.selectedId + ")? This removes its story page too. This cannot be undone." + (s && s.storyNumber ? " Its Story No. stays retired and is never reused." : ""))) return;
     status("Deleting…");
     api("DELETE", "/api/stories/" + state.selectedId).then(function () {
       toast("Deleted & rebuilt.", "ok"); clearDraft(state.selectedId); state.selectedId = null; state.dirty = false;
@@ -426,7 +451,7 @@
     SUGGEST_FIELDS.forEach(function (f, i) {
       var v = sug[f.key]; if (v == null || (Array.isArray(v) && !v.length) || v === "") return;
       var disp;
-      if (f.related) disp = v.map(function (r) { return '<span class="chip">No. ' + r.id + " · " + esc(r.title) + " (" + r.shared + "×)</span>"; }).join("");
+      if (f.related) disp = v.map(function (r) { return '<span class="chip">' + esc(storyRef(r.id)) + " · " + esc(r.title) + " (" + r.shared + "×)</span>"; }).join("");
       else if (f.list) disp = v.map(function (x) { return '<span class="chip">' + esc(x) + "</span>"; }).join("");
       else disp = esc(f.fmt ? f.fmt(v) : v);
       var row = document.createElement("div"); row.className = "sugg";
@@ -466,7 +491,7 @@
   $("pv-tab-story").addEventListener("click", function () { showPreview("story"); });
   $("pv-tab-seo").addEventListener("click", function () { showPreview("seo"); });
   Array.prototype.forEach.call($("pubseg").children, function (b) { b.addEventListener("click", function () { setStatus(b.getAttribute("data-v")); markDirty(); }); });
-  ["f-title", "f-slug", "f-id", "f-theme", "f-date", "f-featured", "f-body", "f-summary", "f-description", "f-og", "f-memory", "f-people", "f-places", "f-objects", "f-events", "f-bookpart", "f-keywords", "f-echoes", "f-reading"].forEach(function (id) {
+  ["f-title", "f-slug", "f-id", "f-storynumber", "f-blognumber", "f-theme", "f-date", "f-featured", "f-body", "f-summary", "f-description", "f-og", "f-memory", "f-people", "f-places", "f-objects", "f-events", "f-bookpart", "f-keywords", "f-echoes", "f-reading"].forEach(function (id) {
     var el = $(id); if (el) el.addEventListener("input", markDirty);
   });
   $("goto-photos").addEventListener("click", function () { switchMode("photos"); });
@@ -649,7 +674,7 @@
       state.selectedId = created.id; state.isNew = false; state.status = "draft"; setStatus("draft");
       clearDraft("new");
       $("f-id").value = created.id;
-      $("editor-eyebrow").textContent = "Editing Story No. " + created.id;
+      $("editor-eyebrow").textContent = eyebrowFor(created);
       $("delete-btn").hidden = false;
       updateOpenLink(created, false);
       updateSaveState(false, "Draft saved · " + clock());

@@ -1,0 +1,237 @@
+{
+ "schema": "harlans-legacy/story-number-assignments@2",
+ "adopted": "2026-10-31",
+ "note": "The approved Scenario 2+ map: Record ID -> Story Number and Original Blog Number. Only these two fields are written by the release.",
+ "assignments": [
+  {
+   "id": 303,
+   "storyNumber": 434,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 304,
+   "storyNumber": 435,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 305,
+   "storyNumber": 436,
+   "originalBlogNumber": 388
+  },
+  {
+   "id": 388,
+   "storyNumber": 437,
+   "originalBlogNumber": 388
+  },
+  {
+   "id": 389,
+   "storyNumber": 438,
+   "originalBlogNumber": 389
+  },
+  {
+   "id": 390,
+   "storyNumber": 439,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 391,
+   "storyNumber": 441,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 392,
+   "storyNumber": 440,
+   "originalBlogNumber": 391
+  },
+  {
+   "id": 393,
+   "storyNumber": 442,
+   "originalBlogNumber": 393
+  },
+  {
+   "id": 394,
+   "storyNumber": 433,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 395,
+   "storyNumber": 443,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 396,
+   "storyNumber": 444,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 397,
+   "storyNumber": 432,
+   "originalBlogNumber": 385
+  },
+  {
+   "id": 398,
+   "storyNumber": 431,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 399,
+   "storyNumber": 387,
+   "originalBlogNumber": 384
+  },
+  {
+   "id": 400,
+   "storyNumber": 445,
+   "originalBlogNumber": 396
+  },
+  {
+   "id": 401,
+   "storyNumber": 386,
+   "originalBlogNumber": 383
+  },
+  {
+   "id": 402,
+   "storyNumber": 385,
+   "originalBlogNumber": 382
+  },
+  {
+   "id": 403,
+   "storyNumber": 446,
+   "originalBlogNumber": 397
+  },
+  {
+   "id": 404,
+   "storyNumber": 3,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 405,
+   "storyNumber": 447,
+   "originalBlogNumber": 398
+  },
+  {
+   "id": 406,
+   "storyNumber": 6,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 407,
+   "storyNumber": 14,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 408,
+   "storyNumber": 16,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 409,
+   "storyNumber": 17,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 410,
+   "storyNumber": 32,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 411,
+   "storyNumber": 33,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 412,
+   "storyNumber": 36,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 413,
+   "storyNumber": 40,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 414,
+   "storyNumber": 42,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 415,
+   "storyNumber": 48,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 416,
+   "storyNumber": 71,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 417,
+   "storyNumber": 74,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 418,
+   "storyNumber": 77,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 419,
+   "storyNumber": 79,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 420,
+   "storyNumber": 91,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 421,
+   "storyNumber": 124,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 422,
+   "storyNumber": 136,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 423,
+   "storyNumber": 143,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 424,
+   "storyNumber": 144,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 425,
+   "storyNumber": 148,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 426,
+   "storyNumber": 149,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 427,
+   "storyNumber": 150,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 428,
+   "storyNumber": 173,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 429,
+   "storyNumber": 177,
+   "originalBlogNumber": null
+  },
+  {
+   "id": 430,
+   "storyNumber": 179,
+   "originalBlogNumber": null
+  }
+ ]
+}

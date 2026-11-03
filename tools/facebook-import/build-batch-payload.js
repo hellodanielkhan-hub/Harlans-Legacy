@@ -5,6 +5,7 @@
 
      node build-batch-payload.js --manifest <import/manifest.json> --approved <batch-NN-approved.json>
                                  --snapshot <site-snapshot.json> --out <batch-NN-import-payload.json>
+                                 [--registry <private Story Number registry folder>]
 
    The approved file lists, per post, the exact website text, title, category and photos (order, Primary,
    SHA-256) the owner approved, plus the SHA-256 of the Facebook source text. Lines the owner left out of
@@ -19,6 +20,8 @@ const { plan } = require("./import.js");
 const { approvalFingerprint, preflight, uploadName } = require("./lib/batch.js");
 
 const arg = k => { const i = process.argv.indexOf("--" + k); if (i < 0 || !process.argv[i + 1]) { console.error("missing --" + k); process.exit(2); } return path.resolve(process.argv[i + 1]); };
+// optional: the private Story Number registry, so every planned Draft carries its reserved Story No.
+const registry = process.argv.includes("--registry") ? require("../story-numbers/lib/private-registry.js").load(arg("registry")) : null;
 const manifest = JSON.parse(fs.readFileSync(arg("manifest"), "utf8"));
 const approved = JSON.parse(fs.readFileSync(arg("approved"), "utf8"));
 const snapshotFile = arg("snapshot"), outFile = arg("out");
@@ -45,7 +48,7 @@ if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
 
 // Pass 1: plan as the manifest stands, and find the lines the owner left out of each approved text.
 const corrections = {};
-for (const x of plan({ entries: base }, snapshot, { assumeApproved: true }).items) {
+for (const x of plan({ entries: base }, snapshot, { assumeApproved: true, registry }).items) {
   const a = approved.posts.find(p => p.postId === x.postId);
   const extra = leftOut(paragraphsOf(x), a.websiteText);
   if (extra === null) problems.push(x.postId + ": the approved text is not the planned text with whole lines removed");
@@ -56,7 +59,7 @@ if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
 // Pass 2: plan with those removals, then check every post against its approval.
 const entries = base.map(e => corrections[e.postId] ? Object.assign({}, e, { removeLines: (e.removeLines || []).concat([...new Set(corrections[e.postId])]) }) : e);
 const items = [], checks = [];
-for (const x of plan({ entries }, snapshot, { assumeApproved: true }).items) {
+for (const x of plan({ entries }, snapshot, { assumeApproved: true, registry }).items) {
   const a = approved.posts.find(p => p.postId === x.postId), e = entries.find(y => y.postId === x.postId);
   const bad = [];
   if (x.readiness !== "READY") bad.push("readiness " + x.readiness + ": " + x.reasons.join("; "));

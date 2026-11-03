@@ -219,7 +219,7 @@
   function initStoryPage() {
     var card = document.getElementById("hl-story");
     if (!card) return false;
-    var id = Number(card.getAttribute("data-story-id"));
+    var id = Number(card.getAttribute("data-record-id"));   // the record id (data-story-id holds the Story Number)
     if (!meta(id) && !ARCH.stories.length) return true;
 
     recordView(id);

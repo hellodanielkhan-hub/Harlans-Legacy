@@ -35,12 +35,13 @@
   function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
   var GEN=null;
 
-  function render(info){
+  // The cinematic badge reads data-story-id as the Story Number; ID here is the record id, so it is never used there.
+  function render(info, storyNumber){
     GEN=info.gen;
     el("meta").textContent="gen "+info.gen+" · "+(info.versionStatus||"ready").toUpperCase()+(info.emotionalArc?(" · "+info.emotionalArc.join(" › ")):"");
     var body=(info.paragraphs||[]).map(function(p){return '        <p data-narrate>'+esc(p)+'</p>';}).join("\n");
     el("mount").innerHTML=''+
-      '<article class="story-card" data-listen="'+info.base+'" data-story-id="'+ID+'">'+
+      '<article class="story-card" data-listen="'+info.base+'" data-record-id="'+esc(ID)+'" data-story-id="'+(storyNumber?esc(storyNumber):"")+'">'+
         '<header class="cover-identity"><div class="cover-eyebrow">'+esc(info.series||"Mom & Dad Stories")+' · Preview</div><h1>'+esc(info.title)+'</h1></header>'+
         '<p class="pv-hint">Unpublished narration preview. Click “Listen to this memory” to review it in the cinematic experience. Nothing publishes until you explicitly Approve.</p>'+
         '<div class="story-body">\n'+body+'\n    </div>'+
@@ -55,7 +56,9 @@
     fetch(path,{headers:authHeaders()}).then(function(r){
       if(r.status===401){ el("tokbar").hidden=false; throw new Error("token required"); }
       return r.json();
-    }).then(function(info){ if(info.error) throw new Error(info.error); render(info); })
+    }).then(function(info){ if(info.error) throw new Error(info.error);
+      return fetch("/api/stories/"+encodeURIComponent(ID),{headers:authHeaders()}).then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; })
+        .then(function(s){ render(info, s && s.storyNumber ? s.storyNumber : null); }); })
       .catch(function(e){ el("msg").textContent=e.message; });
   }
   el("approve").addEventListener("click",function(){

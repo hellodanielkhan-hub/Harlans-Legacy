@@ -135,7 +135,7 @@
       if(r.state==="processing"){ acts.push('<span class="nl-mut">'+esc((r.job&&r.job.stage)||"working…")+'</span>'); }
       var jobInfo = (r.state==="processing"||r.state==="failed") && r.job ? (r.state==="failed"&&r.job.error?'<div class="nl-err">'+esc(r.job.error.code?r.job.error.code+": ":"")+esc(r.job.error.message||"")+'</div>':"")+jobLine(r.job) : "";
       return '<tr>'+
-        '<td>'+esc(r.title)+' <span class="nl-mut">· No. '+r.id+'</span></td>'+
+        '<td>'+esc(r.title)+' <span class="nl-mut">· Record '+r.id+'</span></td>'+
         '<td class="nl-mut">'+esc(r.storyStatus)+'</td>'+
         '<td>'+stateChip(r.state)+jobInfo+'</td>'+
         '<td class="nl-mut">'+fmtDur(r.duration)+'</td>'+

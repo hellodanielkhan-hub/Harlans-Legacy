@@ -7,6 +7,9 @@
    Supabase (via lib/store.js) instead of the local filesystem, so it is fully
    persistent on Vercel's read-only/ephemeral runtime.
 
+   • Story Numbers (lib/numbering.js) are validated on every story save; GET
+     /api/story-numbers, POST /api/story-numbers/release and POST /api/stories/publish
+     (the last two admin token only) serve the controlled release in tools/story-numbers.
    • Record logic (normalize / single-featured / ids) is SHARED with the local
      server via lib/records.js — no second copy.
    • Uploaded originals go to Supabase Storage; responsive derivatives are
@@ -22,6 +25,7 @@
 const crypto = require("crypto");
 const store = require("../lib/store.js");
 const records = require("../lib/records.js");
+const numbering = require("../lib/numbering.js");             // Story Numbers: validation + controlled release
 const narration = require("../lib/narration/service.js");
 const identity = require("../lib/narration/identity.js");   // per-moderator auth + attribution
 const audit = require("../lib/narration/audit.js");         // moderator action audit log
@@ -98,6 +102,83 @@ async function saveStory(story) {
   } else {
     await store.putStory(story);
   }
+}
+
+/* ---- Story Numbers (lib/numbering.js) ---- */
+async function issuedNumbers() { return numbering.issuedList(await store.getDoc(numbering.ISSUED_DOC, null)); }
+// Record numbers as issued; they can never be issued again, even after a delete.
+async function noteIssued(numbers) {
+  const next = numbering.withIssued(await store.getDoc(numbering.ISSUED_DOC, null), numbers);
+  if (next) await store.putDoc(numbering.ISSUED_DOC, next);
+}
+function numberProblems(res, problems) { return json(res, 400, { error: problems.join(" "), code: "story_number_invalid", problems }); }
+// The shared admin token (never a moderator); with no gate at all only outside production.
+function isAdminActor(actor) { return !!actor && (actor.via === "admin-token" || (actor.via === "no-gate" && process.env.NODE_ENV !== "production")); }
+
+// One store write for a set of records. Supabase: upsert ONLY the changed rows (a concurrent edit of any
+// other memory is never overwritten). File store (local): the whole list, which is how it is stored.
+async function putChanged(all, changedIds) {
+  if (!store.USE_SUPABASE) return store.putStories(all);
+  const ids = new Set(changedIds);
+  return store.putStories(all.filter(s => ids.has(s.id)));
+}
+
+/* Controlled release of the approved Story Number map: one request, admin token only.
+   Writes ONLY storyNumber and originalBlogNumber on the records the map names, in a single
+   store write, after re-validating every number; refuses the whole release on any problem.
+   The caller names the map it reviewed by its fingerprint. Status, featured, ids, slugs,
+   text, photos and narration are untouched. */
+async function releaseStoryNumbers(res, actor, body) {
+  if (!isAdminActor(actor)) return json(res, 403, { error: "Admin token required for the Story Number release." });
+  const fp = numbering.assignmentsFingerprint();
+  if (body.fingerprint !== fp) return json(res, 409, { error: "The assignment map fingerprint does not match this deployment's map; nothing was written.", expected: fp });
+  const all = await store.getStories();
+  const plan = numbering.checkRelease(all);
+  if (plan.problems.length) return json(res, 409, { error: "Release refused; nothing was written.", problems: plan.problems });
+  const byId = new Map(plan.writes.map(w => [w.id, w.set]));
+  const now = new Date().toISOString();
+  const after = all.map(s => byId.has(s.id) ? Object.assign({}, s, byId.get(s.id), { lastEditedBy: actor, lastEditedAt: now }) : s);
+  if (plan.writes.length) {
+    await putChanged(after, plan.writes.map(w => w.id));
+    await noteIssued(plan.writes.map(w => w.set.storyNumber));
+    await audit.record({ action: "story-numbers.release", storyId: null, actor, detail: { fingerprint: fp, written: plan.writes.length } });
+  }
+  return json(res, 200, { ok: true, fingerprint: fp, written: plan.writes.map(w => Object.assign({ id: w.id }, w.set)),
+    alreadyAssigned: numbering.assignments().length - plan.writes.length, build: plan.writes.length && !body.deferRebuild ? await triggerRebuild() : { rebuild: "skipped" } });
+}
+
+/* Publish an exact list of Drafts in one request (admin token only): each must be a
+   non-featured Draft with a Story Number and a story date. Only `status` changes; the
+   This Week featured story is untouched. Refuses the whole list on any problem. */
+async function publishDrafts(res, actor, body) {
+  if (!isAdminActor(actor)) return json(res, 403, { error: "Admin token required to publish a batch." });
+  const ids = Array.isArray(body.ids) ? body.ids : [];
+  if (!ids.length || ids.length > 200 || !ids.every(n => Number.isInteger(n) && n > 0) || new Set(ids).size !== ids.length)
+    return json(res, 400, { error: "ids must be a non-empty list of distinct record ids" });
+  const all = await store.getStories();
+  const problems = [];
+  for (const id of ids) {
+    const s = all.find(x => x.id === id);
+    if (!s) { problems.push("record " + id + " is missing"); continue; }
+    if (s.status !== "draft") problems.push("record " + id + " is " + s.status + ", not a Draft");
+    if (s.featured) problems.push("record " + id + " is featured");
+    if (numbering.storyNo(s) == null) problems.push("record " + id + " has no Story Number");
+    if (!s.publishedISO) problems.push("record " + id + " has no story date");
+  }
+  if (problems.length) return json(res, 409, { error: "Publish refused; nothing was written.", problems });
+  const now = new Date().toISOString();
+  const pub = new Set(ids);
+  const after = [];
+  for (const s of all) {
+    if (!pub.has(s.id)) { after.push(s); continue; }
+    const story = Object.assign({}, s, { status: "published", featured: false, lastEditedBy: actor, lastEditedAt: now });
+    const blocked = await applyPublishContract(story, false);
+    if (blocked) return json(res, 409, { error: "Publish refused (record " + s.id + "): " + blocked.message + "; nothing was written.", code: blocked.code });
+    after.push(story);
+  }
+  await putChanged(after, ids);
+  for (const id of ids) await audit.record({ action: "story.publish", storyId: id, actor, detail: "batch publish" });
+  return json(res, 200, { ok: true, published: ids, build: body.deferRebuild ? { rebuild: "skipped" } : await triggerRebuild() });
 }
 
 /* Stored-photo read-back for imports and backups (GET only, admin token only, no side effects).
@@ -231,6 +312,22 @@ module.exports = async (req, res) => {
       return json(res, 200, { ok: false, provider: "none", reason: "No server AI provider configured; the CMS uses its built-in local heuristics." });
     }
 
+    /* ---------------- Story Numbers ---------------- */
+    if (resource === "story-numbers") {
+      if (method === "GET" && parts.length === 2) {
+        const all = await store.getStories(), issued = await issuedNumbers();
+        return json(res, 200, { firstNewStoryNumber: numbering.FIRST_NEW_STORY_NUMBER, nextNewStoryNumber: numbering.nextNewStoryNumber(all, issued),
+          retired: numbering.RETIRED, historicalEntries: numbering.policy().historicalEntries, assignments: numbering.assignments().length,
+          assignmentsFingerprint: numbering.assignmentsFingerprint(), pendingRelease: numbering.checkRelease(all) });
+      }
+      if (method === "POST" && parts[2] === "release" && parts.length === 3) return releaseStoryNumbers(res, actor, await readBody(req));
+      return json(res, 404, { error: "Not found" });
+    }
+    if (resource === "stories" && parts[2] === "publish") {
+      if (method === "POST" && parts.length === 3) return publishDrafts(res, actor, await readBody(req));
+      return json(res, 404, { error: "Not found" });
+    }
+
     /* ---------------- stories ---------------- */
     if (resource === "stories") {
       if (method === "GET") {
@@ -241,13 +338,17 @@ module.exports = async (req, res) => {
       if (method === "POST") {
         const body = await readBody(req);
         const all = await store.getStories();
-        const story = records.normalize(body);
-        story.id = Number(body.id) || records.nextId(all);
-        if (all.some(s => s.id === story.id)) return json(res, 409, { error: "id " + story.id + " already exists" });
+        const id = Number(body.id) || records.nextId(all);
+        if (all.some(s => s.id === id)) return json(res, 409, { error: "id " + id + " already exists" });
+        const nums = numbering.prepareWrite(body, null, all, await issuedNumbers(), id);
+        if (nums.problems.length) return numberProblems(res, nums.problems);
+        const story = nums.apply(records.normalize(body));
+        story.id = id;
         story.createdBy = actor; story.createdAt = new Date().toISOString(); story.lastEditedBy = actor; story.lastEditedAt = story.createdAt;
         const blockedP = await applyPublishContract(story, body.force);
         if (blockedP) return json(res, 409, { error: blockedP.message, code: blockedP.code, readiness: blockedP });
         await saveStory(story);
+        await noteIssued([story.storyNumber]);
         await audit.record({ action: "story.create", storyId: story.id, actor, detail: story.title || null });
         return json(res, 201, { ok: true, story, build: await rebuildUnlessDeferred(req, story.status) });
       }
@@ -256,13 +357,16 @@ module.exports = async (req, res) => {
         const all = await store.getStories();
         const existing = all.find(s => s.id === idParam);
         if (!existing) return json(res, 404, { error: "No story " + idParam });
-        const story = records.normalize(body, existing);
+        const nums = numbering.prepareWrite(body, existing, all, await issuedNumbers(), idParam);
+        if (nums.problems.length) return numberProblems(res, nums.problems);
+        const story = nums.apply(records.normalize(body, existing));
         story.id = idParam;
         story.createdBy = existing.createdBy || story.createdBy || actor; story.createdAt = existing.createdAt || story.createdAt || new Date().toISOString();
         story.lastEditedBy = actor; story.lastEditedAt = new Date().toISOString();
         const blockedU = await applyPublishContract(story, body.force);
         if (blockedU) return json(res, 409, { error: blockedU.message, code: blockedU.code, readiness: blockedU });
         await saveStory(story);
+        await noteIssued([story.storyNumber]);
         await audit.record({ action: "story.edit", storyId: idParam, actor, detail: story.title || null });
         // a memory that WAS public (published or coming-soon) must still rebuild (it has to leave the site)
         return json(res, 200, { ok: true, story, build: await rebuildUnlessDeferred(req, existing.status !== "draft" ? existing.status : story.status) });

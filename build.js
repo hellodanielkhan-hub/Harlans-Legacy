@@ -30,6 +30,7 @@ const { resolveAbout } = require("./lib/discover-pools.js");   // curated About 
 const { brandLogo, BRAND_CSS } = require("./lib/brand.js");   // primary brand mark (header + mobile menu)
 
 const { ROOT } = require("./lib/paths.js");   // app dir locally; a writable dir on read-only hosts
+const numbering = require("./lib/numbering.js");   // Story Numbers: storyNumber is the only number shown to readers
 const narrText = require("./lib/narration/text.js");   // narrated-text revision hash (for narration freshness)
 
 // Public Listening Mode is exposed for a story ONLY when its narration record is
@@ -195,7 +196,7 @@ function renderThisWeekText(s, site) {
   const listen = publicListenOn(site, s)
     ? `\n              <a class="tw-listen" href="${s.url}" aria-label="Open this memory to listen${dur ? " (" + dur + ")" : ""}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>Listen${dur ? `<span class="tw-listen-dur"> · ${dur}</span>` : ""}</a>` : "";
   return [
-    `            <p class="tw-stamp">No.&nbsp;${s.id} <span aria-hidden="true">·</span> ${text(s.dateLong || s.dateLabel || "")}${s.readingTime ? ` <span aria-hidden="true">·</span> ${s.readingTime}&nbsp;min` : ""}</p>`,
+    `            <p class="tw-stamp">${numbering.label(s, "No.&nbsp;") ? `${numbering.label(s, "No.&nbsp;")} <span aria-hidden="true">·</span> ` : ""}${text(s.dateLong || s.dateLabel || "")}${s.readingTime ? ` <span aria-hidden="true">·</span> ${s.readingTime}&nbsp;min` : ""}</p>`,
     `            <h2 class="story-title tw-title"><a href="${s.url}">${text(s.title)}</a></h2>`,
     `            <p class="tw-thread"><span class="dot" style="${dot}"></span>${text(s.themeLabel)}</p>`,
     // a short opening line (a question, a name) reads as a lede; a full paragraph opens with a drop cap
@@ -220,7 +221,7 @@ function renderThisWeekCompanion(featured, stories) {
   return [
     `          <a class="tw-also" href="${second.url}">`,
     thumb ? `            <span class="tw-also-plate">${thumb}</span>` : `            <span class="tw-also-plate is-words" aria-hidden="true"></span>`,
-    `            <span class="tw-also-text"><span class="tw-kicker">${kicker} · No.&nbsp;${second.id}</span><span class="tw-also-title">${text(second.title)} <span class="tw-also-arrow" aria-hidden="true">→</span></span></span>`,
+    `            <span class="tw-also-text"><span class="tw-kicker">${kicker}${numbering.label(second, " · No.&nbsp;")}</span><span class="tw-also-title">${text(second.title)} <span class="tw-also-arrow" aria-hidden="true">→</span></span></span>`,
     `          </a>`
   ].join("\n");
 }
@@ -231,14 +232,14 @@ function renderThisWeekCompanion(featured, stories) {
 function renderArchiveInvite(stories) {
   const pub = publishedByDate(stories);
   if (!pub.length) return "";
-  const ids = pub.map(s => s.id);
+  const nos = pub.map(numbering.storyNo).filter(n => n != null);
   const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const mon = iso => iso ? `${SHORT[+iso.slice(5, 7) - 1]} ${iso.slice(0, 4)}` : "";
   const first = mon(pub[pub.length - 1].publishedISO), last = mon(pub[0].publishedISO);
   const span = first && last ? (first === last ? first : (first.slice(-4) === last.slice(-4) ? `${first.slice(0, 3)} – ${last}` : `${first} – ${last}`)) : "";
   return [
     `        <div class="ai-grid reveal pace-quick">`,
-    `          <p class="ai-mark"><span class="ai-eyebrow">The archive</span><span class="ai-nos">Nos.&nbsp;${Math.min(...ids)}&thinsp;–&thinsp;${Math.max(...ids)}</span><span class="ai-span">${pub.length} ${pub.length === 1 ? "memory" : "memories"}${span ? ` · ${span}` : ""}</span></p>`,
+    `          <p class="ai-mark"><span class="ai-eyebrow">The archive</span>${nos.length ? `<span class="ai-nos">Nos.&nbsp;${Math.min(...nos)}&thinsp;–&thinsp;${Math.max(...nos)}</span>` : ""}<span class="ai-span">${pub.length} ${pub.length === 1 ? "memory" : "memories"}${span ? ` · ${span}` : ""}</span></p>`,
     `          <div class="ai-body">`,
     `            <h2 class="ai-title" id="archive-invite-title"><a href="archive.html">Explore the archive<span class="ai-arrow" aria-hidden="true">&nbsp;→</span></a></h2>`,
     `            <p class="ai-sub">This week's memory is one page of a longer record — every Friday kept so far, and every person, place and object in them, searchable.</p>`,
@@ -291,7 +292,8 @@ function coverPicture(s, prefix) {
 // Provenance — the museum "wall text" for a memory: when, where, and by whom it
 // is kept. Built only from real fields; empty parts are simply omitted.
 function storyProvenance(s) {
-  const parts = [`<span>No.&nbsp;<b>${s.id}</b></span>`];
+  const no = numbering.storyNo(s);
+  const parts = no == null ? [] : [`<span>No.&nbsp;<b>${no}</b></span>`];
   const when = (s.memoryDate && s.memoryDate.length <= 46) ? s.memoryDate
     : (s.dateLong || "");
   if (when) parts.push(`<span>${text(when)}</span>`);
@@ -395,9 +397,9 @@ function renderRelatedMemories(rels) {
     const via = r.via.slice(0, 3).map(e => text(e.name)).join(" · ");
     const pub = r.story.published;
     const href = pub ? `../${r.story.url}` : "../archive.html";
-    const meta = pub ? `No.&nbsp;${r.story.id}` : "Coming soon";
+    const meta = pub ? numbering.label(r.story, "No.&nbsp;") : "Coming soon";
     return `        <a class="collection-piece" style="--tab-color:var(--thread-${r.story.theme})" href="${href}">
-          <span class="cp-label">${meta}${via ? ` &middot; shares ${via}` : ""}</span>
+          <span class="cp-label">${[meta, via ? `shares ${via}` : ""].filter(Boolean).join(" &middot; ")}</span>
           <span class="cp-title">${text(r.story.title)}</span>
           <span class="cp-go" aria-hidden="true">Step into this memory →</span>
         </a>`;
@@ -438,7 +440,7 @@ function storyPageHTML(s, site, graph, journey, journeys) {
     ? readerLib.composeBody(s, graph, "../", { coverImageId: coverPhoto ? coverPhoto.it.id : null })
     : [s.lead, ...(s.body || [])].filter(Boolean).map(p => `          <p>${p}</p>`).join("\n\n");
   const codaHTML = readerLib.endingCoda(s, site);
-  const moreCount = Math.max(0, site.archiveTotal - 1);
+  const moreCount = Math.max(0, (site.publishedCount || 0) - 1);   // the actual published count, never a hardcoded total
   const connectionsHTML = graph ? renderStoryConnections(graph.storyConnections[s.id]) : "";
   // Cinematic Story Listening is gated on the APPROVED + FRESH narration record
   // (not mere asset presence) and the site feature flag. Approval writes the public
@@ -1104,7 +1106,7 @@ ${listenOn ? '<link rel="stylesheet" href="../assets/listen-cinematic.css">\n' :
 <main id="main">
   <section id="story">
     <div class="container">
-      <div class="story-card reveal" id="hl-story" data-story-id="${s.id}" data-theme="${attr(s.theme)}" data-reading-time="${s.readingTime || 0}" data-url="${attr(s.url)}"${listenOn ? ` data-listen="../assets/listen/${s.id}/"` : ""}>
+      <div class="story-card reveal" id="hl-story" data-record-id="${s.id}" data-story-id="${numbering.storyNo(s) == null ? "" : numbering.storyNo(s)}" data-theme="${attr(s.theme)}" data-reading-time="${s.readingTime || 0}" data-url="${attr(s.url)}"${listenOn ? ` data-listen="../assets/listen/${s.id}/"` : ""}>
         <header class="story-cover${coverImg ? " has-photo" : " no-photo"}" data-orient="${coverOrient}" style="--thread:${s.threadHex}">
           <button class="hl-bookmark hl-bookmark-cover" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
             <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -1156,7 +1158,7 @@ ${journeyHTML}${connectionsHTML}${relatedHTML}
 ${exploreHTML}
   <section class="return-invite">
     <div class="container reveal">
-      <p>There are ${moreCount} more of these, kept the same way this one was.</p>
+      <p>${moreCount === 1 ? "There is 1 more of these" : `There are ${moreCount} more of these`}, kept the same way this one was.</p>
       <a class="btn btn-quiet" href="../archive.html">← Back to the archive</a>
     </div>
   </section>
@@ -1189,7 +1191,7 @@ ${exploreHTML}
     </div>
     <div class="footer-bottom">
       <span>&copy; <span id="year"></span> Harlan's Legacy</span>
-      <span>Story No. ${s.id} of ${site.archiveTotal}</span>
+      ${numbering.label(s) ? `<span>Story ${numbering.label(s)}</span>` : ""}
     </div>
   </div>
 </footer>
@@ -1339,9 +1341,10 @@ function buildStoryPages(site, stories, graph, jByStory, journeys) {
     .forEach(f => { fs.unlinkSync(path.join(STORY_DIR, f)); console.log(`  - removed orphan story/${f}`); });
 
   const written = [];
+  const pageSite = Object.assign({}, site, { publishedCount: published.length });
   published.forEach(s => {
     const file = path.join(STORY_DIR, `${s.id}-${s.slug}.html`);
-    fs.writeFileSync(file, storyPageHTML(s, site, graph, (jByStory || {})[s.id], journeys));
+    fs.writeFileSync(file, storyPageHTML(s, pageSite, graph, (jByStory || {})[s.id], journeys));
     written.push(`story/${s.id}-${s.slug}.html`);
   });
   return written;
@@ -1363,7 +1366,7 @@ function buildSearchIndex(site, stories, entities, graph, journeys) {
   stories.forEach(s => {
     const kw = [
       s.title, s.summary, s.themeLabel, s.memoryDate, s.bookPart, s.dateLabel,
-      "story", "no " + s.id, String(s.id),
+      "story", ...(numbering.storyNo(s) == null ? [] : ["no " + numbering.storyNo(s), String(numbering.storyNo(s))]),
       ...(s.people || []), ...(s.places || []), ...(s.objects || []),
       ...(s.events || []), ...(s.keywords || [])
     ].filter(Boolean).join(" ").toLowerCase();
@@ -1371,7 +1374,7 @@ function buildSearchIndex(site, stories, entities, graph, journeys) {
     records.push({
       type: "story",
       title: s.title,
-      subtitle: s.published ? `No. ${s.id} · ${s.themeLabel}` : `Coming soon · ${s.themeLabel}`,
+      subtitle: s.published ? [numbering.label(s), s.themeLabel].filter(Boolean).join(" · ") : `Coming soon · ${s.themeLabel}`,
       url: s.published ? s.url : "archive.html",
       badge: "Story",
       related: sConn.total || 0,
@@ -1426,7 +1429,7 @@ function buildSearchIndex(site, stories, entities, graph, journeys) {
 /* ---------- stories.js public mirror ---------- */
 function buildStoriesJs(stories, graph, featured, site) {
   const records = stories.map(s => ({
-    id: s.id, slug: s.slug, title: s.title,
+    id: s.id, storyNumber: numbering.storyNo(s), slug: s.slug, title: s.title,
     published: s.published, status: s.status,
     publishDate: s.publishedISO || s.dateLong, memoryDate: s.memoryDate,
     summary: s.summary, excerpt: s.lead || null,
@@ -1459,7 +1462,7 @@ function buildStoriesJs(stories, graph, featured, site) {
       .slice(0, 6)
       .map(r => r.id);
     return {
-      id: s.id, slug: s.slug, title: s.title, url: s.url,
+      id: s.id, storyNumber: numbering.storyNo(s), slug: s.slug, title: s.title, url: s.url,
       theme: s.theme, themeLabel: s.themeLabel || themeLabels[s.theme] || s.theme,
       summary: s.summary || "", dateLabel: s.dateLabel || "",
       readingTime: s.readingTime || 0, rec

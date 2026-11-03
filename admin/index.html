@@ -185,7 +185,11 @@
               </summary>
               <div class="adv-body">
                 <div class="row-3">
-                  <div class="field"><label for="f-id">Story No.</label><input type="number" id="f-id" min="1" step="1"><p class="hint">Permanent, never reused.</p></div>
+                  <div class="field"><label for="f-storynumber">Story No.</label><input type="number" id="f-storynumber" min="1" step="1" inputmode="numeric"><p class="hint" id="storynumber-hint">The number readers see. Permanent once saved, never reused; retired and reserved numbers are refused.</p></div>
+                  <div class="field"><label for="f-blognumber">Original Blog No.</label><input type="number" id="f-blognumber" min="1" step="1" inputmode="numeric"><p class="hint">Hal's own Facebook issue number, if he gave one. Historical reference only; it may repeat.</p></div>
+                  <div class="field"><label for="f-id">Record ID</label><input type="number" id="f-id" readonly aria-readonly="true" tabindex="-1"><p class="hint">Internal. Keys the page address, photos and narration. Never shown as a Story No.</p></div>
+                </div>
+                <div class="row-2">
                   <div class="field"><label for="f-slug">Slug</label><input type="text" id="f-slug" placeholder="auto from title"><p class="hint"><code id="slug-preview">story/…</code></p></div>
                   <div class="field"><label for="f-reading">Reading time (min)</label><input type="number" id="f-reading" min="0" step="1" placeholder="auto"></div>
                 </div>
@@ -205,7 +209,7 @@
                 <div class="row-3">
                   <div class="field"><label for="f-memory">Memory date (prose)</label><input type="text" id="f-memory" placeholder="c. late 1990s–2010s"></div>
                   <div class="field"><label for="f-bookpart">Book part</label><input type="text" id="f-bookpart" placeholder="III — Mom, Dad and Home"></div>
-                  <div class="field"><label for="f-echoes">Echo stories (ids)</label><input type="text" id="f-echoes" placeholder="e.g. 105, 226"></div>
+                  <div class="field"><label for="f-echoes">Echo stories (Record IDs)</label><input type="text" id="f-echoes" placeholder="e.g. 105, 226"></div>
                 </div>
                 <div class="field" style="margin-bottom:0;"><label for="f-keywords">Search keywords</label><input type="text" id="f-keywords" placeholder="comma-separated extra search terms"></div>
               </div>

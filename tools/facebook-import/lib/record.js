@@ -21,9 +21,13 @@ function readingTime(paragraphs) {
   return Math.max(1, Math.round(words / 200));
 }
 
-function buildRecord(entry, paragraphs, id) {
+// `registry`: the private Story Number registry (tools/story-numbers/lib/private-registry.js), or null.
+function buildRecord(entry, paragraphs, id, registry) {
   const body = {
     id,
+    // The Story Number the private registry reserves for this source post; null without a registry or
+    // when the post is not in it. Never derived from the record id.
+    storyNumber: registry ? registry.numberFor(entry.postId) : null,
     title: String(entry.title || "").trim(),
     slug: "",
     status: "draft",

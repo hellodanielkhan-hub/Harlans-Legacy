@@ -4,6 +4,7 @@
    node import.js dry-run --manifest <manifest.json> --snapshot <site-snapshot.json>
                           [--inventory <folder with inventory/posts.json>] [--out <runs dir>]
                           [--only <postId,postId>] [--assume-approved]
+                          [--registry <private Story Number registry folder>]   (gives each Draft its reserved Story No.)
 
    dry-run   Reports exactly what would be created, in order, with the request bodies,
              image upload order (Primary first), duplicate checks and per-post readiness.
@@ -111,7 +112,7 @@ function plan(manifest, snapshot, opts) {
     if (readiness === "READY" || readiness === "READY_PENDING_APPROVAL" || readiness === "RESUME") {
       const id = led && led.storyId != null ? led.storyId : nextId++;
       if (protectedIds.has(id)) throw new Error(`planned id ${id} is an existing memory — refusing`);
-      record = buildRecord(e, p.paragraphs, id);
+      record = buildRecord(e, p.paragraphs, id, opts.registry || null);
       if (!(led && led.storyId != null)) requests.push({ method: "POST", path: "/api/stories", bytes: Buffer.byteLength(JSON.stringify(record.requestBody)), rebuild: true });
       img.files.forEach(f => {
         if (led && led.imagesDone.includes(f.order)) return;
@@ -235,7 +236,8 @@ function main() {
   const runsDir = a.out || path.join(path.dirname(a.manifest), "runs");
   const ledger = new Ledger(path.join(runsDir, "ledger.jsonl"));
   const started = new Date().toISOString();
-  const result = plan(manifest, snapshot, { sourceTexts, ledgerState: ledger.state(), only: a.only ? String(a.only).split(",") : null, assumeApproved: !!a["assume-approved"] });
+  const registry = a.registry ? require("../story-numbers/lib/private-registry.js").load(a.registry) : null;
+  const result = plan(manifest, snapshot, { sourceTexts, ledgerState: ledger.state(), only: a.only ? String(a.only).split(",") : null, assumeApproved: !!a["assume-approved"], registry });
   const meta = { started, mode: "dry-run", manifest: a.manifest, snapshot: a.snapshot, networkCalls: 0 };
   const outDir = path.join(runsDir, "dry-run-" + started.replace(/[:.]/g, "-"));
   writeRun(outDir, result, meta);

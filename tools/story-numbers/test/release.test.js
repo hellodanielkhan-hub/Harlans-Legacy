@@ -11,6 +11,8 @@ const path = require("path");
 const http = require("http");
 const crypto = require("crypto");
 const { execFileSync } = require("child_process");
+// These tests cover the mode in which Story Numbers ARE displayed (unnumbered.test.js covers the paused mode).
+process.env.HL_STORY_NUMBERS_DISPLAY = "on";
 const fx = require("./fixture.js");
 
 fx.cleanEnv();

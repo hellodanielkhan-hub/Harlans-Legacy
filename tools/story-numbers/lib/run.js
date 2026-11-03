@@ -57,7 +57,8 @@ async function verifyPublic(fetchFn, origin, expected) {
   for (const e of expected) {
     const p = byId.get(e.id);
     if (!p || !p.published) { problems.push("record " + e.id + " is not published on the public site"); continue; }
-    if (p.storyNumber !== e.storyNumber) { problems.push("record " + e.id + " shows Story No. " + p.storyNumber + " publicly, expected " + e.storyNumber); continue; }
+    const want = numbering.DISPLAY_STORY_NUMBERS ? e.storyNumber : null;      // nothing is shown while display is paused
+    if (p.storyNumber !== want) { problems.push("record " + e.id + " shows Story No. " + p.storyNumber + " publicly, expected " + want); continue; }
     problems.push(...verify.storyPageProblems(await publicPage(fetchFn, origin, p.url), Object.assign({}, p, e)));
   }
   const featured = expected.find(e => e.id === FEATURED_ID);

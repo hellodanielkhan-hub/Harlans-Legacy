@@ -7,6 +7,8 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
+// These tests cover the mode in which Story Numbers ARE displayed (unnumbered.test.js covers the paused mode).
+process.env.HL_STORY_NUMBERS_DISPLAY = "on";
 const fx = require("./fixture.js");
 
 fx.cleanEnv();

@@ -232,7 +232,7 @@ function renderThisWeekCompanion(featured, stories) {
 function renderArchiveInvite(stories) {
   const pub = publishedByDate(stories);
   if (!pub.length) return "";
-  const nos = pub.map(numbering.storyNo).filter(n => n != null);
+  const nos = pub.map(numbering.displayNo).filter(n => n != null);
   const SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const mon = iso => iso ? `${SHORT[+iso.slice(5, 7) - 1]} ${iso.slice(0, 4)}` : "";
   const first = mon(pub[pub.length - 1].publishedISO), last = mon(pub[0].publishedISO);
@@ -292,7 +292,7 @@ function coverPicture(s, prefix) {
 // Provenance — the museum "wall text" for a memory: when, where, and by whom it
 // is kept. Built only from real fields; empty parts are simply omitted.
 function storyProvenance(s) {
-  const no = numbering.storyNo(s);
+  const no = numbering.displayNo(s);
   const parts = no == null ? [] : [`<span>No.&nbsp;<b>${no}</b></span>`];
   const when = (s.memoryDate && s.memoryDate.length <= 46) ? s.memoryDate
     : (s.dateLong || "");
@@ -1106,7 +1106,7 @@ ${listenOn ? '<link rel="stylesheet" href="../assets/listen-cinematic.css">\n' :
 <main id="main">
   <section id="story">
     <div class="container">
-      <div class="story-card reveal" id="hl-story" data-record-id="${s.id}" data-story-id="${numbering.storyNo(s) == null ? "" : numbering.storyNo(s)}" data-theme="${attr(s.theme)}" data-reading-time="${s.readingTime || 0}" data-url="${attr(s.url)}"${listenOn ? ` data-listen="../assets/listen/${s.id}/"` : ""}>
+      <div class="story-card reveal" id="hl-story" data-record-id="${s.id}" data-story-id="${numbering.displayNo(s) == null ? "" : numbering.displayNo(s)}" data-theme="${attr(s.theme)}" data-reading-time="${s.readingTime || 0}" data-url="${attr(s.url)}"${listenOn ? ` data-listen="../assets/listen/${s.id}/"` : ""}>
         <header class="story-cover${coverImg ? " has-photo" : " no-photo"}" data-orient="${coverOrient}" style="--thread:${s.threadHex}">
           <button class="hl-bookmark hl-bookmark-cover" type="button" data-hl-save aria-pressed="false" aria-label="Save this memory" title="Save this memory" hidden>
             <svg class="hl-bm-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.5L6 21z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
@@ -1366,7 +1366,7 @@ function buildSearchIndex(site, stories, entities, graph, journeys) {
   stories.forEach(s => {
     const kw = [
       s.title, s.summary, s.themeLabel, s.memoryDate, s.bookPart, s.dateLabel,
-      "story", ...(numbering.storyNo(s) == null ? [] : ["no " + numbering.storyNo(s), String(numbering.storyNo(s))]),
+      "story", ...(numbering.displayNo(s) == null ? [] : ["no " + numbering.displayNo(s), String(numbering.displayNo(s))]),
       ...(s.people || []), ...(s.places || []), ...(s.objects || []),
       ...(s.events || []), ...(s.keywords || [])
     ].filter(Boolean).join(" ").toLowerCase();
@@ -1429,7 +1429,7 @@ function buildSearchIndex(site, stories, entities, graph, journeys) {
 /* ---------- stories.js public mirror ---------- */
 function buildStoriesJs(stories, graph, featured, site) {
   const records = stories.map(s => ({
-    id: s.id, storyNumber: numbering.storyNo(s), slug: s.slug, title: s.title,
+    id: s.id, storyNumber: numbering.displayNo(s), slug: s.slug, title: s.title,
     published: s.published, status: s.status,
     publishDate: s.publishedISO || s.dateLong, memoryDate: s.memoryDate,
     summary: s.summary, excerpt: s.lead || null,
@@ -1462,7 +1462,7 @@ function buildStoriesJs(stories, graph, featured, site) {
       .slice(0, 6)
       .map(r => r.id);
     return {
-      id: s.id, storyNumber: numbering.storyNo(s), slug: s.slug, title: s.title, url: s.url,
+      id: s.id, storyNumber: numbering.displayNo(s), slug: s.slug, title: s.title, url: s.url,
       theme: s.theme, themeLabel: s.themeLabel || themeLabels[s.theme] || s.theme,
       summary: s.summary || "", dateLabel: s.dateLabel || "",
       readingTime: s.readingTime || 0, rec

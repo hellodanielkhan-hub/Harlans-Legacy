@@ -151,7 +151,20 @@ function photoProblems(payload, stories, galleries, backupManifest) {
 }
 
 /* Public pages, read from the live site after a build. */
+// While Story Numbers are not displayed (Unnumbered Publishing Mode), the page must show NO number at all.
+function unnumberedPageProblems(html, rec) {
+  const problems = [];
+  if (!html.includes('data-record-id="' + rec.id + '"')) problems.push("story " + rec.id + ": page is not from this build (no data-record-id)");
+  if (!html.includes('data-story-id=""')) problems.push("story " + rec.id + ": the listening badge would show a number");
+  if (html.includes("No.&nbsp;<b>")) problems.push("story " + rec.id + ": provenance shows a number");
+  const footer = (/<div class="footer-bottom">([\s\S]*?)<\/div>/.exec(html) || [])[1] || "";
+  if (/Story No\./.test(footer)) problems.push("story " + rec.id + ": footer shows a Story No.");
+  if (/Story No\. \d+ of \d+/.test(html)) problems.push("story " + rec.id + ": still shows the old \"Story No. N of total\" line");
+  if (/class="(tw-stamp|tw-kicker|arc-date|xc-meta|st-meta|cp-label)">[^<]*No\.(&nbsp;| )\d/.test(html)) problems.push("story " + rec.id + ": a card or label shows a number");
+  return problems;
+}
 function storyPageProblems(html, rec) {
+  if (!numbering.DISPLAY_STORY_NUMBERS) return unnumberedPageProblems(html, rec);
   const n = numbering.storyNo(rec), problems = [];
   if (n == null) return ["record " + rec.id + " has no Story Number"];
   if (!html.includes('data-record-id="' + rec.id + '"')) problems.push("story " + rec.id + ": page is not from this build (no data-record-id)");
@@ -163,10 +176,12 @@ function storyPageProblems(html, rec) {
   return problems;
 }
 function homePageProblems(html, featured) {
+  if (!numbering.DISPLAY_STORY_NUMBERS) return /class="(tw-stamp|tw-kicker)">[^<]*No\.(&nbsp;| )\d/.test(html) || html.includes('class="ai-nos"') ? ["homepage shows a Story Number"] : [];
   const n = numbering.storyNo(featured);
   return html.includes('class="tw-stamp">No.&nbsp;' + n + " ") ? [] : ["homepage: This Week does not show No. " + n];
 }
 function archivePageProblems(html, published) {
+  if (!numbering.DISPLAY_STORY_NUMBERS) return /class="arc-date">No\./.test(html) ? ["archive cards show Story Numbers"] : [];
   return published.filter(s => !html.includes("No.&nbsp;" + numbering.storyNo(s) + "<br>")).map(s => "archive: record " + s.id + " does not show No. " + numbering.storyNo(s));
 }
 

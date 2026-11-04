@@ -9,7 +9,8 @@ const BATCH_1_PAYLOAD_FINGERPRINT = "495ee0f7def7674105b917c36356916e5cfbfe475ec
 const BATCH_1_PHOTOS = 23;          // photographs across the 21 photo posts
 const BATCH_1_TEXT_ONLY = 4;
 
-// The This Week story, and the separate Draft that the Batch 1 authorization does not cover.
+// The This Week story, and record 404, which no batch authorization covers (a Draft until the owner published it
+// in the Editorial Workspace on 2026-11-04; these tools never write it).
 const FEATURED_ID = 405;
 const SEPARATE_DRAFT_ID = 404;
 

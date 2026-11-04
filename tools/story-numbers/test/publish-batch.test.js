@@ -114,7 +114,7 @@ test("refusals on the live records: edited text, a duplicate Draft, a featured o
   await mutate(l => { l.find(s => s.id === ids2[1]).featured = true; }, "a target is featured", "preconditions")();
   await mutate(l => { l.find(s => s.id === ids2[1]).status = "published"; }, "one target already published (mixed)", "batch-identity", /not all Drafts/)();
   await mutate(l => { l.find(s => s.id === ids2[3]).storyNumber = 448; }, "a target carries a Story Number", "batch-identity", /Story Number/)();
-  await mutate(l => { l.find(s => s.id === 404).status = "published"; }, "record 404 is not a Draft", "preconditions", /404/)();
+  await mutate(l => { l.find(s => s.id === 404).featured = true; }, "record 404 is featured", "preconditions", /404|This Week/)();
   assert.equal(JSON.stringify(site.stories()), JSON.stringify(orig));
 });
 
@@ -164,6 +164,9 @@ test("lost answer: the publish is applied but its answer is lost; the rerun veri
 });
 
 test("batch 03, the normal path: one write, one build, published unnumbered, everything else unchanged", async () => {
+  // as on Production since 2026-11-04: the owner has published record 404 in the Editorial Workspace
+  const owner = site.stories(); owner.find(s => s.id === 404).status = "published"; site.writeStories(owner);
+  await fetch(process.env.VERCEL_DEPLOY_HOOK_URL, { method: "POST" });      // the rebuild the Editorial Workspace triggers
   const before = site.stories(), gBefore = JSON.stringify(site.galleries());
   const r = await session({ payload: P3, fingerprint: FP3, importLedgerPath: L3, answer: phrase(2, "batch-03") });
   assert.equal(r.report.stopped, undefined, r.report.stage + ": " + r.report.stopped);
@@ -175,6 +178,7 @@ test("batch 03, the normal path: one write, one build, published unnumbered, eve
   for (const s of before.filter(x => !ids3.includes(x.id))) assert.equal(JSON.stringify(after.find(x => x.id === s.id)), JSON.stringify(s), "record " + s.id);
   assert.equal(JSON.stringify(site.galleries()), gBefore, "photos, order and Primary unchanged");
   assert.deepEqual(featured(), [405]);
+  assert.equal(after.find(s => s.id === 404).status, "published", "the owner's publication of 404 is kept, untouched");
   for (const id of Array.from({ length: 25 }, (_, i) => 406 + i)) assert.equal(after.find(s => s.id === id).status, "draft", "Batch 1 untouched");
   // the public pages: the new stories exist and no page shows a Story Number
   const s3 = after.find(s => s.id === ids3[0]);

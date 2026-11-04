@@ -162,7 +162,7 @@ async function publishDrafts(res, actor, body) {
     if (!s) { problems.push("record " + id + " is missing"); continue; }
     if (s.status !== "draft") problems.push("record " + id + " is " + s.status + ", not a Draft");
     if (s.featured) problems.push("record " + id + " is featured");
-    if (numbering.storyNo(s) == null) problems.push("record " + id + " has no Story Number");
+    if (numbering.DISPLAY_STORY_NUMBERS && numbering.storyNo(s) == null) problems.push("record " + id + " has no Story Number");
     if (!s.publishedISO) problems.push("record " + id + " has no story date");
   }
   if (problems.length) return json(res, 409, { error: "Publish refused; nothing was written.", problems });

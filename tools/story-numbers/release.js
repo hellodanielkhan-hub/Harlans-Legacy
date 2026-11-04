@@ -14,6 +14,9 @@
    Production (interactive; the admin token is entered once per operation at a hidden prompt):
      node tools/story-numbers/release.js release-numbers --registry <private folder> --payload <batch-01-import-payload.json> --backup <empty dir> --ledger <file.jsonl>
      node tools/story-numbers/release.js publish-batch-1 --registry <private folder> --payload <batch-01-import-payload.json> --backup <another empty dir> --ledger <file.jsonl>
+     node tools/story-numbers/release.js publish-batch --payload <batch-NN-import-payload.json> --fingerprint <approved payload fingerprint>
+                                         --import-ledger <that batch's import ledger.jsonl> --backup <empty dir> --ledger <file.jsonl>
+       (batches 02 and later, Unnumbered Publishing Mode; one batch per run)
    See lib/run.js for exactly what each one checks and writes. */
 "use strict";
 
@@ -60,6 +63,28 @@ async function main() {
     process.exitCode = v.problems.length ? 1 : 0; return;
   }
 
+  if (cmd === "publish-batch") {
+    const run = require("./lib/run.js");
+    const { createLiveTransport } = require("./lib/transport.js");
+    const payload = JSON.parse(fs.readFileSync(need(a, "payload"), "utf8"));
+    const approvedFingerprint = String(need(a, "fingerprint"));
+    if (!/^[0-9a-f]{64}$/.test(approvedFingerprint)) throw new Error("--fingerprint must be the 64-character payload fingerprint; nothing was sent");
+    const importEntries = new Ledger(need(a, "import-ledger")).read();
+    const backupDir = need(a, "backup"), ledgerPath = need(a, "ledger");
+    if (fs.existsSync(backupDir) && fs.readdirSync(backupDir).length) throw new Error("the backup folder is not empty: " + backupDir + "; nothing was sent");
+    const io = ttyIo();
+    if (!io.isTTY) throw new Error("needs an interactive terminal for the hidden token prompt");
+    console.log("Operation: publish-batch (batch " + payload.batch + ")   Destination: " + PRODUCTION_ORIGIN + " (the admin token is sent only here, in a header)");
+    const live = createLiveTransport({ token: await io.askHidden("Admin token (input hidden): "), operation: "publish-batch" });
+    let report;
+    try { report = await run.publishBatch({ live, io, backupDir, ledger: new Ledger(ledgerPath), payload, approvedFingerprint, importEntries, origin: PRODUCTION_ORIGIN }); }
+    finally { live.close(); }
+    const out = path.join(path.dirname(ledgerPath), "publish-batch-" + String(payload.batch).padStart(2, "0") + "-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json");
+    fs.writeFileSync(out, JSON.stringify(report, null, 1));
+    console.log((report.stopped ? "\nSTOPPED at " + report.stage + ": " + report.stopped : "\nCompleted.") + "\nReport: " + out);
+    process.exitCode = report.stopped ? 1 : 0; return;
+  }
+
   if (OPERATIONS[cmd]) {
     const run = require("./lib/run.js");
     const { createLiveTransport } = require("./lib/transport.js");
@@ -82,7 +107,7 @@ async function main() {
     process.exitCode = report.stopped ? 1 : 0; return;
   }
 
-  console.error("usage: node tools/story-numbers/release.js plan | check-registry | verify-public | release-numbers | publish-batch-1   (see the header)");
+  console.error("usage: node tools/story-numbers/release.js plan | check-registry | verify-public | release-numbers | publish-batch-1 | publish-batch   (see the header)");
   process.exitCode = 2;
 }
 

@@ -150,6 +150,108 @@ function photoProblems(payload, stories, galleries, backupManifest) {
   return { problems, photos, textOnly };
 }
 
+/* ---- Batches 02+ (publish-batch): the same checks, for the exact records one import batch created ---- */
+const { approvalFingerprint, RECORD_FIELDS, IMPORT_SYSTEM, PROTECTED_IDS } = require(path.join(__dirname, "..", "..", "facebook-import", "lib", "batch.js"));
+const { batchIdOf } = require(path.join(__dirname, "..", "..", "facebook-import", "lib", "authorize.js"));
+const records = require(path.join(__dirname, "..", "..", "..", "lib", "records.js"));
+const NEVER_BATCH_PUBLISHED = new Set([...PROTECTED_IDS, FEATURED_ID, ...BATCH_1_IDS]);
+
+/* Which records this batch may publish: the approved payload (its fingerprint, every item's approval
+   fingerprint), the import ledger's verified story id for each post of THIS batch, and exactly one live
+   import record per post with that id. Returns { problems, targets: [{ postId, id }], state }, where
+   state is "draft" (all Drafts: ready to publish), "published" (all published: a completed or resumed
+   run) or "mixed". `importEntries` = the batch's import ledger lines (lib/ledger.js). */
+function batchIdentityProblems(stories, payload, importEntries, expectedFingerprint) {
+  const problems = [], targets = [];
+  const items = (payload && payload.items) || [];
+  if (!payload || !Number.isInteger(payload.batch) || payload.batch < 2) return { problems: ["the payload is not an import batch 02 or later (Batch 1 has its own operation, publish-batch-1)"], targets, state: null };
+  const batchId = batchIdOf(payload);
+  let fp = null;
+  try { fp = payloadFingerprint(payload); } catch (e) { problems.push("payload unreadable: " + e.message); }
+  if (!expectedFingerprint || fp !== expectedFingerprint) problems.push("payload fingerprint " + fp + " is not the approved fingerprint given for " + batchId);
+  if (!items.length) problems.push("the payload has no posts");
+  if (new Set(items.map(it => it.postId)).size !== items.length) problems.push("the payload lists a post twice");
+  const approved = (payload && payload.approvedFingerprints) || {};
+  for (const it of items) if (approved[it.postId] !== approvalFingerprint(it)) problems.push(it.postId + ": the item does not match its approval fingerprint (edited after approval)");
+  // the import ledger: every post verified in THIS batch, and the batch's one closing build sent
+  const mine = (importEntries || []).filter(e => e.batchId === batchId);
+  if (!mine.some(e => e.step === "batch-built")) problems.push("the import ledger has no completed import (batch-built) for " + batchId);
+  const verifiedId = {};
+  for (const e of mine) if (e.step === "verified" && e.postId) verifiedId[e.postId] = e.storyId;
+  for (const it of items) {
+    const id = verifiedId[it.postId];
+    if (!Number.isInteger(id)) { problems.push(it.postId + ": no verified import of this post in " + batchId); continue; }
+    const claimants = stories.filter(s => s.importSource && s.importSource.system === IMPORT_SYSTEM && s.importSource.postId === it.postId);
+    if (claimants.length !== 1) { problems.push(it.postId + ": " + claimants.length + " records carry this post (" + claimants.map(s => s.id).join(", ") + "), expected exactly 1"); continue; }
+    const s = claimants[0];
+    if (s.id !== id) { problems.push(it.postId + ": the record carrying it is " + s.id + ", but the import ledger verified " + id); continue; }
+    if (NEVER_BATCH_PUBLISHED.has(id)) { problems.push("record " + id + " is protected, This Week or Batch 1 and is never batch-published"); continue; }
+    if (s.featured) problems.push("record " + id + " is featured");
+    if (numbering.storyNo(s) != null || numbering.blogNo(s) != null) problems.push("record " + id + " carries a Story Number or Original Blog Number (imports in Unnumbered Publishing Mode carry none)");
+    if (!s.publishedISO) problems.push("record " + id + " has no story date");
+    targets.push({ postId: it.postId, id });
+  }
+  if (new Set(targets.map(t => t.id)).size !== targets.length) problems.push("two posts point to the same record");
+  const statuses = new Set(targets.map(t => stories.find(s => s.id === t.id).status));
+  const state = statuses.size === 1 ? [...statuses][0] : statuses.size ? "mixed" : null;
+  if (state !== "draft" && state !== "published") problems.push("the batch records are not all Drafts (or, after a completed run, all published): " + [...statuses].join(", "));
+  return { problems, targets, state };
+}
+
+// Every approved field of every target record, as stored, equals the approved payload record (as the API
+// normalizes it), apart from the record id (allocated at import) and the status.
+function batchContentProblems(stories, payload, targets) {
+  const problems = [];
+  for (const t of targets) {
+    const s = stories.find(x => x.id === t.id), it = payload.items.find(x => x.postId === t.postId);
+    const expected = records.normalize(Object.assign({}, it.record, { id: t.id }));
+    const bad = RECORD_FIELDS.filter(k => k !== "id" && k !== "status" && canonical(s[k]) !== canonical(expected[k]));
+    if (bad.length) problems.push("record " + t.id + " (" + t.postId + "): " + bad.join(", ") + " differ from the approved payload");
+  }
+  return problems;
+}
+
+// Stored photos of every target against the payload: count, SHA-256 (server digest from the fresh backup)
+// in the approved order, the approved Primary; text-only posts have none. Totals must match the payload.
+function batchPhotoProblems(payload, targets, galleries, backupManifest) {
+  const problems = [];
+  const digests = new Map(((backupManifest && backupManifest.memories) || []).map(m => [m.id, m.gallery || []]));
+  let photos = 0, textOnly = 0;
+  for (const t of targets) {
+    const it = payload.items.find(x => x.postId === t.postId);
+    const want = [...(it.images || [])].sort((x, y) => x.order - y.order);
+    const g = galleries["story-" + t.id] || { primary: null, items: [] };
+    const have = (g.items || []).map(p => { const d = (digests.get(t.id) || []).find(x => x.id === p.id); return { id: p.id, sha256: d && d.serverSha256, ok: d && !d.error && d.backupSha256 === d.serverSha256 }; });
+    if (!want.length) { textOnly++; if (have.length || g.primary != null) problems.push("record " + t.id + " is text-only but has a photo or Primary"); continue; }
+    photos += want.length;
+    if (have.length !== want.length) { problems.push("record " + t.id + ": " + have.length + " stored photo(s), expected " + want.length); continue; }
+    want.forEach((w, i) => {
+      if (have[i].sha256 !== w.sha256) problems.push("record " + t.id + " photo " + (i + 1) + ": stored SHA-256 " + (have[i].sha256 || "unknown") + " is not the approved " + w.sha256);
+      else if (!have[i].ok) problems.push("record " + t.id + " photo " + (i + 1) + ": not fully backed up");
+    });
+    const wp = want.filter(w => w.primary);
+    if (wp.length !== 1 || !want[0].primary) problems.push("record " + t.id + ": the approved payload does not make photo 1 the only Primary");
+    if (g.primary !== (g.items[0] && g.items[0].id)) problems.push("record " + t.id + ": the stored Primary is not photo 1");
+  }
+  const c = (payload && payload.counts) || {};
+  if (!problems.length && (photos !== c.photos || textOnly !== c.withoutPhotos)) problems.push(photos + " photos / " + textOnly + " text-only posts, the payload says " + c.photos + " / " + c.withoutPhotos);
+  return { problems, photos, textOnly };
+}
+
+// The publication of a batch: only `status` (draft -> published) and bookkeeping on its records; every
+// other record unchanged; the batch published and non-featured; This Week and record 404 as before.
+function batchPublishProblems(before, after, targetIds) {
+  const allowed = {};
+  for (const id of targetIds) allowed[id] = ["status", ...BOOKKEEPING];
+  const problems = compareStories(before, after, allowed).concat(invariantProblems(after));
+  for (const id of targetIds) {
+    const s = after.find(x => x.id === id);
+    if (!s || s.status !== "published") problems.push("record " + id + " is " + (s ? s.status : "missing") + ", expected published");
+    else if (s.featured) problems.push("record " + id + " became featured");
+  }
+  return problems;
+}
+
 /* Public pages, read from the live site after a build. */
 // While Story Numbers are not displayed (Unnumbered Publishing Mode), the page must show NO number at all.
 function unnumberedPageProblems(html, rec) {
@@ -186,4 +288,5 @@ function archivePageProblems(html, published) {
 }
 
 module.exports = { changedFields, compareStories, invariantProblems, mapProblems, releaseProblems, identityProblems, batch1Problems, publishProblems,
-  photoProblems, storyPageProblems, homePageProblems, archivePageProblems };
+  photoProblems, storyPageProblems, homePageProblems, archivePageProblems,
+  batchIdentityProblems, batchContentProblems, batchPhotoProblems, batchPublishProblems };

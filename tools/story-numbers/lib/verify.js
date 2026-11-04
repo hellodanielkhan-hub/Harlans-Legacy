@@ -33,7 +33,9 @@ function compareStories(before, after, allowedById) {
   return problems;
 }
 
-// Exactly one featured story: the This Week story, published. The separate Draft stays a Draft.
+// Exactly one featured story: the This Week story, published. Record 404 exists and is never featured; its
+// status is the owner's (published by the owner in the Editorial Workspace on 2026-11-04). These tools never
+// write it: it is a protected id, and every run requires it unchanged (compareStories).
 // No Story Number twice, none retired.
 function invariantProblems(stories) {
   const problems = [];
@@ -41,7 +43,8 @@ function invariantProblems(stories) {
   if (featured.length !== 1 || featured[0].id !== FEATURED_ID || featured[0].status !== "published")
     problems.push("This Week must be record " + FEATURED_ID + " alone (featured: " + (featured.map(s => s.id + "/" + s.status).join(", ") || "none") + ")");
   const sep = stories.find(s => s.id === SEPARATE_DRAFT_ID);
-  if (!sep || sep.status !== "draft") problems.push("record " + SEPARATE_DRAFT_ID + " must remain a Draft (is " + (sep ? sep.status : "missing") + ")");
+  if (!sep) problems.push("record " + SEPARATE_DRAFT_ID + " is missing");
+  else if (sep.featured) problems.push("record " + SEPARATE_DRAFT_ID + " must not be featured");
   const nos = stories.map(numbering.storyNo).filter(n => n != null);
   const dup = nos.filter((n, i) => nos.indexOf(n) !== i);
   if (dup.length) problems.push("duplicate Story Numbers: " + [...new Set(dup)].join(", "));

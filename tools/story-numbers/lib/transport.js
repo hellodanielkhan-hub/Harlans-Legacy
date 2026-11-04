@@ -6,7 +6,10 @@
    - POST  /api/story-numbers/release   only for operation "release": at most once, body exactly
                                         { fingerprint } of THIS checkout's map
    - POST  /api/stories/publish         only for operation "publish": at most once, body exactly the
-                                        approved Batch 1 record ids (406–430)
+                                        approved Batch 1 record ids (406–430);
+                                        or for operation "publish-batch" (batches 02+): at most once, body
+                                        exactly the ids passed to approvePublish() (called once, after every
+                                        check); never a protected, This Week or Batch 1 record (303–305, 388–430)
    Everything else (PUT, DELETE, any other path, the other operation's write, a second write) throws
    without a request. A transport without an operation can only read.
 
@@ -20,7 +23,10 @@ const path = require("path");
 const { scrub, assertNoUrlCredentials } = require(path.join(__dirname, "..", "..", "facebook-import", "lib", "secrets.js"));
 const { productionDestination } = require(path.join(__dirname, "..", "..", "facebook-import", "lib", "transport.js"));
 const numbering = require(path.join(__dirname, "..", "..", "..", "lib", "numbering.js"));
-const { BATCH_1_IDS } = require("./batch1.js");
+const { BATCH_1_IDS, FEATURED_ID } = require("./batch1.js");
+const { PROTECTED_IDS } = require(path.join(__dirname, "..", "..", "facebook-import", "lib", "batch.js"));
+// never published by the batch publisher: the protected archive, This Week and Batch 1 (it has its own operation)
+const NEVER_BATCH_PUBLISHED = new Set([...PROTECTED_IDS, FEATURED_ID, ...BATCH_1_IDS]);
 
 const READ_PATHS = [/^\/api\/stories(\/\d+)?$/, /^\/api\/story-photos(\/\d+)?$/, /^\/api\/story-photos\/\d+\/[^/]+\/(digest|original)$/,
   /^\/api\/(site|entities|photos|story-numbers)$/];
@@ -43,9 +49,10 @@ function core(base, opts) {
   let token = opts.token;
   if (!token || typeof token !== "string") throw new Error("an admin token is required");
   const fetchFn = opts.fetch || globalThis.fetch;
-  const operation = opts.operation || null;                 // "release" | "publish" | null (read-only)
-  if (operation !== null && operation !== "release" && operation !== "publish") throw new Error("unknown operation " + operation);
+  const operation = opts.operation || null;                 // "release" | "publish" | "publish-batch" | null (read-only)
+  if (operation !== null && operation !== "release" && operation !== "publish" && operation !== "publish-batch") throw new Error("unknown operation " + operation);
   const used = { release: false, publish: false };
+  let approvedIds = null;                                   // publish-batch: set once by approvePublish()
   const log = [];
   const secrets = () => (token ? [token] : []);
 
@@ -61,10 +68,15 @@ function core(base, opts) {
       used.release = true; return;
     }
     if (p === "/api/stories/publish") {
-      if (operation !== "publish") refuse("this session may not publish");
+      if (operation !== "publish" && operation !== "publish-batch") refuse("this session may not publish");
       if (used.publish) refuse("a second publish in one run");
       const keys = Object.keys(body || {});
-      if (keys.length !== 1 || !sameList(body.ids, BATCH_1_IDS)) refuse("only the approved Batch 1 record ids may be published");
+      if (operation === "publish") {
+        if (keys.length !== 1 || !sameList(body.ids, BATCH_1_IDS)) refuse("only the approved Batch 1 record ids may be published");
+      } else {
+        if (!approvedIds) refuse("no batch ids were approved for publication in this session");
+        if (keys.length !== 1 || !sameList(body.ids, approvedIds)) refuse("only the ids approved for this batch may be published");
+      }
       used.publish = true; return;
     }
     refuse("POST " + p + " is not allowed");
@@ -98,6 +110,15 @@ function core(base, opts) {
     storedPhotoDigest: (storyId, item) => send("GET", photoPath(storyId, item.id, "digest"), null, false),
     readOriginal: (storyId, photoId) => send("GET", photoPath(storyId, photoId, "original"), null, true),
     operation,
+    // publish-batch only: the exact record ids the one publish may carry. Called once, after every check.
+    approvePublish: ids => {
+      if (operation !== "publish-batch") refuse("approvePublish is only for the publish-batch operation");
+      if (approvedIds) refuse("the batch ids were already approved in this session");
+      if (!Array.isArray(ids) || !ids.length || ids.length > 200 || !ids.every(n => Number.isInteger(n) && n > 0) || new Set(ids).size !== ids.length) refuse("the approved ids must be a non-empty list of distinct record ids");
+      const bad = ids.filter(id => NEVER_BATCH_PUBLISHED.has(id));
+      if (bad.length) refuse("records " + bad.join(", ") + " are never published by the batch publisher");
+      approvedIds = Object.freeze(ids.slice());
+    },
     requests: () => log.slice(),
     secrets,
     close: () => { token = null; }

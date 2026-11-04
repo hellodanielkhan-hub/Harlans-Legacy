@@ -214,4 +214,84 @@ async function publishBatch1(opts) {
   } catch (e) { return s.stop("error", e && e.message || e); }
 }
 
-module.exports = { releaseNumbers, publishBatch1, verifyPublic, publicStories, expectedPublic, RELEASE_PHRASE, PUBLISH_PHRASE };
+/* Operation 3: publish ONE import batch (02 and later) in Unnumbered Publishing Mode. The same architecture as
+   publish-batch-1: a fresh verified backup, read-only checks, one typed confirmation, ONE POST
+   /api/stories/publish (one store write, one rebuild), read-back and the public pages.
+   Publishes only the records this batch's import created and verified (import ledger + importSource), only
+   while every one of them is a non-featured, unnumbered Draft whose stored text, dates and photos equal the
+   approved payload. A rerun after a lost answer finds them all published and verifies instead of sending again.
+   opts: { live (operation "publish-batch"), io, ledger, backupDir, payload, approvedFingerprint, importEntries, fetch, origin } */
+const BATCH_PUBLISH_PHRASE = (n, batchId) => "PUBLISH " + n + " STORIES OF " + batchId;
+
+async function publishBatch(opts) {
+  const { batchIdOf } = require(path.join(__dirname, "..", "..", "facebook-import", "lib", "authorize.js"));
+  const payload = opts.payload;
+  const batchId = payload && Number.isInteger(payload.batch) ? batchIdOf(payload) : "batch-??";
+  const s = session(opts, "publish-" + batchId);
+  const fetchFn = opts.fetch || globalThis.fetch, origin = opts.origin || opts.live.base;
+  try {
+    if (opts.live.operation !== "publish-batch") return s.stop("setup", "the transport was not opened for publish-batch");
+    if (numbering.DISPLAY_STORY_NUMBERS) return s.stop("unnumbered-mode", "this checkout shows Story Numbers; the batch publisher runs only in Unnumbered Publishing Mode");
+    const info = await getOk(opts.live, "/api/story-numbers");
+    const fp = numbering.assignmentsFingerprint();
+    if (info.assignmentsFingerprint !== fp) return s.stop("deployed-map", "the deployed code's assignment map (" + info.assignmentsFingerprint + ") is not this checkout's (" + fp + ")");
+    s.step("deployed-map", { fingerprint: fp, summary: "the deployed code carries this checkout's numbering data" });
+
+    const snap = await snapLib.takeSnapshot(opts.live.transport, opts.live.base);
+    const b = await snapLib.backup(opts.live, snap, opts.backupDir);
+    const vb = snapLib.verifyBackup(opts.backupDir);
+    if (!vb.ok) return s.stop("backup", "backup not verified: " + vb.problems.join("; "));
+    const manifest = JSON.parse(fs.readFileSync(path.join(opts.backupDir, "manifest.json"), "utf8"));
+    s.step("backup", { dir: b.dir, counts: b.counts, summary: b.counts.memories + " records, " + b.counts.photos + " photos, " + b.counts.files + " files, verified" });
+    const before = await getOk(opts.live, "/api/stories");
+    const galleries = await getOk(opts.live, "/api/story-photos");
+    if (before.length !== b.counts.memories || before.some(r => !snap.memories.some(m => m.id === r.id && m.sha256 === snapLib.recordSha(r))))
+      return s.stop("backup", "a record changed after the backup; run again");
+    const inv = verify.invariantProblems(before);
+    if (inv.length) return s.stop("preconditions", inv.join("; "));
+
+    const idn = verify.batchIdentityProblems(before, payload, opts.importEntries, opts.approvedFingerprint);
+    if (idn.problems.length) return s.stop("batch-identity", idn.problems.join("; "));
+    const ids = idn.targets.map(t => t.id);
+    s.step("batch-identity", { batchId, ids, state: idn.state, summary: ids.length + " records (" + Math.min(...ids) + "–" + Math.max(...ids) + ") carry the " + ids.length + " approved posts, one each, as the import ledger verified" });
+    const cp = verify.batchContentProblems(before, payload, idn.targets);
+    if (cp.length) return s.stop("content", cp.join("; "));
+    s.step("content", { summary: "titles, dates, text and every other approved field equal the approved payload" });
+    const ph = verify.batchPhotoProblems(payload, idn.targets, galleries, manifest);
+    if (ph.problems.length) return s.stop("photos", ph.problems.join("; "));
+    s.step("photos", { photos: ph.photos, textOnly: ph.textOnly, summary: ph.photos + " photos match the approved payload (SHA-256, order, Primary); " + ph.textOnly + " text-only posts have none" });
+
+    if (idn.state === "draft") {
+      opts.io.print("\nChecking that the public site shows no Story Number before publishing…");
+      const pub0 = await waitForPublic(opts.io, fetchFn, origin, expectedPublic(before), opts);
+      if (pub0.problems.length) return s.stop("public-unnumbered", "the public site is not ready: " + pub0.problems.slice(0, 5).join("; ") + " — run again later");
+      s.step("public-unnumbered", { checked: pub0.checked, summary: pub0.checked + " published pages show no Story Number" });
+      opts.io.print("\nPublishing exactly these " + ids.length + " records of " + batchId + " (status Draft → Published; nothing else changes):");
+      for (const t of idn.targets) { const r = before.find(x => x.id === t.id); opts.io.print("  record " + t.id + "  " + t.postId + "  " + r.publishedISO + "  " + r.title); }
+      const phrase = BATCH_PUBLISH_PHRASE(ids.length, batchId);
+      const a = String(await opts.io.ask("\nType exactly \"" + phrase + "\" to publish them: ") || "").trim();
+      if (a !== phrase) return s.stop("publish", "confirmation phrase not entered; nothing was published");
+      opts.live.approvePublish(ids);
+      opts.ledger.append({ operation: "publish-" + batchId, step: "publish-sent", ids: ids.slice() });
+      const r = await opts.live.transport("POST", "/api/stories/publish", { ids: ids.slice() });
+      if (r.status !== 200) return s.stop("publish", "publish answered HTTP " + r.status + ": " + JSON.stringify(r.body).slice(0, 600) + " — rerun with a new backup folder to check the state (a rerun never publishes twice)");
+      s.step("publish", { published: r.body.published, build: r.body.build, summary: r.body.published.length + " records published in one store write; build " + (r.body.build && r.body.build.rebuild) });
+      const post = await getOk(opts.live, "/api/stories");
+      const pp = verify.batchPublishProblems(before, post, ids).concat(verify.batchContentProblems(post, payload, idn.targets));
+      if (canonical(await getOk(opts.live, "/api/story-photos")) !== canonical(galleries)) pp.push("galleries changed during the publication");
+      if (pp.length) return s.stop("publish-verify", pp.join("; "));
+      s.step("publish-verified", { summary: ids.length + " published, unnumbered; nothing else changed; This Week = record " + FEATURED_ID + "; record 404 a Draft" });
+      if (!r.body.build || r.body.build.rebuild !== "triggered") return s.stop("build", buildNotTriggered(r.body.build));
+    } else {
+      s.step("publish-already-applied", { summary: "all " + ids.length + " records of " + batchId + " are already published, as approved; nothing to send" });
+    }
+    const now = idn.state === "draft" ? await getOk(opts.live, "/api/stories") : before;
+    opts.io.print("\nWaiting for the rebuilt public site to show every published page…");
+    const pub1 = await waitForPublic(opts.io, fetchFn, origin, expectedPublic(now), opts);
+    if (pub1.problems.length) return s.stop("public-final", "published, but the public site does not show everything yet: " + pub1.problems.slice(0, 5).join("; ") + " — check again with: node tools/story-numbers/release.js verify-public");
+    s.step("public-final", { checked: pub1.checked, summary: pub1.checked + " published pages verified on the public site" });
+    return Object.assign(s.report, { finished: new Date().toISOString(), batchId, ids });
+  } catch (e) { return s.stop("error", e && e.message || e); }
+}
+
+module.exports = { releaseNumbers, publishBatch1, publishBatch, verifyPublic, publicStories, expectedPublic, RELEASE_PHRASE, PUBLISH_PHRASE, BATCH_PUBLISH_PHRASE };

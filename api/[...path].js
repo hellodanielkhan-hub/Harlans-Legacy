@@ -149,7 +149,11 @@ async function releaseStoryNumbers(res, actor, body) {
 
 /* Publish an exact list of Drafts in one request (admin token only): each must be a
    non-featured Draft with a Story Number and a story date. Only `status` changes; the
-   This Week featured story is untouched. Refuses the whole list on any problem. */
+   This Week featured story is untouched. Refuses the whole list on any problem.
+   Order: validate -> ONE status write -> ONE audit write (one event per record) -> ONE rebuild -> answer.
+   The audit is a single document read+write (it used to be one per record, which ran past the
+   function's 30 s limit before the rebuild). An audit failure never undoes the publication; it is
+   reported in the answer (`audit`), and the rebuild still runs so the site matches the data. */
 async function publishDrafts(res, actor, body) {
   if (!isAdminActor(actor)) return json(res, 403, { error: "Admin token required to publish a batch." });
   const ids = Array.isArray(body.ids) ? body.ids : [];
@@ -177,8 +181,9 @@ async function publishDrafts(res, actor, body) {
     after.push(story);
   }
   await putChanged(after, ids);
-  for (const id of ids) await audit.record({ action: "story.publish", storyId: id, actor, detail: "batch publish" });
-  return json(res, 200, { ok: true, published: ids, build: body.deferRebuild ? { rebuild: "skipped" } : await triggerRebuild() });
+  const auditResult = await audit.recordMany(ids.map(id => ({ action: "story.publish", storyId: id, actor, detail: "batch publish" })));
+  const build = body.deferRebuild ? { rebuild: "skipped" } : await triggerRebuild();
+  return json(res, 200, { ok: true, published: ids, audit: auditResult, build });
 }
 
 /* Stored-photo read-back for imports and backups (GET only, admin token only, no side effects).

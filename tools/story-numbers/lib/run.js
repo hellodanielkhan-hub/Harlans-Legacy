@@ -229,6 +229,7 @@ async function publishBatch(opts) {
   const batchId = payload && Number.isInteger(payload.batch) ? batchIdOf(payload) : "batch-??";
   const s = session(opts, "publish-" + batchId);
   const fetchFn = opts.fetch || globalThis.fetch, origin = opts.origin || opts.live.base;
+  let auditProblem = null;
   try {
     if (opts.live.operation !== "publish-batch") return s.stop("setup", "the transport was not opened for publish-batch");
     if (numbering.DISPLAY_STORY_NUMBERS) return s.stop("unnumbered-mode", "this checkout shows Story Numbers; the batch publisher runs only in Unnumbered Publishing Mode");
@@ -275,7 +276,10 @@ async function publishBatch(opts) {
       opts.ledger.append({ operation: "publish-" + batchId, step: "publish-sent", ids: ids.slice() });
       const r = await opts.live.transport("POST", "/api/stories/publish", { ids: ids.slice() });
       if (r.status !== 200) return s.stop("publish", "publish answered HTTP " + r.status + ": " + JSON.stringify(r.body).slice(0, 600) + " — rerun with a new backup folder to check the state (a rerun never publishes twice)");
-      s.step("publish", { published: r.body.published, build: r.body.build, summary: r.body.published.length + " records published in one store write; build " + (r.body.build && r.body.build.rebuild) });
+      const au = r.body.audit || null;                     // { ok, written, error? } from servers with the single audit write
+      s.step("publish", { published: r.body.published, build: r.body.build, audit: au, summary: r.body.published.length + " records published in one store write; audit " +
+        (au ? (au.ok ? au.written + " entries in one write" : "NOT written") : "not reported") + "; build " + (r.body.build && r.body.build.rebuild) });
+      auditProblem = au && !au.ok ? au.error || "unknown error" : null;
       const post = await getOk(opts.live, "/api/stories");
       const pp = verify.batchPublishProblems(before, post, ids).concat(verify.batchContentProblems(post, payload, idn.targets));
       if (canonical(await getOk(opts.live, "/api/story-photos")) !== canonical(galleries)) pp.push("galleries changed during the publication");
@@ -290,6 +294,7 @@ async function publishBatch(opts) {
     const pub1 = await waitForPublic(opts.io, fetchFn, origin, expectedPublic(now), opts);
     if (pub1.problems.length) return s.stop("public-final", "published, but the public site does not show everything yet: " + pub1.problems.slice(0, 5).join("; ") + " — check again with: node tools/story-numbers/release.js verify-public");
     s.step("public-final", { checked: pub1.checked, summary: pub1.checked + " published pages verified on the public site" });
+    if (auditProblem) return s.stop("audit", "the batch is published, verified and live, but the server's audit log was not written (" + auditProblem + "). Do NOT publish again: this ledger records the publication.");
     return Object.assign(s.report, { finished: new Date().toISOString(), batchId, ids });
   } catch (e) { return s.stop("error", e && e.message || e); }
 }

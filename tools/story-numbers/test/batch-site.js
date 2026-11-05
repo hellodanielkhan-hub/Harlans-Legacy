@@ -24,7 +24,8 @@ function startSite(root) {
   const site = { root, token: ADMIN, builds: 0, buildErrors: [] };
   const build = () => { try { execFileSync(process.execPath, [path.join(WT, "build.js")], { env: Object.assign({}, process.env, { HL_DATA_DIR: root }), stdio: "pipe" }); } catch (e) { site.buildErrors.push(String(e.stderr || e.message).slice(0, 500)); } };
   const api = http.createServer((req, res) => handler(req, res));
-  const hook = http.createServer((req, res) => { site.builds++; build(); res.end("{}"); });
+  // site.hookStatus (default 200) lets a test make the deploy hook fail; a failed hook builds nothing
+  const hook = http.createServer((req, res) => { site.builds++; const st = site.hookStatus || 200; if (st === 200) build(); res.statusCode = st; res.end("{}"); });
   const pub = http.createServer((req, res) => {
     const rel = decodeURIComponent(String(req.url).split("?")[0]).replace(/^\/+/, "") || "index.html";
     const f = path.resolve(root, rel);
@@ -42,6 +43,8 @@ function startSite(root) {
   site.stories = () => JSON.parse(fs.readFileSync(path.join(root, "data", "stories.json"), "utf8"));
   site.galleries = () => { const f = path.join(root, "data", "story-photos.json"); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {}; };
   site.writeStories = list => fs.writeFileSync(path.join(root, "data", "stories.json"), JSON.stringify(list, null, 2) + "\n");
+  // one raw POST /api/stories/publish (admin token), for route-level tests
+  site.publishRaw = async ids => { const r = await fetch(site.API + "/api/stories/publish", { method: "POST", headers: { "Content-Type": "application/json", "x-admin-token": site.token }, body: JSON.stringify({ ids }) }); return { status: r.status, body: await r.json().catch(() => null) }; };
   return site;
 }
 

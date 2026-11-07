@@ -33,15 +33,17 @@ function compareStories(before, after, allowedById) {
   return problems;
 }
 
-// Exactly one featured story: the This Week story, published. Record 404 exists and is never featured; its
+// Exactly one featured story (This Week), published. WHICH story is This Week is the owner's choice in the Editorial
+// Workspace (405 until the owner featured 531 on 2026-11-07); these tools never change it, and every run requires every
+// record's `featured` unchanged (compareStories) and never publishes a featured record. Record 404 exists and is never featured; its
 // status is the owner's (published by the owner in the Editorial Workspace on 2026-11-04). These tools never
 // write it: it is a protected id, and every run requires it unchanged (compareStories).
 // No Story Number twice, none retired.
 function invariantProblems(stories) {
   const problems = [];
   const featured = stories.filter(s => s.featured);
-  if (featured.length !== 1 || featured[0].id !== FEATURED_ID || featured[0].status !== "published")
-    problems.push("This Week must be record " + FEATURED_ID + " alone (featured: " + (featured.map(s => s.id + "/" + s.status).join(", ") || "none") + ")");
+  if (featured.length !== 1 || featured[0].status !== "published")
+    problems.push("This Week must be exactly one published story (featured: " + (featured.map(s => s.id + "/" + s.status).join(", ") || "none") + ")");
   const sep = stories.find(s => s.id === SEPARATE_DRAFT_ID);
   if (!sep) problems.push("record " + SEPARATE_DRAFT_ID + " is missing");
   else if (sep.featured) problems.push("record " + SEPARATE_DRAFT_ID + " must not be featured");

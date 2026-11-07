@@ -4,7 +4,7 @@
    Both start with the same checks, before anything can be written:
      1. the DEPLOYED code carries this checkout's assignment map (fingerprint);
      2. a fresh, complete snapshot + backup (every record, document and stored photo), verified;
-     3. This Week = 405 alone, 404 present and not featured, no duplicate or retired Story Number;
+     3. This Week = exactly one published story (the owner's choice), 404 present and not featured, no duplicate or retired Story Number;
      4. Batch 1 identity: the approved payload (fingerprint), records 406–430 carrying its 25 posts one each,
         and every approved number tracing back to the private registry;
      5. every Batch 1 photo against the payload (count, SHA-256, order, Primary).
@@ -61,7 +61,7 @@ async function verifyPublic(fetchFn, origin, expected) {
     if (p.storyNumber !== want) { problems.push("record " + e.id + " shows Story No. " + p.storyNumber + " publicly, expected " + want); continue; }
     problems.push(...verify.storyPageProblems(await publicPage(fetchFn, origin, p.url), Object.assign({}, p, e)));
   }
-  const featured = expected.find(e => e.id === FEATURED_ID);
+  const featured = expected.find(e => e.featured) || expected.find(e => e.id === FEATURED_ID);
   if (featured) problems.push(...verify.homePageProblems(await publicPage(fetchFn, origin, "index.html"), featured));
   problems.push(...verify.archivePageProblems(await publicPage(fetchFn, origin, "archive.html"), expected));
   return { problems, checked: expected.length };
@@ -77,7 +77,8 @@ async function waitForPublic(io, fetchFn, origin, expected, opts) {
   }
   return last;
 }
-const expectedPublic = stories => stories.filter(s => s.status === "published").map(s => ({ id: s.id, storyNumber: numbering.storyNo(s), slug: s.slug }));
+const expectedPublic = stories => stories.filter(s => s.status === "published").map(s => ({ id: s.id, storyNumber: numbering.storyNo(s), slug: s.slug, featured: !!s.featured }));
+const thisWeekOf = stories => (stories.find(s => s.featured) || {}).id;
 
 // The data is written and verified, but the site will not change until it is rebuilt.
 const buildNotTriggered = b => "the write is complete and verified, but the server did not trigger the site rebuild (" + JSON.stringify(b || null).slice(0, 300) +
@@ -160,7 +161,7 @@ async function releaseNumbers(opts) {
     const rp = verify.releaseProblems(before, after);
     if (canonical(await getOk(opts.live, "/api/story-photos")) !== canonical(galleries)) rp.push("galleries changed during the release");
     if (rp.length) return s.stop("release-verify", rp.join("; "));
-    s.step("release-verified", { summary: "every record as mapped; nothing else changed; This Week = record " + FEATURED_ID + "; record 404 unchanged; nothing published" });
+    s.step("release-verified", { summary: "every record as mapped; nothing else changed; This Week = record " + thisWeekOf(after) + "; record 404 unchanged; nothing published" });
     if (!r.body.build || r.body.build.rebuild !== "triggered") return s.stop("build", buildNotTriggered(r.body.build));
     return Object.assign(s.report, { finished: new Date().toISOString() });
   } catch (e) { return s.stop("error", e && e.message || e); }
@@ -198,7 +199,7 @@ async function publishBatch1(opts) {
       const pp = verify.publishProblems(before, post);
       if (canonical(await getOk(opts.live, "/api/story-photos")) !== canonical(galleries)) pp.push("galleries changed during the publication");
       if (pp.length) return s.stop("publish-verify", pp.join("; "));
-      s.step("publish-verified", { summary: "25 published with their Story Numbers; nothing else changed; This Week = record " + FEATURED_ID + "; record 404 unchanged" });
+      s.step("publish-verified", { summary: "25 published with their Story Numbers; nothing else changed; This Week = record " + thisWeekOf(post) + "; record 404 unchanged" });
       if (!r.body.build || r.body.build.rebuild !== "triggered") return s.stop("build", buildNotTriggered(r.body.build));
     } else {
       const bp = verify.batch1Problems(before, "published");
@@ -284,7 +285,7 @@ async function publishBatch(opts) {
       const pp = verify.batchPublishProblems(before, post, ids).concat(verify.batchContentProblems(post, payload, idn.targets));
       if (canonical(await getOk(opts.live, "/api/story-photos")) !== canonical(galleries)) pp.push("galleries changed during the publication");
       if (pp.length) return s.stop("publish-verify", pp.join("; "));
-      s.step("publish-verified", { summary: ids.length + " published, unnumbered; nothing else changed; This Week = record " + FEATURED_ID + "; record 404 unchanged" });
+      s.step("publish-verified", { summary: ids.length + " published, unnumbered; nothing else changed; This Week = record " + thisWeekOf(post) + "; record 404 unchanged" });
       if (!r.body.build || r.body.build.rebuild !== "triggered") return s.stop("build", buildNotTriggered(r.body.build));
     } else {
       s.step("publish-already-applied", { summary: "all " + ids.length + " records of " + batchId + " are already published, as approved; nothing to send" });

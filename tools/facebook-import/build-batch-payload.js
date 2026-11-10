@@ -11,6 +11,9 @@
    SHA-256) the owner approved, plus the SHA-256 of the Facebook source text. Lines the owner left out of
    the website text (for example a hashtag line inside the text) are applied to the payload copy through
    the importer's removeLines, and only if the approved text is the planned text with whole lines removed.
+   A post's optional `keepLines` (exact lines the owner approved for keeping although a rule would remove
+   them, such as Hal's "Blog Issue #378" header) is passed to the importer unchanged; each must be a line of
+   the post, kept exactly once, and appear in the approved website text.
    Any difference in text, title, category, photos, photoMode or source stops the build. */
 "use strict";
 const fs = require("fs");
@@ -42,7 +45,11 @@ const problems = [];
 const base = ids.map(id => {
   const e = manifest.entries.find(x => x.postId === id);
   if (!e) { problems.push(id + ": not in the manifest"); return null; }
-  return Object.assign({}, e, { approved: true, excludeImages: !!approved.posts.find(p => p.postId === id).excludeImages });
+  const a = approved.posts.find(p => p.postId === id);
+  const keep = a.keepLines || [];
+  if (!Array.isArray(keep) || keep.some(k => typeof k !== "string" || !k.trim() || k !== k.trim() || /\n/.test(k))) problems.push(id + ": keepLines must be a list of exact single lines");
+  else keep.filter(k => !(a.websiteText || []).includes(k)).forEach(k => problems.push(id + ": keepLines " + JSON.stringify(k) + " is not in the approved website text"));
+  return Object.assign({}, e, { approved: true, excludeImages: !!a.excludeImages }, keep.length ? { keepLines: keep.slice() } : {});
 }).filter(Boolean);
 if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
 
@@ -77,7 +84,7 @@ for (const x of plan({ entries }, snapshot, { assumeApproved: true, registry }).
   items.push(it);
   checks.push({ postId: x.postId, facebookDateChicago: x.facebookTimeChicago, provisionalStoryId: x.record && x.record.id, title: x.title, category: x.category, photoMode: x.photoMode,
     photos: it.images.map(im => ({ order: im.order, primary: im.primary, uploadName: uploadName(im.file), sha256: im.sha256 })),
-    paragraphs: paras.length, removedLines: x.removedLines.map(r => ({ line: r.line, reason: r.reason })), leftOutPerApproval: corrections[x.postId] || [], ok: !bad.length });
+    paragraphs: paras.length, removedLines: x.removedLines.map(r => ({ line: r.line, reason: r.reason })), leftOutPerApproval: corrections[x.postId] || [], ...(e.keepLines ? { keptPerApproval: e.keepLines } : {}), ok: !bad.length });
 }
 if (items.map(i => i.postId).join(" ") !== ids.join(" ")) problems.push("order differs from the approved order: " + items.map(i => i.postId).join(" "));
 const fingerprints = Object.fromEntries(items.map(it => [it.postId, approvalFingerprint(it)]));

@@ -60,7 +60,7 @@ function plan(manifest, snapshot, opts) {
     .sort((a, b) => (a.facebookTimeChicago < b.facebookTimeChicago ? -1 : 1));   // oldest first
 
   const prepared = entries.map(entry => {
-    const story = toStory(entry.sourceText, entry.title, { removeLines: entry.removeLines, titleIsHeading: entry.titleSource === "original title" });
+    const story = toStory(entry.sourceText, entry.title, { removeLines: entry.removeLines, keepLines: entry.keepLines, titleIsHeading: entry.titleSource === "original title" });
     return { entry, ...story };
   });
   const repeats = manifestRepeats(prepared);
@@ -69,6 +69,11 @@ function plan(manifest, snapshot, opts) {
     const e = p.entry;
     const reasons = [], reviews = [];
     if (!e.title) reasons.push("no title");
+    // every line the owner approved for keeping must be a whole line of the post, kept exactly once
+    for (const k of new Set((e.keepLines || []).map(s => String(s).trim()))) {
+      const n = p.keptLines.filter(l => l === k).length;
+      if (n !== 1) reasons.push("keepLines: " + JSON.stringify(k) + (n ? " appears " + n + " times in the post" : " is not a line of the post"));
+    }
     if (!THEMES.includes(e.category)) reasons.push("category missing/invalid");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(e.publishedISO || "")) reasons.push("story date missing");
     else if (new Date(e.publishedISO + "T12:00:00Z").getUTCDay() !== 5) reviews.push("story date is not a Friday");

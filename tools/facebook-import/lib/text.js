@@ -62,11 +62,17 @@ function isProbableTagLine(line) {
   return words.length <= 3 && !/[.!?]\s+\p{Lu}/u.test(line);
 }
 
-/* Returns { paragraphs, removed[], titleLineRemoved, inlineHashtags, candidates[], suggestedRemovals[] }.
+/* Returns { paragraphs, removed[], titleLineRemoved, inlineHashtags, candidates[], suggestedRemovals[], keptLines[] }.
    `removed` lists every dropped line with its reason, for the per-post diff.
-   opts.removeLines: exact lines the owner approved for removal (e.g. a suggested typo'd tag line). */
+   opts.removeLines: exact lines the owner approved for removal (e.g. a suggested typo'd tag line).
+   opts.keepLines: exact lines the owner approved for keeping although a rule would remove them (e.g. Hal's
+   own "Blog Issue #378" header). A kept line stays exactly as written and is never taken as a hashtag line or
+   the title line; every other line is treated exactly as without it. `keptLines` lists the lines found
+   (plan() refuses an entry whose keepLines are not all found). */
 function toStory(rawText, title, opts) {
   const approved = new Set(((opts && opts.removeLines) || []).map(s => s.trim()));
+  const keep = new Set(((opts && opts.keepLines) || []).map(s => s.trim()));
+  const keptLines = [];
   let text = String(rawText || "").replace(/͏/g, "").replace(/\r/g, "");
   const removed = [];
   const tail = text.match(/\s*(?:…\s*)?See (?:less|more)\s*$/);
@@ -78,26 +84,33 @@ function toStory(rawText, title, opts) {
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
+    // kept as written; `leading` is not changed, so the lines around it are treated exactly as before
+    if (keep.has(line)) { keptLines.push(line); out.push(line); continue; }
     if (leading && isHashtagLine(line)) { removed.push({ line, reason: "standalone hashtag line" }); continue; }
     if (leading && isNumberHeader(line)) { removed.push({ line, reason: "Week/Issue number header" }); continue; }
     if (approved.has(line)) { removed.push({ line, reason: "approved removal (manifest removeLines)" }); continue; }
     leading = false;
     out.push(line);
   }
-  while (out.length && isHashtagLine(out[out.length - 1])) removed.push({ line: out.pop(), reason: "trailing standalone hashtag line" });
+  while (out.length && !keep.has(out[out.length - 1]) && isHashtagLine(out[out.length - 1])) removed.push({ line: out.pop(), reason: "trailing standalone hashtag line" });
 
   // Only a real heading is dropped (the post's own title, as in No. 303). When the title was derived
   // FROM the opening sentence, that sentence is story text and stays.
+  // A kept line is never the title line: the checks below look at the first line that is not kept
+  // (without keepLines that is out[0], as before).
+  const firstOwn = () => out.findIndex(l => !keep.has(l));
   let titleLineRemoved = false;
-  if (opts && opts.titleIsHeading && out.length > 1 && isTitleLine(out[0], title)) {
-    removed.push({ line: out.shift(), reason: "title line (used as the memory title)" });
+  const t = firstOwn();
+  if (opts && opts.titleIsHeading && out.length > 1 && t >= 0 && isTitleLine(out[t], title)) {
+    removed.push({ line: out.splice(t, 1)[0], reason: "title line (used as the memory title)" });
     titleLineRemoved = true;
   }
   const inlineHashtags = out.some(l => /(^|\s)#[\p{L}\p{N}]/u.test(l));
   const suggestedRemovals = [];
-  if (out.length > 1 && isProbableTagLine(out[0])) suggestedRemovals.push({ line: out[0], reason: "opening line looks like a hashtag line with typos — kept; approve removal via removeLines" });
-  else if (out.length && /^#\S+/.test(out[0])) suggestedRemovals.push({ line: out[0].slice(0, 80), reason: "opening sentence begins with hashtags — kept as written" });
-  return { paragraphs: out, removed, titleLineRemoved, inlineHashtags, candidates: punctuationCandidates(out), suggestedRemovals };
+  const o = firstOwn(), opening = o >= 0 ? out[o] : undefined;
+  if (out.length > 1 && o >= 0 && isProbableTagLine(opening)) suggestedRemovals.push({ line: opening, reason: "opening line looks like a hashtag line with typos — kept; approve removal via removeLines" });
+  else if (o >= 0 && /^#\S+/.test(opening)) suggestedRemovals.push({ line: opening.slice(0, 80), reason: "opening sentence begins with hashtags — kept as written" });
+  return { paragraphs: out, removed, titleLineRemoved, inlineHashtags, candidates: punctuationCandidates(out), suggestedRemovals, keptLines };
 }
 
 module.exports = { toStory, isHashtagLine, isProbableTagLine, isNumberHeader, isTitleLine, norm };

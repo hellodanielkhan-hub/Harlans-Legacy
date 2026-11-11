@@ -101,16 +101,44 @@ function writeFile(dir, rel, data, files) {
 }
 
 /* Back up every existing memory record, the site documents and every stored gallery original.
-   live = { transport, readOriginal(storyId, photoId), storedPhotoDigest(storyId, item) } */
-async function backup(live, snap, dir) {
+   live = { transport, readOriginal(storyId, photoId), storedPhotoDigest(storyId, item) }
+   opts (all optional; the output is the same files and manifest whatever the options):
+     concurrency  records read in parallel (default 6). Every request is still a GET.
+     retries      extra attempts for a READ that fails on the network or answers 5xx/429 (default 3, with backoff).
+                  Never applies to anything but these GETs.
+     reuseFrom    earlier backup folders, complete or interrupted. A photo is NOT downloaded again when one of
+                  them holds a file whose SHA-256 equals the server-side digest read now for that photo (the
+                  digest is always read, and the local bytes are re-hashed before use). Anything else is downloaded.
+   A failed or interrupted run therefore costs only its re-reads, not its downloads, when it is run again with
+   reuseFrom pointing at the interrupted folder. */
+async function backup(live, snap, dir, opts) {
+  opts = opts || {};
+  const concurrency = Math.max(1, Math.min(16, Number(opts.concurrency) || 6));
+  const retries = opts.retries == null ? 3 : Math.max(0, Number(opts.retries));
+  const backoffMs = opts.backoffMs == null ? 1000 : Number(opts.backoffMs);
   if (fs.existsSync(dir) && fs.readdirSync(dir).length) throw new Error("backup folder is not empty: " + dir);
   fs.mkdirSync(dir, { recursive: true });
-  const files = {}, memories = [], problems = [];
+  const stats = { concurrency, readRetries: 0, photosReused: 0, photosDownloaded: 0 };
+  const read = async fn => {                        // one GET, retried only on network errors, 5xx and 429
+    for (let attempt = 0; ; attempt++) {
+      let r, err;
+      try { r = await fn(); } catch (e) { err = e; }
+      const transient = err || (r && (r.status >= 500 || r.status === 429));
+      if (!transient) return r;
+      if (attempt >= retries) { if (err) throw err; return r; }
+      stats.readRetries++;
+      await new Promise(res => setTimeout(res, backoffMs * Math.pow(2, attempt)));
+    }
+  };
+  const getOkR = async p => { const r = await read(() => live.transport("GET", p)); if (r.status !== 200) throw new Error("GET " + p + " answered HTTP " + r.status); return r.body; };
+  const reuse = reuseIndex(opts.reuseFrom || [], dir);
+  const files = {}, problems = [];
   writeFile(dir, "snapshot.json", JSON.stringify(snap, null, 1), files);
   for (const [name, p] of [["site", "/api/site"], ["entities", "/api/entities"], ["photos", "/api/photos"], ["story-photos", "/api/story-photos"]])
-    writeFile(dir, path.join("documents", name + ".json"), JSON.stringify(await getOk(live.transport, p), null, 1), files);
-  for (const m of snap.memories) {
-    const rec = await getOk(live.transport, "/api/stories/" + m.id);
+    writeFile(dir, path.join("documents", name + ".json"), JSON.stringify(await getOkR(p), null, 1), files);
+  const memories = new Array(snap.memories.length);
+  async function one(m) {
+    const rec = await getOkR("/api/stories/" + m.id);
     writeFile(dir, path.join("records", m.id + ".json"), JSON.stringify(rec, null, 1), files);
     const entry = { id: m.id, status: m.status, featured: m.featured, recordSha256: recordSha(rec), snapshotSha256: m.sha256, gallery: [] };
     if (entry.recordSha256 !== m.sha256) problems.push("No. " + m.id + " changed between the snapshot and the backup");
@@ -118,25 +146,43 @@ async function backup(live, snap, dir) {
     for (const f of (g ? g.files : [])) {
       const p = { id: f.id, file: f.file };
       if (!SAFE_FILE.test(f.file)) { p.error = "unsafe stored file name; not backed up"; problems.push("No. " + m.id + " " + f.file + ": " + p.error); entry.gallery.push(p); continue; }
-      const d = await live.storedPhotoDigest(m.id, f);
+      const d = await read(() => live.storedPhotoDigest(m.id, f));
       if (d.status !== 200 || !d.body || !d.body.sha256) { p.error = "digest HTTP " + d.status; problems.push("No. " + m.id + " " + f.file + ": " + p.error); entry.gallery.push(p); continue; }
       p.serverSha256 = d.body.sha256; p.bytes = d.body.bytes;
-      const o = await live.readOriginal(m.id, f.id);
-      if (o.status !== 200) { p.error = "original HTTP " + o.status; problems.push("No. " + m.id + " " + f.file + ": " + p.error); entry.gallery.push(p); continue; }
+      let bytes = reuse.take(p.serverSha256);           // local bytes, re-hashed: equal to the digest just read
+      if (bytes) stats.photosReused++;
+      else {
+        const o = await read(() => live.readOriginal(m.id, f.id));
+        if (o.status !== 200) { p.error = "original HTTP " + o.status; problems.push("No. " + m.id + " " + f.file + ": " + p.error); entry.gallery.push(p); continue; }
+        bytes = o.bytes; stats.photosDownloaded++;
+      }
       const rel = path.join("images", "story-" + m.id, f.file);
-      writeFile(dir, rel, o.bytes, files);
-      p.backupSha256 = sha(o.bytes); p.path = rel.split(path.sep).join("/");
+      writeFile(dir, rel, bytes, files);
+      p.backupSha256 = sha(bytes); p.path = rel.split(path.sep).join("/");
       if (p.backupSha256 !== p.serverSha256) { p.error = "downloaded bytes differ from the server digest"; problems.push("No. " + m.id + " " + f.file + ": " + p.error); }
       entry.gallery.push(p);
     }
-    memories.push(entry);
+    return entry;
   }
+  let next = 0;
+  const worker = async () => { while (next < snap.memories.length) { const k = next++; memories[k] = await one(snap.memories[k]); } };
+  await Promise.all(Array.from({ length: Math.min(concurrency, snap.memories.length || 1) }, worker));
+  const sortedFiles = Object.fromEntries(Object.keys(files).sort().map(k => [k, files[k]]));
   const manifest = { takenAt: snap.takenAt, backedUpAt: new Date().toISOString(), base: snap.base, snapshotSha256: snap.sha256,
-    counts: { memories: memories.length, photos: memories.reduce((n, m) => n + m.gallery.length, 0), files: Object.keys(files).length }, memories, files, problems };
+    counts: { memories: memories.length, photos: memories.reduce((n, m) => n + m.gallery.length, 0), files: Object.keys(files).length }, memories, files: sortedFiles, problems: problems.sort(), stats };
   const mj = JSON.stringify(manifest, null, 1);
   fs.writeFileSync(path.join(dir, "manifest.json"), mj);
   fs.writeFileSync(path.join(dir, "MANIFEST.sha256"), sha(mj) + "  manifest.json\n");
-  return { dir, counts: manifest.counts, problems };
+  return { dir, counts: manifest.counts, problems: manifest.problems, stats };
+}
+
+// sha256 -> local file, from earlier backup folders (complete or interrupted). Files are hashed here and again
+// when taken, so a changed or damaged file can never be used; the target folder itself is never a source.
+function reuseIndex(dirs, target) {
+  const bySha = new Map();
+  const walk = d => { let es; try { es = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { return; } for (const e of es) { const f = path.join(d, e.name); if (e.isDirectory()) walk(f); else if (SAFE_FILE.test(e.name)) { try { bySha.set(sha(fs.readFileSync(f)), f); } catch (x) {} } } };
+  for (const d of dirs) if (d && path.resolve(d) !== path.resolve(target)) walk(path.join(d, "images"));
+  return { size: () => bySha.size, take: want => { const f = bySha.get(want); if (!f) return null; let b; try { b = fs.readFileSync(f); } catch (e) { return null; } return sha(b) === want ? b : null; } };
 }
 
 /* Verify a backup folder on its own: manifest integrity, every file's SHA-256, completeness against its
@@ -186,4 +232,4 @@ function compareProtected(backupSnap, afterSnap) {
   return problems;
 }
 
-module.exports = { takeSnapshot, snapshotAgeOk, allocateIds, confirmFree, backup, verifyBackup, compareProtected, recordSha };
+module.exports = { takeSnapshot, snapshotAgeOk, allocateIds, confirmFree, backup, reuseIndex, verifyBackup, compareProtected, recordSha };

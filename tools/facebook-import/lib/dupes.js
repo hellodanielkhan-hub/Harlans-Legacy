@@ -1,7 +1,14 @@
 /* Duplicate / collision detection against the existing memories and within the manifest. */
 "use strict";
 
-const { norm } = require("./text.js");
+const { norm, isHashtagLine, isProbableTagLine, isNumberHeader } = require("./text.js");
+
+// The opening that identifies a story: its first paragraph that is not only hashtags or a Week/Issue header. Hal's tag lines
+// ("#HarlansLegacy #ShabbatShalom #Passover") are kept as written and repeat across many posts, so they
+// must not make two different stories look like the same one.
+function substantiveLead(paragraphs) {
+  return (paragraphs || []).find(p => { const l = String(p || "").trim(); return l && !isHashtagLine(l) && !isProbableTagLine(l) && !isNumberHeader(l); }) || "";
+}
 
 function shingles(text, n) {
   const w = norm(text).split(/\s+/).filter(Boolean);
@@ -21,7 +28,7 @@ function overlap(a, b) {
    Returns a list of { kind, severity, detail } for this entry. "block" = never create. */
 function checkEntry(entry, paragraphs, existing, sourceTexts) {
   const hits = [];
-  const lead = norm(paragraphs[0] || "");
+  const lead = norm(substantiveLead(paragraphs));
   const text = paragraphs.join(" ");
   const sh = shingles(text, 5);
   for (const m of existing) {
@@ -29,7 +36,7 @@ function checkEntry(entry, paragraphs, existing, sourceTexts) {
       hits.push({ kind: "same-facebook-post", severity: "block", detail: `already on the site as No. ${m.id}${m.status === "draft" ? " (Draft)" : ""}` });
       continue;
     }
-    const ml = norm(m.lead);
+    const ml = norm(substantiveLead([m.lead].concat(m.body || [])));
     if (ml.length >= 30 && lead.startsWith(ml.slice(0, Math.min(ml.length, 80)))) {
       hits.push({ kind: "same-opening-text", severity: "block", detail: `opening matches No. ${m.id} "${m.title}"` });
     }
@@ -64,4 +71,4 @@ function manifestRepeats(prepared) {
   return out;
 }
 
-module.exports = { checkEntry, manifestRepeats, overlap, shingles };
+module.exports = { checkEntry, manifestRepeats, overlap, shingles, substantiveLead };

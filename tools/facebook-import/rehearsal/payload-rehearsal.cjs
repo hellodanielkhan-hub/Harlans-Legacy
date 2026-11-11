@@ -1,6 +1,7 @@
 /* Rehearses an import-ready batch payload, unchanged, against a throwaway worktree of 3a327d8 in FILE
    mode (local HTTP server, stubbed storage and deploy hook, random token). Never touches production.
-     node payload-rehearsal.cjs <checkout> <batch-NN-import-payload.json> <out.json> */
+     node payload-rehearsal.cjs <checkout> <batch-NN-import-payload.json> <out.json> [<batch-NN-approved.json>]
+   The optional approval file supplies keepLines: the edge hashtag lines the owner approved keeping. */
 "use strict";
 const fs = require("fs");
 const os = require("os");
@@ -9,7 +10,10 @@ const http = require("http");
 const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 
-const [dir, payloadFile, outFile] = process.argv.slice(2).map(v => path.resolve(v));
+const [dir, payloadFile, outFile, approvedFile] = process.argv.slice(2).map(v => path.resolve(v));
+// optional 4th argument: the batch's approval file, whose keepLines say which edge hashtag lines the owner kept
+const approved = approvedFile ? JSON.parse(fs.readFileSync(approvedFile, "utf8")) : null;
+const { unapprovedHashtagLines } = require("../lib/retained-lines.js");
 const { runBatch, uploadName, storedName } = require("../lib/batch.js");
 const { Ledger } = require("../lib/ledger.js");
 for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "HL_DATA_DIR", "HARLAN_NARRATION_PUBLISH_GATE", "HARLAN_ENV_FILE", "HL_ADMIN_TOKEN"]) delete process.env[k];
@@ -63,7 +67,12 @@ const check = (name, ok, detail) => { checks.push({ name, ok: !!ok, detail: deta
     rows.push({ postId: it.postId, storyId: it.record.id, photoMode: it.photoMode, photos: files.length, primary: g.primary, uploads: ups, ok: !!ok });
   }
   check("every record, photo (order, bytes) and Primary matches the payload; zero-photo posts sent no upload", rows.every(x => x.ok), rows.filter(x => !x.ok).map(x => x.postId).join(","));
-  check("no import text has a hashtag-only line", P.items.every(i => ![i.record.lead, ...i.record.body].some(t => /^\s*(#\S+\s*)+$/.test(t))));
+  // Hashtag-only lines: interior ones are the author's text (kept by the importer's rule); at the start or end only
+  // lines the owner approved keeping (the approval file's keepLines) may remain. Anything else is an unapproved change.
+  const keepOf = id => ((approved && (approved.posts || []).find(p => p.postId === id)) || {}).keepLines || [];
+  const strayTags = P.items.map(i => ({ id: i.postId, bad: unapprovedHashtagLines([i.record.lead, ...i.record.body], keepOf(i.postId)) })).filter(x => x.bad.length);
+  check("no unapproved hashtag-only line at the start or end of any import text (interior lines are the author's text; edge lines only if approved in keepLines)", !strayTags.length,
+    strayTags.map(x => x.id + ": " + x.bad.map(b => b.position + " " + JSON.stringify(b.line)).join(", ")).join(" | "));
   check("pre-existing memories untouched", JSON.stringify(St.filter(s => !P.items.some(i => i.record.id === s.id))) === JSON.stringify(before));
   const out = { payload: path.basename(payloadFile), commit: execFileSync("git", ["-C", dir, "rev-parse", "HEAD"]).toString().trim(), apiDiff: execFileSync("git", ["-C", dir, "diff", "--stat", "--", "api", "lib"]).toString().trim() || "(none)", rows, checks, passed: checks.every(c => c.ok) };
   fs.writeFileSync(outFile, JSON.stringify(out, null, 1));

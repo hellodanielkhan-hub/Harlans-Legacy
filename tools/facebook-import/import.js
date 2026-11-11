@@ -69,10 +69,13 @@ function plan(manifest, snapshot, opts) {
     const e = p.entry;
     const reasons = [], reviews = [];
     if (!e.title) reasons.push("no title");
-    // every line the owner approved for keeping must be a whole line of the post, kept exactly once
-    for (const k of new Set((e.keepLines || []).map(s => String(s).trim()))) {
-      const n = p.keptLines.filter(l => l === k).length;
-      if (n !== 1) reasons.push("keepLines: " + JSON.stringify(k) + (n ? " appears " + n + " times in the post" : " is not a line of the post"));
+    // every line the owner approved for keeping must be a whole line of the post, kept exactly as many times as it
+    // is listed: a line that occurs twice (e.g. the same tag line opening AND closing a post) is kept only when the
+    // approval lists it twice; listed once, it is still refused as ambiguous
+    const keepList = (e.keepLines || []).map(s => String(s).trim());
+    for (const k of new Set(keepList)) {
+      const n = p.keptLines.filter(l => l === k).length, want = keepList.filter(l => l === k).length;
+      if (n !== want) reasons.push("keepLines: " + JSON.stringify(k) + (n ? " appears " + n + " times in the post" + (want > 1 ? " (listed " + want + " times)" : "") : " is not a line of the post"));
     }
     if (!THEMES.includes(e.category)) reasons.push("category missing/invalid");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(e.publishedISO || "")) reasons.push("story date missing");

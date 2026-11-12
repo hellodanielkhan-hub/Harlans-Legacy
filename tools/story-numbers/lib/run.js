@@ -110,7 +110,7 @@ async function prepare(opts, s, operation) {
   s.step("deployed-map", { fingerprint: fp, summary: "the deployed code carries this map" });
 
   const snap = await snapLib.takeSnapshot(live.transport, live.base);
-  const b = await snapLib.backup(live, snap, opts.backupDir);
+  const b = await snapLib.backup(live, snap, opts.backupDir, opts.backupOptions);   // backupOptions: concurrency, retries, reuseFrom (same verified output)
   const vb = snapLib.verifyBackup(opts.backupDir);
   if (!vb.ok) return { stopped: s.stop("backup", "backup not verified: " + vb.problems.join("; ")) };
   const manifest = JSON.parse(fs.readFileSync(path.join(opts.backupDir, "manifest.json"), "utf8"));
@@ -240,7 +240,7 @@ async function publishBatch(opts) {
     s.step("deployed-map", { fingerprint: fp, summary: "the deployed code carries this checkout's numbering data" });
 
     const snap = await snapLib.takeSnapshot(opts.live.transport, opts.live.base);
-    const b = await snapLib.backup(opts.live, snap, opts.backupDir);
+    const b = await snapLib.backup(opts.live, snap, opts.backupDir, opts.backupOptions);   // backupOptions: concurrency, retries, reuseFrom (same verified output)
     const vb = snapLib.verifyBackup(opts.backupDir);
     if (!vb.ok) return s.stop("backup", "backup not verified: " + vb.problems.join("; "));
     const manifest = JSON.parse(fs.readFileSync(path.join(opts.backupDir, "manifest.json"), "utf8"));

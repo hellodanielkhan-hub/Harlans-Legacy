@@ -61,6 +61,11 @@ test("the exception never covers another memory, the same source post, the same 
     const b = blocks(checkEntry(entry({ distinctRepostOf: Object.assign({}, approved, bad) }), paras, [P301], sources));
     assert.ok(b.includes("distinct-repost-unverified") && b.includes("text-overlap"), JSON.stringify(bad));
   }
+  // an older snapshot without the named memory: nothing is exempted (review note only); a malformed approval still blocks
+  const absent = checkEntry(entry({ distinctRepostOf: approved }), paras, [], sources);
+  assert.deepEqual(blocks(absent), []);
+  assert.ok(absent.some(h => h.kind === "distinct-repost-not-in-snapshot" && h.severity === "review"));
+  assert.ok(blocks(checkEntry(entry({ distinctRepostOf: Object.assign({}, approved, { approval: "" }) }), paras, [], sources)).includes("distinct-repost-unverified"));
   // the same Facebook post is never a repost of itself
   assert.ok(blocks(checkEntry(entry({ postId: "T301", distinctRepostOf: approved }), paras, [P301], sources)).includes("same-facebook-post"));
   // a malformed audit field on the record is refused

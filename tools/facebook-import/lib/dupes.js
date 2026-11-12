@@ -29,22 +29,35 @@ function overlap(a, b) {
 /* An owner-approved distinct repost (entry.distinctRepostOf = { postId, record, originalFacebookUrl, originalDate, approval }):
    a SEPARATE Facebook post that revisits one named, already imported memory. It applies to that one memory only, and only
    when the two are verifiably different source posts (different post id, Facebook URL and date). Never for the same post. */
-const URL_RE = /^https:\/\/www\.facebook\.com\/[^\s"<>]+$/;
+const URL_RE = /^https:\/\/www\.facebook\.com\/[^\s"<>]+$/, DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// The approval itself: a named memory, a recorded approval, and a source that differs from the original in id, URL and date.
+function repostApprovalValid(entry) {
+  const d = entry.distinctRepostOf;
+  return !!(d && typeof d === "object" && !Array.isArray(d) && typeof d.approval === "string" && d.approval.trim()
+    && typeof d.postId === "string" && d.postId && Number.isInteger(d.record) && d.record > 0 && entry.postId !== d.postId
+    && URL_RE.test(entry.facebookUrl || "") && URL_RE.test(d.originalFacebookUrl || "") && entry.facebookUrl !== d.originalFacebookUrl
+    && DATE_RE.test(entry.publishedISO || "") && DATE_RE.test(d.originalDate || "") && entry.publishedISO !== d.originalDate);
+}
+// ...and this memory is the one it names (same record AND same source post), with a different story date.
 function isApprovedRepostOf(entry, m) {
   const d = entry.distinctRepostOf;
-  return !!(d && typeof d === "object" && typeof d.approval === "string" && d.approval.trim()
-    && m.id === d.record && m.facebookPostId && m.facebookPostId === d.postId && entry.postId !== d.postId
-    && URL_RE.test(entry.facebookUrl || "") && URL_RE.test(d.originalFacebookUrl || "") && entry.facebookUrl !== d.originalFacebookUrl
-    && /^\d{4}-\d{2}-\d{2}$/.test(entry.publishedISO || "") && entry.publishedISO !== d.originalDate && entry.publishedISO !== m.publishedISO);
+  return repostApprovalValid(entry) && m.id === d.record && !!m.facebookPostId && m.facebookPostId === d.postId && entry.publishedISO !== m.publishedISO;
 }
+// Memories the approval refers to (by record number or by source post) in this snapshot.
+const namedBy = (entry, existing) => existing.filter(m => m.id === entry.distinctRepostOf.record || (m.facebookPostId && m.facebookPostId === entry.distinctRepostOf.postId));
 
 function checkEntry(entry, paragraphs, existing, sourceTexts) {
   const hits = [];
   const lead = norm(substantiveLead(paragraphs));
   const text = paragraphs.join(" ");
   const sh = shingles(text, 5);
-  if (entry.distinctRepostOf && !existing.some(m => isApprovedRepostOf(entry, m)))
-    hits.push({ kind: "distinct-repost-unverified", severity: "block", detail: "distinctRepostOf does not match a verified, distinct imported memory" });
+  if (entry.distinctRepostOf) {
+    const named = repostApprovalValid(entry) ? namedBy(entry, existing) : null;
+    if (!named || (named.length && !named.some(m => isApprovedRepostOf(entry, m))))
+      hits.push({ kind: "distinct-repost-unverified", severity: "block", detail: "distinctRepostOf does not match a verified, distinct imported memory" });
+    else if (!named.length)   // e.g. an older planning snapshot: nothing here to exempt, every normal check still applies
+      hits.push({ kind: "distinct-repost-not-in-snapshot", severity: "review", detail: `the memory it revisits (No. ${entry.distinctRepostOf.record}) is not in this snapshot` });
+  }
   for (const m of existing) {
     if (m.facebookPostId && m.facebookPostId === entry.postId) {
       hits.push({ kind: "same-facebook-post", severity: "block", detail: `already on the site as No. ${m.id}${m.status === "draft" ? " (Draft)" : ""}` });

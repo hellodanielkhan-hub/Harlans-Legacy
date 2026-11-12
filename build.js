@@ -416,6 +416,26 @@ ${cards}
   </section>`;
 }
 
+/* ---------- archive notes ---------- */
+// Optional editorial archive note on a story record: archiveNote = { text, sourceUrl? }. It is the website's
+// notice (e.g. "photographs not reproduced", "third-party text omitted"), never Hal's words, so it is shown apart
+// from his paragraphs (no data-narrate) and only on a story that carries one; every other page is unchanged.
+function hasArchiveNote(s) {
+  return !!(s && s.archiveNote && typeof s.archiveNote === "object" && String(s.archiveNote.text || "").trim());
+}
+function archiveNoteHTML(s) {
+  if (!hasArchiveNote(s)) return "";
+  const n = s.archiveNote;
+  const url = typeof n.sourceUrl === "string" && /^https:\/\/www\.facebook\.com\/[^\s"<>]+$/.test(n.sourceUrl) ? n.sourceUrl : "";
+  return `
+        <aside class="archive-note" role="note" aria-label="Archive note">
+          <p class="archive-note-label">Archive note</p>
+          <p class="archive-note-text">${text(String(n.text).trim())}</p>${url ? `
+          <p class="archive-note-source"><a href="${attr(url)}" target="_blank" rel="noopener noreferrer">View Hal's original post on Facebook</a></p>` : ""}
+        </aside>
+`;
+}
+
 /* ---------- story pages ---------- */
 function storyPageHTML(s, site, graph, journey, journeys) {
   const canonical = `${site.domain}/story/${s.id}-${s.slug}.html`;
@@ -1123,7 +1143,7 @@ ${listenOn ? '<link rel="stylesheet" href="../assets/listen-cinematic.css">\n' :
               <div class="story-provenance" role="group" aria-label="About this memory">
                 ${provenance}
               </div>
-              ${coverImg ? "" : `<p class="cover-note"><span aria-hidden="true"></span>No photograph survives — this memory is kept in Hal's words.</p>`}
+              ${coverImg || hasArchiveNote(s) ? "" : `<p class="cover-note"><span aria-hidden="true"></span>No photograph survives — this memory is kept in Hal's words.</p>`}
             </div>
           </div>
         </header>
@@ -1133,7 +1153,7 @@ ${composedBody}
 
           <div class="ending-mark" aria-hidden="true"></div>
         </div>
-
+${archiveNoteHTML(s)}
         <div class="marginalia" id="marginalia">
           <p class="prompt">Leave a line in the margin — what did this remind you of?</p>
           <form class="marginalia-form" id="marginalia-form">

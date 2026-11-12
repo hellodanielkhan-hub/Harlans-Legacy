@@ -181,10 +181,12 @@ test("fingerprint: deterministic, covers every supported field, ignores only the
   const changeValue = v => v === null || v === undefined ? "x" : typeof v === "string" ? v + " changed" : typeof v === "number" ? v + 1 : typeof v === "boolean" ? !v : Array.isArray(v) ? v.concat(["x"]) : Object.assign({}, v, { extra: 1 });
   const unchanged = [];
   for (const k of B.RECORD_FIELDS.filter(k => k !== "id" && k !== "importSource")) {
-    const m = clone(it); m.record[k] = changeValue(m.record[k]);
+    // archiveNote is an optional object (absent from the sample): adding one must change the fingerprint
+    const m = clone(it); m.record[k] = k === "archiveNote" ? { text: "An editorial note." } : changeValue(m.record[k]);
     if (B.approvalFingerprint(m) === fp) unchanged.push(k);
   }
   for (const k of ["facebookUrl", "facebookTimeChicago"]) { const m = clone(it); m.record.importSource[k] = "changed"; if (B.approvalFingerprint(m) === fp) unchanged.push("importSource." + k); }
+  { const m = clone(it); m.record.importSource.distinctRepostOf = { postId: "T001", record: 1 }; if (B.approvalFingerprint(m) === fp) unchanged.push("importSource.distinctRepostOf"); }
   const mut = { photoMode: m => { m.photoMode = "none"; }, postId: m => { m.postId = "T951"; m.record.importSource.postId = "T951"; },
     "photo order": m => { m.images[0].order = 2; }, "photo primary": m => { m.images[0].primary = false; }, "photo sha256": m => { m.images[0].sha256 = "0".repeat(64); },
     "photo file name": m => { m.images[0].file = m.images[0].file.replace("sample", "other"); }, "photo removed": m => { m.images = []; } };

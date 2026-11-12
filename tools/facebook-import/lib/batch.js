@@ -44,8 +44,10 @@ const SNAPSHOT_MAX_AGE_MS = 6 * 3600 * 1000;
 // The complete set of fields an import item may carry (lib/record.js buildRecord + the batch fields).
 const ITEM_FIELDS = ["postId", "photoMode", "images", "record"];
 const RECORD_FIELDS = ["id", "storyNumber", "title", "slug", "status", "featured", "theme", "publishedISO", "dateLong", "dateLabel", "memoryDate", "summary", "description", "ogDescription",
-  "lead", "body", "people", "places", "objects", "events", "bookPart", "keywords", "echoStories", "readingTime", "readerImages", "importSource"];
-const IMPORT_SOURCE_FIELDS = ["system", "postId", "facebookUrl", "facebookTimeChicago"];
+  "lead", "body", "people", "places", "objects", "events", "bookPart", "keywords", "echoStories", "readingTime", "readerImages", "importSource", "archiveNote"];
+const ARCHIVE_NOTE_FIELDS = ["text", "sourceUrl"];
+const REPOST_FIELDS = ["postId", "record"];
+const IMPORT_SOURCE_FIELDS = ["system", "postId", "facebookUrl", "facebookTimeChicago", "distinctRepostOf"];
 const IMAGE_FIELDS = ["order", "primary", "file", "sha256"];
 const PHOTO_MODES = ["photos", "none"];
 
@@ -80,6 +82,26 @@ function itemProblems(it) {
     unknownKeys(src, IMPORT_SOURCE_FIELDS).forEach(k => out.push("unknown importSource field " + JSON.stringify(k)));
     if (src.system !== IMPORT_SYSTEM) out.push("importSource.system must be " + JSON.stringify(IMPORT_SYSTEM));
     if (src.postId !== it.postId) out.push("importSource.postId does not match the post");
+    if (src.distinctRepostOf !== undefined) {
+      const d = src.distinctRepostOf;
+      if (!d || typeof d !== "object" || Array.isArray(d)) out.push("importSource.distinctRepostOf must be an object");
+      else {
+        unknownKeys(d, REPOST_FIELDS).forEach(k => out.push("unknown distinctRepostOf field " + JSON.stringify(k)));
+        if (typeof d.postId !== "string" || !d.postId || d.postId === it.postId || !Number.isInteger(d.record) || d.record <= 0)
+          out.push("importSource.distinctRepostOf needs another post's id and its record number");
+      }
+    }
+  }
+  if (r.archiveNote !== undefined) {
+    const n = r.archiveNote;
+    if (!n || typeof n !== "object" || Array.isArray(n)) out.push("archiveNote must be an object");
+    else {
+      unknownKeys(n, ARCHIVE_NOTE_FIELDS).forEach(k => out.push("unknown archiveNote field " + JSON.stringify(k)));
+      if (typeof n.text !== "string" || !n.text.trim() || n.text.length > 1000) out.push("archiveNote.text must be 1-1000 characters");
+      // the only link a note may carry is the post's own verified Facebook source
+      if (n.sourceUrl !== undefined && !(typeof n.sourceUrl === "string" && /^https:\/\/www\.facebook\.com\/[^\s"<>]+$/.test(n.sourceUrl) && src && n.sourceUrl === src.facebookUrl))
+        out.push("archiveNote.sourceUrl must be the post's own Facebook URL");
+    }
   }
   if (!Array.isArray(it.images)) out.push("images must be a list");
   else it.images.forEach((im, i) => {

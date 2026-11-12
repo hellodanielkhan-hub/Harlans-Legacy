@@ -103,7 +103,7 @@ async function runProduction(o) {
 
     result.stage = "import";
     result.run = await runBatch({ items: P.items, transport: live.transport, ledger, batchId, approved: P.approvedFingerprints, defer: true,
-      snapshot: before, storedPhotoDigest: live.storedPhotoDigest, secrets: live.secrets() });
+      snapshot: before, storedPhotoDigest: live.storedPhotoDigest, secrets: live.secrets(), closingBuild: o.closingBuild });   // false: Drafts-only import, no public rebuild
     if (result.run.stopped) result.stopped = "import stopped: " + result.run.stopped.postId + " " + result.run.stopped.step + ": " + result.run.stopped.error;
 
     result.stage = "after";

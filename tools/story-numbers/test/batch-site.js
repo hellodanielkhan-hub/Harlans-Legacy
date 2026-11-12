@@ -50,7 +50,7 @@ function startSite(root) {
 
 /* Imports a payload as Drafts through runBatch(), with ids allocated after the highest id on the site
    (the payload's provisional ids are never used as such, as in production). Returns { result, ids }. */
-async function importBatch(site, payload, ledgerPath) {
+async function importBatch(site, payload, ledgerPath, opts) {
   const { runBatch } = require(path.join(WT, "tools", "facebook-import", "lib", "batch.js"));
   const { Ledger } = require(path.join(WT, "tools", "facebook-import", "lib", "ledger.js"));
   const { createRehearsalTransport } = require(path.join(WT, "tools", "facebook-import", "lib", "transport.js"));
@@ -62,7 +62,7 @@ async function importBatch(site, payload, ledgerPath) {
   live.allow(items.map(it => it.record.id));            // as lib/run.js does after allocating the ids
   const snapshot = { takenAt: new Date().toISOString(), memories: all.body.map(s => ({ id: s.id, status: s.status, featured: !!s.featured, importSource: s.importSource || null })) };
   const result = await runBatch({ items, transport: live.transport, ledger: new Ledger(ledgerPath), batchId: batchIdOf(payload), approved: payload.approvedFingerprints,
-    defer: true, snapshot, storedPhotoDigest: live.storedPhotoDigest });
+    defer: true, snapshot, storedPhotoDigest: live.storedPhotoDigest, closingBuild: opts && opts.closingBuild });
   live.close();
   return { result, ids: items.map(it => it.record.id) };
 }

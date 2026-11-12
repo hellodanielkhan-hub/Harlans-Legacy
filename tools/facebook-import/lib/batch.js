@@ -261,6 +261,12 @@ async function runBatch(opts) {
     out.finalBuild = { sent: false, reason: "batch incomplete; no build. Drafts stay unpublished. Re-run the same batch to resume." };
   } else if (ledger.batchBuilt(batchId)) {
     out.finalBuild = { sent: false, reason: "this batch's build was already sent" };
+  } else if (opts.closingBuild === false) {
+    // Drafts are not part of the public build (build.js filters them out) and the Editorial Workspace reads them
+    // through the API, so a closing build changes nothing anyone sees. Record the batch as complete without
+    // POST /api/build; the publish sends the one public rebuild. (Default, closingBuild !== false: build as before.)
+    out.finalBuild = { sent: false, reason: "Drafts only: no public rebuild needed (the publish sends the one rebuild)" };
+    log({ postId: null, step: "batch-built", posts: items.length, build: "not sent (Drafts only)" });
   } else {
     let r;
     try { r = await transport("POST", "/api/build", {}); } catch (e) { r = { status: 0, body: { error: clean(String(e.message || e)) } }; }

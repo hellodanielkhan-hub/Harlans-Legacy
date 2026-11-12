@@ -856,6 +856,16 @@ a.card-catalogue:hover h3{ color: var(--ember-core); }
   font-family: var(--font-voice); font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); }
 .cover-note span{ width: 20px; height: 1px; background: color-mix(in srgb, var(--thread) 60%, transparent); }
 
+/* Archive note: the website's editorial notice (omitted media or third-party text, source link), set apart from
+   Hal's own paragraphs. Only stories whose record carries an archiveNote render it. */
+.archive-note{ margin: var(--sp-4) 0 var(--sp-3); padding: var(--sp-3) var(--sp-3) calc(var(--sp-3) - .25rem);
+  border-left: 3px solid color-mix(in srgb, var(--thread) 70%, transparent); border-radius: 4px;
+  background: color-mix(in srgb, var(--ink-muted) 7%, transparent); font-family: var(--font-voice); }
+.archive-note-label{ margin: 0 0 .35rem; font-size: .66rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); }
+.archive-note-text{ margin: 0 0 .5rem; font-size: .92rem; line-height: 1.5; color: var(--ink-secondary, var(--ink-primary)); font-style: italic; }
+.archive-note-source{ margin: 0; font-size: .85rem; }
+.archive-note-source a{ color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
 .hl-bookmark-cover{ position: absolute; top: 2px; right: 0; z-index: 3; }
 @media (max-width: 720px){ .hl-bookmark-cover{ position: static; margin: 0 auto var(--sp-3); } }
 

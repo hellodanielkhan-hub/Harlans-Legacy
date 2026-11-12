@@ -48,8 +48,12 @@ function buildRecord(entry, paragraphs, id, registry) {
     readingTime: readingTime(paragraphs),
     readerImages: [],
     // Extra JSONB field (no schema change; build.js ignores it): ties the memory to its source for duplicate checks.
-    importSource: { system: "facebook-shabbat-import", postId: entry.postId, facebookUrl: entry.facebookUrl || null, facebookTimeChicago: entry.facebookTimeChicago || null }
+    // An owner-approved distinct repost also records which published memory it revisits (audit trail).
+    importSource: Object.assign({ system: "facebook-shabbat-import", postId: entry.postId, facebookUrl: entry.facebookUrl || null, facebookTimeChicago: entry.facebookTimeChicago || null },
+      entry.distinctRepostOf ? { distinctRepostOf: { postId: entry.distinctRepostOf.postId, record: entry.distinctRepostOf.record } } : {})
   };
+  // Optional editorial archive note (shown apart from Hal's words; build.js archiveNoteHTML): only when the owner approved one.
+  if (entry.archiveNote) body.archiveNote = Object.assign({ text: String(entry.archiveNote.text || "") }, entry.archiveNote.sourceUrl ? { sourceUrl: entry.archiveNote.sourceUrl } : {});
   return { requestBody: body, storedPreview: records.normalize(body) };
 }
 

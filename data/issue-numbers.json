@@ -1,6 +1,6 @@
 {
  "_about": "Issue numbers shown on story pages (\"Issue #N\"), keyed by the internal record id. They follow Hal Yaffe’s weekly issue numbering: where Hal stated a post’s number it is used exactly, including his repeated numbers; the remaining numbers are the archive’s reconstruction from his surrounding issues and remain subject to review. Record 751 (8 Feb 2019, before the weekly series) intentionally has no issue number. Edit this file to correct a number; no story is re-imported or republished.",
- "display": "preview",
+ "display": "on",
  "_display": "on = shown everywhere; preview = shown on Preview and local builds only, hidden on Production builds (VERCEL_ENV=production); off = hidden everywhere",
  "issues": {
   "303": 386,

@@ -7,6 +7,9 @@
      read-back, public checks), publishes exactly 406–430, and leaves This Week = 405 and 404 a Draft.
      node --test tools/story-numbers/test/unnumbered.test.js */
 "use strict";
+// These tests exercise the LEGACY Story Number rules and release themselves, which are frozen in production
+// (policy.storyNumbersFrozen; lib/numbering.js LEGACY_FROZEN). Re-enable them for this file only.
+process.env.HL_STORY_NUMBERS_LEGACY = "active";
 delete process.env.HL_STORY_NUMBERS_DISPLAY;            // the policy decides, as in Production
 const test = require("node:test");
 const assert = require("node:assert/strict");

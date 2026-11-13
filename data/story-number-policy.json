@@ -64,6 +64,8 @@
  "firstNewStoryNumber": 448,
  "displayStoryNumbers": false,
  "displayNote": "Unnumbered Publishing Mode: Story Numbers are stored but not shown anywhere, and a memory may be published without one, while the numbering is reviewed against Hal's original Blog Issue Numbers. Set to true to show them again.",
+ "storyNumbersFrozen": true,
+ "frozenNote": "The Issue Number (data/issue-numbers.json + each record's issueNumber, lib/issue-numbers.js) is the only editorial number. Story Numbers are frozen: no save, import or release assigns, reserves or issues one; stored values are kept as inert legacy data.",
  "historicalEntries": 391,
  "privateRegistrySha256": "d591e265ef31f8758ba347dfe636be2b84cfa88c33c8095cf68cb92665cb3ddc",
  "privateAssignmentsSha256": "1a1032c4caea15a1a0349288aa6b7bb1c4ccea4504d0f0f4d539b30276f8227f",

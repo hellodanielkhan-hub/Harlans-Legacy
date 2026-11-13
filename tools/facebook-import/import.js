@@ -244,6 +244,7 @@ function main() {
   const runsDir = a.out || path.join(path.dirname(a.manifest), "runs");
   const ledger = new Ledger(path.join(runsDir, "ledger.jsonl"));
   const started = new Date().toISOString();
+  if (a.registry && require("../../lib/numbering.js").LEGACY_FROZEN) { console.error("--registry: Story Numbers are retired (the Issue Number is the only editorial number); run without it"); process.exit(2); }
   const registry = a.registry ? require("../story-numbers/lib/private-registry.js").load(a.registry) : null;
   const result = plan(manifest, snapshot, { sourceTexts, ledgerState: ledger.state(), only: a.only ? String(a.only).split(",") : null, assumeApproved: !!a["assume-approved"], registry });
   const meta = { started, mode: "dry-run", manifest: a.manifest, snapshot: a.snapshot, networkCalls: 0 };

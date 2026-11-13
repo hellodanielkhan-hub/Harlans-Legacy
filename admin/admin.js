@@ -70,10 +70,10 @@
     status("Could not reach the archive.");
   }
   function loadAll(retried) {
-    // Story Number facts (next new number) are optional: the editor still loads if this call fails.
-    var numbers = api("GET", "/api/story-numbers").catch(function () { return null; });
+    // Issue Number facts (each memory's number, the next suggestion) are optional: the editor still loads if this call fails.
+    var numbers = api("GET", "/api/issue-numbers").catch(function () { return null; });
     return Promise.all([api("GET", "/api/stories"), api("GET", "/api/site"), api("GET", "/api/entities"), numbers]).then(function (res) {
-      state.stories = res[0]; state.site = res[1]; state.entities = res[2]; state.numbers = res[3];
+      state.stories = res[0]; state.site = res[1]; state.entities = res[2]; state.issues = res[3];
       populateThemeSelect(); renderStats(); renderList();
     }).catch(function (e) {
       if (e.status === 401 && !retried) { promptToken("This archive is protected. Enter the admin token:"); return loadAll(true); }
@@ -97,7 +97,7 @@
   }
   function renderList() {
     var q = state.filter.toLowerCase(), listEl = $("story-list");
-    var items = state.stories.filter(function (s) { return !q || (s.title + " " + s.theme + " no " + (s.storyNumber || "") + " record " + s.id + " " + s.status).toLowerCase().indexOf(q) !== -1; });
+    var items = state.stories.filter(function (s) { return !q || (s.title + " " + s.theme + " issue #" + (issueOf(s) == null ? "" : issueOf(s)) + " " + s.status).toLowerCase().indexOf(q) !== -1; });
     listEl.innerHTML = "";
     if (!items.length) { listEl.innerHTML = '<li class="list-empty">No memories match “' + esc(state.filter) + '”.</li>'; return; }
     items.sort(function (a, b) { return (b.publishedISO || "").localeCompare(a.publishedISO || "") || b.id - a.id; });
@@ -109,7 +109,7 @@
       var label = state.site.themes[s.theme] ? state.site.themes[s.theme].label : s.theme;
       var pill = '<span class="pill ' + s.status + '">' + s.status.replace("-", " ") + '</span>';
       if (s.featured && s.status === "published") pill = '<span class="pill featured">This week</span>' + pill;
-      b.innerHTML = '<span class="im"><span class="it">' + esc(s.title || "Untitled") + '</span><span class="is">' + esc(storyNoText(s)) + ' · Record ' + s.id + ' · ' + esc(label) + '</span></span>' + pill;
+      b.innerHTML = '<span class="im"><span class="it">' + esc(s.title || "Untitled") + '</span><span class="is">' + esc(storyNoText(s)) + ' · ' + esc(label) + '</span></span>' + pill;
       b.addEventListener("click", function () { attemptSelect(s.id); });
       li.appendChild(b); listEl.appendChild(li);
     });
@@ -130,22 +130,39 @@
     ]);
   }
 
-  /* ---------------- Story Number / Record ID labels ---------------- */
-  // The Story Number is the only number readers see; the Record ID is internal. Never substitute one for the other.
-  function storyNoText(s) { return s && s.storyNumber ? "No. " + s.storyNumber : "No Story No."; }
-  function storyRef(id) { var s = (state.stories || []).filter(function (x) { return x.id === id; })[0]; return s && s.storyNumber ? "No. " + s.storyNumber : "Record " + id; }
-  function eyebrowFor(s) { return (s.storyNumber ? "Editing Story No. " + s.storyNumber : "Editing memory (no Story No. yet)") + " · Record " + s.id; }
-  function numberOrNull(id) { var v = String($(id).value || "").trim(); if (!v) return null; var n = Number(v); return Number.isInteger(n) && n > 0 ? n : v; }
-  function fillNumbers(s) {
-    var has = !!s.storyNumber;
-    $("f-storynumber").value = has ? s.storyNumber : "";
-    $("f-storynumber").readOnly = has;                       // permanent once saved (the API refuses a change too)
-    var next = state.numbers && state.numbers.nextNewStoryNumber;
-    $("f-storynumber").placeholder = has ? "" : (next ? "e.g. " + next : "");
-    $("storynumber-hint").textContent = has
-      ? "Permanent. This number is never changed or reused."
-      : "Enter it when the memory is ready to publish" + (next ? " — the next new Story No. is " + next : "") + ". Permanent once saved; retired and reserved numbers are refused.";
-    $("f-blognumber").value = s.originalBlogNumber ? s.originalBlogNumber : "";
+  /* ---------------- Issue Number / Record ID labels ---------------- */
+  // The Issue Number is the one editorial number ("Issue #N" on the story page). The Record ID is internal and never
+  // shown as a number. The old calculated Story Number is not edited here (its stored values are kept, untouched).
+  function issueOf(s) { var m = state.issues && state.issues.byId; return s && m && m[s.id] != null ? m[s.id] : null; }
+  function storyNoText(s) { var n = issueOf(s); return n != null ? "Issue #" + n : "No issue number"; }
+  function storyRef(id) { var s = (state.stories || []).filter(function (x) { return x.id === id; })[0]; var n = issueOf(s); return n != null ? "Issue #" + n : "No issue number"; }
+  function eyebrowFor(s) { var n = issueOf(s); return n != null ? "Editing Issue #" + n : "Editing memory (no issue number)"; }
+  // What a save sends: nothing when the numbers did not load or an existing memory's number is unchanged (the server
+  // keeps it as it is), otherwise the entered value (null = no issue number).
+  function issueForSave() { if (!state.issues) return undefined; var v = issueValue(); return !state.isNew && v === state.issueLoaded ? undefined : v; }
+  function issueValue() { var v = String($("f-issue").value || "").trim(); if (!v) return null; var n = Number(v); return Number.isInteger(n) && n > 0 ? n : v; }
+  // New Post: the suggested next number (latest published issue + 1), editable. Edit: the memory's own number.
+  function fillIssue(s, isNew) {
+    var I = state.issues || {};
+    var n = isNew ? (I.next != null ? I.next : null) : issueOf(s);
+    $("f-issue").value = n != null ? n : "";
+    state.issueLoaded = isNew ? undefined : n;            // what the memory has now; an unchanged number is not re-sent
+    $("f-issue").disabled = !state.issues;               // the numbers did not load: never risk clearing a memory's number
+    if (!state.issues) { $("issue-hint").textContent = "Issue numbers could not be loaded. Reload the page before changing this field; saving leaves the number as it is."; checkIssue(); return; }
+    $("issue-hint").textContent = isNew
+      ? (I.next != null && I.latest ? "Suggested from the latest published issue, #" + I.latest.issue + " (“" + I.latest.title + "”). Change it if Hal used a different number." : "Enter the issue number Hal gave this post, or leave it empty.")
+      : "Shown on the story page as “Issue #N”. Leave empty for no issue number.";
+    checkIssue();
+  }
+  // Warn (never block) when another memory already carries this number: Hal sometimes repeated a number on purpose.
+  function checkIssue() {
+    var el = $("issue-warn"), v = issueValue(), selfId = state.isNew ? null : state.selectedId;
+    if (v != null && typeof v !== "number") { el.textContent = "Issue Number must be a whole number greater than 0."; el.hidden = false; return; }
+    var m = (state.issues && state.issues.byId) || {}, others = [];
+    if (v != null) (state.stories || []).forEach(function (s) { if (s.id !== selfId && m[s.id] === v) others.push(s); });
+    if (!others.length) { el.hidden = true; el.textContent = ""; return; }
+    el.textContent = "Issue #" + v + " is also used by " + others.slice(0, 3).map(function (s) { return "“" + (s.title || "Untitled") + "” (" + s.status + ")"; }).join(", ") + (others.length > 3 ? " and " + (others.length - 3) + " more" : "") + ". Hal sometimes repeated a number; keep it only if that is intended.";
+    el.hidden = false;
   }
 
   /* ---------------- select / new ---------------- */
@@ -193,7 +210,7 @@
     $("f-title").value = s.title || "";
     $("f-slug").value = s.slug || "";
     $("f-id").value = s.id;
-    fillNumbers(s);
+    fillIssue(s, isNew);
     $("f-theme").value = s.theme || "ordinary";
     $("f-date").value = isoToDateInput(s.publishedISO);
     $("f-featured").checked = !!s.featured;
@@ -253,8 +270,8 @@
     var iso = $("f-date").value, dateLong = iso ? longDate(iso) : ($("f-memory").value.trim() || "");
     var host = $("pv-story");
     if (!title && !paras.length) { host.innerHTML = '<p class="pv-empty">Start writing — the memory appears here as readers will see it.</p>'; return; }
-    var sn = String($("f-storynumber").value || "").trim();
-    var stamp = [sn ? "Story No. " + sn : "", themeLabel].filter(Boolean).join(" · ");
+    var iv = issueValue();
+    var stamp = [typeof iv === "number" ? "Issue #" + iv : "", themeLabel].filter(Boolean).join(" · ");
     var html = (stamp ? '<p class="stamp">' + esc(stamp) + '</p>' : "") +
       '<h1>' + (esc(title) || "Untitled") + '</h1>' +
       (dateLong ? '<p class="pv-date">' + esc(dateLong) + '</p>' : "") +
@@ -298,8 +315,7 @@
     var reading = $("f-reading").value.trim();
     return {
       id: parseInt($("f-id").value, 10),
-      storyNumber: numberOrNull("f-storynumber"),
-      originalBlogNumber: numberOrNull("f-blognumber"),
+      issueNumber: issueForSave(),
       title: $("f-title").value.trim(),
       slug: $("f-slug").value.trim(),
       status: state.status,
@@ -328,6 +344,7 @@
     if (!rec.title) { errs.push("A title is needed."); $("wrap-title").classList.add("field-invalid"); $("err-title").hidden = false; }
     if (rec.featured && rec.status !== "published") errs.push("Only a published memory can be This Week's featured story.");
     if (rec.status === "published" && !rec.publishedISO) errs.push("A published memory needs a story date.");
+    if (rec.issueNumber != null && typeof rec.issueNumber !== "number") errs.push("Issue Number must be a whole number greater than 0.");
     return errs;
   }
 
@@ -350,7 +367,8 @@
     req.then(function (res) {
       var saved = res.story || rec; savedId = saved.id;
       var b = res.build || {};
-      toast(isUpdate ? "Saved & rebuilt." : "Created & rebuilt.", "ok");
+      var dup = (res.issueWarnings || []).map(function (x) { return "“" + x.title + "”"; });
+      toast((isUpdate ? "Saved & rebuilt." : "Created & rebuilt.") + (dup.length ? " Note: Issue #" + saved.issueNumber + " is also used by " + dup.slice(0, 3).join(", ") + "." : ""), "ok");
       status(b.summary ? ("Live · This week = " + b.summary.featured + " · " + b.summary.published + " published") : "Saved.");
       state.selectedId = savedId; state.isNew = false; clearDraft(savedId); clearDraft("new"); state.dirty = false; ok = true;
       return loadAll();
@@ -372,7 +390,7 @@
   function del() {
     if (state.selectedId == null || state.isNew) return;
     var s = state.stories.filter(function (x) { return x.id === state.selectedId; })[0];
-    if (!confirm("Delete “" + (s ? s.title : "this memory") + "” (" + (s && s.storyNumber ? "Story No. " + s.storyNumber + ", " : "") + "Record " + state.selectedId + ")? This removes its story page too. This cannot be undone." + (s && s.storyNumber ? " Its Story No. stays retired and is never reused." : ""))) return;
+    if (!confirm("Delete “" + (s ? s.title : "this memory") + "” (" + storyNoText(s) + ")? This removes its story page too. This cannot be undone.")) return;
     status("Deleting…");
     api("DELETE", "/api/stories/" + state.selectedId).then(function () {
       toast("Deleted & rebuilt.", "ok"); clearDraft(state.selectedId); state.selectedId = null; state.dirty = false;
@@ -409,6 +427,7 @@
     $("f-objects").value = (d.objects || []).join("\n"); $("f-events").value = (d.events || []).join("\n");
     $("f-bookpart").value = d.bookPart || ""; $("f-keywords").value = (d.keywords || []).join(", "); $("f-echoes").value = (d.echoStories || []).join(", ");
     $("f-reading").value = (d.readingTime === 0 || d.readingTime) ? d.readingTime : "";
+    if (Object.prototype.hasOwnProperty.call(d, "issueNumber")) { $("f-issue").value = d.issueNumber != null ? d.issueNumber : ""; checkIssue(); }
     setStatus(d.status || "draft"); updateDerived();
   }
   function clearDraft(id) { try { localStorage.removeItem(draftKey(id)); } catch (e) {} }
@@ -423,7 +442,7 @@
     var input = {
       title: $("f-title").value.trim(), lead: bodyParas()[0] || "", body: bodyParas().join("\n\n"),
       dateISO: $("f-date").value, theme: $("f-theme").value, selfId: parseInt($("f-id").value, 10),
-      entities: state.entities || {}, stories: state.stories, themes: state.site.themes
+      entities: state.entities || {}, stories: state.stories, themes: state.site.themes, issues: (state.issues && state.issues.byId) || {}
     };
     window.HL_AI.generate(input).then(function (sug) { state.lastSuggestions = sug; renderSuggestions(sug); })
       .catch(function (e) { toast("Generate failed: " + e.message, "err"); })
@@ -491,9 +510,10 @@
   $("pv-tab-story").addEventListener("click", function () { showPreview("story"); });
   $("pv-tab-seo").addEventListener("click", function () { showPreview("seo"); });
   Array.prototype.forEach.call($("pubseg").children, function (b) { b.addEventListener("click", function () { setStatus(b.getAttribute("data-v")); markDirty(); }); });
-  ["f-title", "f-slug", "f-id", "f-storynumber", "f-blognumber", "f-theme", "f-date", "f-featured", "f-body", "f-summary", "f-description", "f-og", "f-memory", "f-people", "f-places", "f-objects", "f-events", "f-bookpart", "f-keywords", "f-echoes", "f-reading"].forEach(function (id) {
+  ["f-title", "f-slug", "f-id", "f-issue", "f-theme", "f-date", "f-featured", "f-body", "f-summary", "f-description", "f-og", "f-memory", "f-people", "f-places", "f-objects", "f-events", "f-bookpart", "f-keywords", "f-echoes", "f-reading"].forEach(function (id) {
     var el = $(id); if (el) el.addEventListener("input", markDirty);
   });
+  $("f-issue").addEventListener("input", checkIssue);
   $("goto-photos").addEventListener("click", function () { switchMode("photos"); });
   $("goto-photos").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); switchMode("photos"); } });
 

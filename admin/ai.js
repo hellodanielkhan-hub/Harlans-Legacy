@@ -181,8 +181,8 @@
         tone: toneFor(input.theme, full),
         timeline: year ? ("Sits around " + year + " in the family timeline.") : "Add a date to place this on the timeline.",
         connections: relatedStories(matched, input.stories || [], input.selfId).map(function (r) {
-          var rs = (input.stories || []).filter(function (x) { return x.id === r.id; })[0];
-          return "Shares people/places with " + (rs && rs.storyNumber ? "No. " + rs.storyNumber : "Record " + r.id) + " — " + r.title;
+          var n = input.issues && input.issues[r.id];
+          return "Shares people/places with " + (n != null ? "Issue #" + n + " — " : "") + r.title;
         })
       };
     }

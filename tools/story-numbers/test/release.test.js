@@ -4,6 +4,9 @@
    Includes lost responses, reruns and refusals.
      node --test tools/story-numbers/test/release.test.js */
 "use strict";
+// These tests exercise the LEGACY Story Number rules and release themselves, which are frozen in production
+// (policy.storyNumbersFrozen; lib/numbering.js LEGACY_FROZEN). Re-enable them for this file only.
+process.env.HL_STORY_NUMBERS_LEGACY = "active";
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");

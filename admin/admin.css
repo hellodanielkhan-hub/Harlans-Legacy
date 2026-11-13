@@ -179,6 +179,7 @@ button{ font-family:inherit; }
 .field > label{ font-size:0.78rem; font-weight:650; color:var(--ink-2); letter-spacing:0.01em; }
 .field .hint{ font-size:0.72rem; color:var(--ink-4); margin:0; }
 .field .hint code{ color:var(--ember-2); }
+.field .hint.issue-warn{ color:var(--warn); }
 input[type=text], input[type=number], input[type=date], select, textarea{
   width:100%; background:var(--bg-2); border:1px solid var(--line); border-radius:var(--radius-xs);
   padding:0.6rem 0.75rem; color:var(--ink); font-family:inherit; font-size:0.92rem; line-height:1.5;

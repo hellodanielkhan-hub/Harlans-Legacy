@@ -54,6 +54,8 @@ function buildRecord(entry, paragraphs, id, registry) {
   };
   // Optional editorial archive note (shown apart from Hal's words; build.js archiveNoteHTML): only when the owner approved one.
   if (entry.archiveNote) body.archiveNote = Object.assign({ text: String(entry.archiveNote.text || "") }, entry.archiveNote.sourceUrl ? { sourceUrl: entry.archiveNote.sourceUrl } : {});
+  // Optional Issue Number (lib/issue-numbers.js): the post's own weekly issue number, when the approved entry states one.
+  if (Number.isInteger(entry.issueNumber) && entry.issueNumber > 0) body.issueNumber = entry.issueNumber;
   return { requestBody: body, storedPreview: records.normalize(body) };
 }
 

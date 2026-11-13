@@ -181,8 +181,8 @@ test("fingerprint: deterministic, covers every supported field, ignores only the
   const changeValue = v => v === null || v === undefined ? "x" : typeof v === "string" ? v + " changed" : typeof v === "number" ? v + 1 : typeof v === "boolean" ? !v : Array.isArray(v) ? v.concat(["x"]) : Object.assign({}, v, { extra: 1 });
   const unchanged = [];
   for (const k of B.RECORD_FIELDS.filter(k => k !== "id" && k !== "importSource")) {
-    // archiveNote is an optional object (absent from the sample): adding one must change the fingerprint
-    const m = clone(it); m.record[k] = k === "archiveNote" ? { text: "An editorial note." } : changeValue(m.record[k]);
+    // archiveNote (an object) and issueNumber (a positive integer) are optional and absent from the sample: adding one must change the fingerprint
+    const m = clone(it); m.record[k] = k === "archiveNote" ? { text: "An editorial note." } : k === "issueNumber" ? 400 : changeValue(m.record[k]);
     if (B.approvalFingerprint(m) === fp) unchanged.push(k);
   }
   for (const k of ["facebookUrl", "facebookTimeChicago"]) { const m = clone(it); m.record.importSource[k] = "changed"; if (B.approvalFingerprint(m) === fp) unchanged.push("importSource." + k); }

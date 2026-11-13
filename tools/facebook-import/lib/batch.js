@@ -44,7 +44,7 @@ const SNAPSHOT_MAX_AGE_MS = 6 * 3600 * 1000;
 // The complete set of fields an import item may carry (lib/record.js buildRecord + the batch fields).
 const ITEM_FIELDS = ["postId", "photoMode", "images", "record"];
 const RECORD_FIELDS = ["id", "storyNumber", "title", "slug", "status", "featured", "theme", "publishedISO", "dateLong", "dateLabel", "memoryDate", "summary", "description", "ogDescription",
-  "lead", "body", "people", "places", "objects", "events", "bookPart", "keywords", "echoStories", "readingTime", "readerImages", "importSource", "archiveNote"];
+  "lead", "body", "people", "places", "objects", "events", "bookPart", "keywords", "echoStories", "readingTime", "readerImages", "importSource", "archiveNote", "issueNumber"];
 const ARCHIVE_NOTE_FIELDS = ["text", "sourceUrl"];
 const REPOST_FIELDS = ["postId", "record"];
 const IMPORT_SOURCE_FIELDS = ["system", "postId", "facebookUrl", "facebookTimeChicago", "distinctRepostOf"];
@@ -76,6 +76,7 @@ function itemProblems(it) {
   if (!r || typeof r !== "object" || Array.isArray(r)) return out.concat(["record missing"]);
   unknownKeys(r, RECORD_FIELDS).forEach(k => out.push("unknown record field " + JSON.stringify(k)));
   if (!Number.isInteger(r.id) || r.id <= 0) out.push("record.id must be a positive integer");
+  if (r.issueNumber !== undefined && r.issueNumber !== null && !(Number.isInteger(r.issueNumber) && r.issueNumber > 0)) out.push("record.issueNumber must be a positive integer or null");
   const src = r.importSource;
   if (!src || typeof src !== "object" || Array.isArray(src)) out.push("record.importSource missing");
   else {

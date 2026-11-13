@@ -25,6 +25,7 @@ const { autoPlan } = require("./lib/reader.js");
 const paths = require("./lib/paths.js");
 const records = require("./lib/records.js");   // shared record logic (also used by the serverless API)
 const numbering = require("./lib/numbering.js"); // Story Numbers (same rules as api/[...path].js)
+const issueNumbers = require("./lib/issue-numbers.js"); // Issue Number (same rules as api/[...path].js)
 const narrationApi = require("./lib/narration/api.js");     // voice-narration routes (shared with the serverless API)
 const narrationWorker = require("./lib/narration/worker.js"); // in-process job pump for local dev
 const narrationSvc = require("./lib/narration/service.js");   // publish contract (§4/§5)
@@ -235,6 +236,7 @@ async function handleApi(req, res, url) {
 
     // Story Numbers: what the editor shows (next new number, retired list). The release and batch
     // publish routes exist only in the production API (api/[...path].js), behind the admin token.
+    if (resource === "issue-numbers" && req.method === "GET" && parts.length === 2) return sendJSON(res, 200, issueNumbers.summary(readJSON(STORIES)));
     if (resource === "story-numbers" && req.method === "GET" && parts.length === 2) {
       const all = readJSON(STORIES);
       return sendJSON(res, 200, { firstNewStoryNumber: numbering.FIRST_NEW_STORY_NUMBER, nextNewStoryNumber: numbering.nextNewStoryNumber(all, issuedNumbers()),
@@ -259,6 +261,8 @@ async function handleApi(req, res, url) {
         if (stories.some(s => s.id === newId)) return sendJSON(res, 409, { error: "id " + newId + " already exists" });
         const nums = numbering.prepareWrite(body, null, stories, issuedNumbers(), newId);
         if (nums.problems.length) return sendJSON(res, 400, { error: nums.problems.join(" "), code: "story_number_invalid", problems: nums.problems });
+        const issueP = issueNumbers.parse(body.issueNumber);
+        if (issueP.error) return sendJSON(res, 400, { error: issueP.error, code: "issue_number_invalid" });
         const story = nums.apply(normalize(body));
         story.id = newId;
         story.createdBy = actor; story.createdAt = new Date().toISOString(); story.lastEditedBy = actor; story.lastEditedAt = story.createdAt;
@@ -268,7 +272,7 @@ async function handleApi(req, res, url) {
         writeJSON(STORIES, stories);
         noteIssued(story.storyNumber);
         await audit.record({ action: "story.create", storyId: story.id, actor, detail: story.title || null });
-        return sendJSON(res, 201, { ok: true, story, build: rebuild() });
+        return sendJSON(res, 201, { ok: true, story, issueWarnings: issueNumbers.usedBy(issueNumbers.effective(story), stories, story.id), build: rebuild() });
       }
 
       if (req.method === "PUT" && idParam != null) {
@@ -277,6 +281,8 @@ async function handleApi(req, res, url) {
         const body = await readBody(req);
         const nums = numbering.prepareWrite(body, stories[idx], stories, issuedNumbers(), idParam);
         if (nums.problems.length) return sendJSON(res, 400, { error: nums.problems.join(" "), code: "story_number_invalid", problems: nums.problems });
+        const issueP = issueNumbers.parse(body.issueNumber);
+        if (issueP.error) return sendJSON(res, 400, { error: issueP.error, code: "issue_number_invalid" });
         const story = nums.apply(normalize(body, stories[idx]));
         story.id = idParam;
         story.createdBy = stories[idx].createdBy || story.createdBy || actor; story.createdAt = stories[idx].createdAt || story.createdAt || new Date().toISOString();
@@ -287,7 +293,7 @@ async function handleApi(req, res, url) {
         writeJSON(STORIES, stories);
         noteIssued(story.storyNumber);
         await audit.record({ action: "story.edit", storyId: idParam, actor, detail: story.title || null });
-        return sendJSON(res, 200, { ok: true, story, build: rebuild() });
+        return sendJSON(res, 200, { ok: true, story, issueWarnings: issueNumbers.usedBy(issueNumbers.effective(story), stories, idParam), build: rebuild() });
       }
 
       if (req.method === "DELETE" && idParam != null) {

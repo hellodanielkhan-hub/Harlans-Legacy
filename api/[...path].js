@@ -26,6 +26,7 @@ const crypto = require("crypto");
 const store = require("../lib/store.js");
 const records = require("../lib/records.js");
 const numbering = require("../lib/numbering.js");             // Story Numbers: validation + controlled release
+const issueNumbers = require("../lib/issue-numbers.js");      // Issue Number: the one editorial number ("Issue #N")
 const narration = require("../lib/narration/service.js");
 const identity = require("../lib/narration/identity.js");   // per-moderator auth + attribution
 const audit = require("../lib/narration/audit.js");         // moderator action audit log
@@ -317,6 +318,12 @@ module.exports = async (req, res) => {
       return json(res, 200, { ok: false, provider: "none", reason: "No server AI provider configured; the CMS uses its built-in local heuristics." });
     }
 
+    /* ---------------- Issue Numbers (read-only facts for the Admin Panel) ---------------- */
+    if (resource === "issue-numbers") {
+      if (method === "GET" && parts.length === 2) return json(res, 200, issueNumbers.summary(await store.getStories()));
+      return json(res, 404, { error: "Not found" });
+    }
+
     /* ---------------- Story Numbers ---------------- */
     if (resource === "story-numbers") {
       if (method === "GET" && parts.length === 2) {
@@ -347,6 +354,8 @@ module.exports = async (req, res) => {
         if (all.some(s => s.id === id)) return json(res, 409, { error: "id " + id + " already exists" });
         const nums = numbering.prepareWrite(body, null, all, await issuedNumbers(), id);
         if (nums.problems.length) return numberProblems(res, nums.problems);
+        const issueP = issueNumbers.parse(body.issueNumber);
+        if (issueP.error) return json(res, 400, { error: issueP.error, code: "issue_number_invalid" });
         const story = nums.apply(records.normalize(body));
         story.id = id;
         story.createdBy = actor; story.createdAt = new Date().toISOString(); story.lastEditedBy = actor; story.lastEditedAt = story.createdAt;
@@ -355,7 +364,7 @@ module.exports = async (req, res) => {
         await saveStory(story);
         await noteIssued([story.storyNumber]);
         await audit.record({ action: "story.create", storyId: story.id, actor, detail: story.title || null });
-        return json(res, 201, { ok: true, story, build: await rebuildUnlessDeferred(req, story.status) });
+        return json(res, 201, { ok: true, story, issueWarnings: issueNumbers.usedBy(issueNumbers.effective(story), all, story.id), build: await rebuildUnlessDeferred(req, story.status) });
       }
       if (method === "PUT" && idParam != null) {
         const body = await readBody(req);
@@ -364,6 +373,8 @@ module.exports = async (req, res) => {
         if (!existing) return json(res, 404, { error: "No story " + idParam });
         const nums = numbering.prepareWrite(body, existing, all, await issuedNumbers(), idParam);
         if (nums.problems.length) return numberProblems(res, nums.problems);
+        const issueP = issueNumbers.parse(body.issueNumber);
+        if (issueP.error) return json(res, 400, { error: issueP.error, code: "issue_number_invalid" });
         const story = nums.apply(records.normalize(body, existing));
         story.id = idParam;
         story.createdBy = existing.createdBy || story.createdBy || actor; story.createdAt = existing.createdAt || story.createdAt || new Date().toISOString();
@@ -374,7 +385,7 @@ module.exports = async (req, res) => {
         await noteIssued([story.storyNumber]);
         await audit.record({ action: "story.edit", storyId: idParam, actor, detail: story.title || null });
         // a memory that WAS public (published or coming-soon) must still rebuild (it has to leave the site)
-        return json(res, 200, { ok: true, story, build: await rebuildUnlessDeferred(req, existing.status !== "draft" ? existing.status : story.status) });
+        return json(res, 200, { ok: true, story, issueWarnings: issueNumbers.usedBy(issueNumbers.effective(story), all, idParam), build: await rebuildUnlessDeferred(req, existing.status !== "draft" ? existing.status : story.status) });
       }
       if (method === "DELETE" && idParam != null) {
         await store.deleteStory(idParam);

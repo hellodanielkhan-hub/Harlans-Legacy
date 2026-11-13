@@ -259,7 +259,7 @@ async function runBatch(opts) {
       const s = sr.body, g = gr.body, bad = [];
       const expected = records.normalize(Object.assign({}, it.record));
       if (s.id !== id) bad.push("id differs");
-      for (const k of RECORD_FIELDS) if (k !== "id" && canonical(s[k]) !== canonical(expected[k])) bad.push(k + " differs");
+      for (const k of RECORD_FIELDS) if (k !== "id" && canonical(records.fieldValue(s, k)) !== canonical(records.fieldValue(expected, k))) bad.push(k + " differs");
       if (JSON.stringify((g.items || []).map(x => x.file)) !== JSON.stringify(want)) bad.push("photos/order differ");
       if (want.length && (!g.items || !g.items[0] || g.primary !== g.items[0].id)) bad.push("Primary is not photo 1");
       if (!want.length && g.primary != null) bad.push("a Primary is set on a post that should have no photos");

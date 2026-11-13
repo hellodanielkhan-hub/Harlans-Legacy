@@ -109,6 +109,7 @@ async function saveStory(story) {
 async function issuedNumbers() { return numbering.issuedList(await store.getDoc(numbering.ISSUED_DOC, null)); }
 // Record numbers as issued; they can never be issued again, even after a delete.
 async function noteIssued(numbers) {
+  if (numbering.LEGACY_FROZEN) return;                    // frozen: the old issued-number ledger is never written
   const next = numbering.withIssued(await store.getDoc(numbering.ISSUED_DOC, null), numbers);
   if (next) await store.putDoc(numbering.ISSUED_DOC, next);
 }
@@ -328,11 +329,14 @@ module.exports = async (req, res) => {
     if (resource === "story-numbers") {
       if (method === "GET" && parts.length === 2) {
         const all = await store.getStories(), issued = await issuedNumbers();
-        return json(res, 200, { firstNewStoryNumber: numbering.FIRST_NEW_STORY_NUMBER, nextNewStoryNumber: numbering.nextNewStoryNumber(all, issued),
+        return json(res, 200, { frozen: numbering.LEGACY_FROZEN, firstNewStoryNumber: numbering.FIRST_NEW_STORY_NUMBER, nextNewStoryNumber: numbering.LEGACY_FROZEN ? null : numbering.nextNewStoryNumber(all, issued),
           retired: numbering.RETIRED, historicalEntries: numbering.policy().historicalEntries, assignments: numbering.assignments().length,
           assignmentsFingerprint: numbering.assignmentsFingerprint(), pendingRelease: numbering.checkRelease(all) });
       }
-      if (method === "POST" && parts[2] === "release" && parts.length === 3) return releaseStoryNumbers(res, actor, await readBody(req));
+      if (method === "POST" && parts[2] === "release" && parts.length === 3) {
+        if (numbering.LEGACY_FROZEN) return json(res, 410, { error: "Story Numbers are retired; the Issue Number is the only editorial number.", code: "story_numbers_frozen" });
+        return releaseStoryNumbers(res, actor, await readBody(req));
+      }
       return json(res, 404, { error: "Not found" });
     }
     if (resource === "stories" && parts[2] === "publish") {
@@ -356,7 +360,7 @@ module.exports = async (req, res) => {
         if (nums.problems.length) return numberProblems(res, nums.problems);
         const issueP = issueNumbers.parse(body.issueNumber);
         if (issueP.error) return json(res, 400, { error: issueP.error, code: "issue_number_invalid" });
-        const story = nums.apply(records.normalize(body));
+        const story = records.withOwnIssueNumber(nums.apply(records.normalize(body)));
         story.id = id;
         story.createdBy = actor; story.createdAt = new Date().toISOString(); story.lastEditedBy = actor; story.lastEditedAt = story.createdAt;
         const blockedP = await applyPublishContract(story, body.force);

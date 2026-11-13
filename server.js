@@ -48,7 +48,7 @@ const PHOTOS_OUT = path.join(ROOT, "assets", "photos");
 const STORY_PHOTOS_JSON = path.join(DATA, "story-photos.json");
 const STORY_NUMBERS_JSON = path.join(DATA, numbering.ISSUED_DOC + ".json");   // every Story Number ever saved
 const issuedNumbers = () => numbering.issuedList(fs.existsSync(STORY_NUMBERS_JSON) ? readJSON(STORY_NUMBERS_JSON) : null);
-function noteIssued(n) { const next = numbering.withIssued(fs.existsSync(STORY_NUMBERS_JSON) ? readJSON(STORY_NUMBERS_JSON) : null, [n]); if (next) writeJSON(STORY_NUMBERS_JSON, next); }
+function noteIssued(n) { if (numbering.LEGACY_FROZEN) return; const next = numbering.withIssued(fs.existsSync(STORY_NUMBERS_JSON) ? readJSON(STORY_NUMBERS_JSON) : null, [n]); if (next) writeJSON(STORY_NUMBERS_JSON, next); }
 const STORY_PHOTOS_SRC = path.join(ROOT, "story-photos");
 const STORY_PHOTOS_OUT = path.join(ROOT, "assets", "story-photos");
 const PORT = process.env.PORT || 4317;
@@ -239,7 +239,7 @@ async function handleApi(req, res, url) {
     if (resource === "issue-numbers" && req.method === "GET" && parts.length === 2) return sendJSON(res, 200, issueNumbers.summary(readJSON(STORIES)));
     if (resource === "story-numbers" && req.method === "GET" && parts.length === 2) {
       const all = readJSON(STORIES);
-      return sendJSON(res, 200, { firstNewStoryNumber: numbering.FIRST_NEW_STORY_NUMBER, nextNewStoryNumber: numbering.nextNewStoryNumber(all, issuedNumbers()),
+      return sendJSON(res, 200, { frozen: numbering.LEGACY_FROZEN, firstNewStoryNumber: numbering.FIRST_NEW_STORY_NUMBER, nextNewStoryNumber: numbering.LEGACY_FROZEN ? null : numbering.nextNewStoryNumber(all, issuedNumbers()),
         retired: numbering.RETIRED, historicalEntries: numbering.policy().historicalEntries, assignments: numbering.assignments().length,
         assignmentsFingerprint: numbering.assignmentsFingerprint(), pendingRelease: numbering.checkRelease(all) });
     }
@@ -263,7 +263,7 @@ async function handleApi(req, res, url) {
         if (nums.problems.length) return sendJSON(res, 400, { error: nums.problems.join(" "), code: "story_number_invalid", problems: nums.problems });
         const issueP = issueNumbers.parse(body.issueNumber);
         if (issueP.error) return sendJSON(res, 400, { error: issueP.error, code: "issue_number_invalid" });
-        const story = nums.apply(normalize(body));
+        const story = records.withOwnIssueNumber(nums.apply(normalize(body)));
         story.id = newId;
         story.createdBy = actor; story.createdAt = new Date().toISOString(); story.lastEditedBy = actor; story.lastEditedAt = story.createdAt;
         if (story.status === "published") { const pr = process.env.HARLAN_NARRATION_PUBLISH_GATE === "1" ? await narrationSvc.publishReadiness(story) : { block: false }; if (pr.block && !body.force) return sendJSON(res, 409, { error: pr.message, code: pr.code, readiness: pr }); const b = narrationSvc.bindingFor(story); if (b) story.narrationPublication = b; else delete story.narrationPublication; }

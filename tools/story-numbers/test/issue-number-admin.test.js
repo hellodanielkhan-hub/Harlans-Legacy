@@ -32,6 +32,8 @@ test.before(async () => {
   // Make the fixture's newest published memory (record 405) the latest by date, as This Week is on the live site.
   const list = site.stories();
   list.find(s => s.id === 405).publishedISO = "2026-11-06";
+  // a legacy Story Number / Original Blog Number stored on one record (inert data that must stay as it is)
+  Object.assign(list.find(s => s.id === 398), { storyNumber: 431, originalBlogNumber: 384 });
   site.writeStories(list);
   before = JSON.parse(JSON.stringify(site.stories()));
 });
@@ -162,4 +164,66 @@ test("weekly import: an approved post with an Issue Number is imported, verified
     const g = await call("GET", "/api/issue-numbers");
     assert.equal(g.body.latest.id, id); assert.equal(g.body.next, want + 1);
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+});
+
+/* ---- the legacy Story Number is inert: nothing assigns, reserves, issues or releases one ---- */
+test("legacy freeze: saves ignore Story Number fields, keep stored legacy values, never write the issued-number ledger", async () => {
+  const numbering = require(path.join(WT, "lib", "numbering.js"));
+  assert.equal(numbering.LEGACY_FROZEN, true);
+  const ledger = path.join(root, "data", "story_numbers.json");
+  assert.equal(fs.existsSync(ledger), false, "no issued-number ledger after every save above");
+  const all0 = site.stories(), maxId = Math.max(...all0.map(s => s.id));
+  // a create that tries to set legacy numbers (even a retired or reserved one) gets none, and is not refused for them
+  const c = await call("POST", "/api/stories", { title: "Legacy probe", status: "draft", publishedISO: "2026-11-14", lead: "Synthetic.", body: [], storyNumber: 448, originalBlogNumber: 400 });
+  assert.equal(c.status, 201); assert.equal(c.body.story.storyNumber, null); assert.equal(c.body.story.originalBlogNumber, null);
+  assert.equal(c.body.story.id, maxId + 1);                       // the record id is allocated as before, and is not an issue number
+  // a new record carries its own (empty) Issue Number, so the historical map can never apply to it, even when its
+  // record id happens to be a key of the map (as here: the synthetic archive reuses low ids)
+  assert.equal(c.body.story.issueNumber, null); assert.ok(SEED[String(c.body.story.id)], "this id is a key of the map");
+  assert.equal(issues.effective(c.body.story), null);
+  const r2 = await call("POST", "/api/stories", { title: "Legacy probe 2", status: "draft", storyNumber: 303 });   // retired in the old rules
+  assert.equal(r2.status, 201); assert.equal(r2.body.story.storyNumber, null);
+  // an edit that sends other legacy numbers keeps the stored ones exactly
+  const s398 = site.stories().find(s => s.id === 398);
+  const e = await call("PUT", "/api/stories/398", Object.assign({}, s398, { storyNumber: 9, originalBlogNumber: 1 }));
+  assert.equal(e.status, 200); assert.equal(e.body.story.storyNumber, 431); assert.equal(e.body.story.originalBlogNumber, 384);
+  assert.equal(fs.existsSync(ledger), false, "still no issued-number ledger");
+  // the release is closed; the read-only facts say so and suggest no Story Number
+  const rel = await call("POST", "/api/story-numbers/release", { fingerprint: numbering.assignmentsFingerprint() });
+  assert.equal(rel.status, 410); assert.equal(rel.body.code, "story_numbers_frozen");
+  const info = await call("GET", "/api/story-numbers");
+  assert.equal(info.body.frozen, true); assert.equal(info.body.nextNewStoryNumber, null);
+  assert.equal(info.body.assignmentsFingerprint, numbering.assignmentsFingerprint());   // the publisher's deployed-code check still works
+  // the importer never takes a Story Number from the private registry
+  const { buildRecord } = require(path.join(WT, "tools", "facebook-import", "lib", "record.js"));
+  const b = buildRecord({ postId: "S010", title: "x", category: "shabbat", publishedISO: "2019-03-15" }, ["p"], 999, { numberFor: () => 10 });
+  assert.equal(b.requestBody.storyNumber, null);
+  for (const id of [c.body.story.id, r2.body.story.id]) assert.equal((await call("DELETE", "/api/stories/" + id)).status, 200);
+});
+
+/* ---- one resolution rule for historical memories edited in the Admin Panel ---- */
+test("historical memory: an explicit number wins, an explicit clear never falls back to the map, the mapped number can be restored", async () => {
+  const id = 393, seed = SEED[String(id)], cur = () => site.stories().find(s => s.id === id);
+  // the Admin Panel re-sends nothing when the number is unchanged: the record keeps no field and the map still applies
+  let r = await call("PUT", "/api/stories/" + id, (({ issueNumber, ...rest }) => rest)(Object.assign({}, cur(), { title: cur().title })));
+  assert.equal(r.status, 200); assert.equal("issueNumber" in cur(), false); assert.ok(page(cur()).includes(label(seed)));
+  // a changed number wins over the map, on the page and in the Admin facts
+  r = await call("PUT", "/api/stories/" + id, Object.assign({}, cur(), { issueNumber: 777 }));
+  assert.equal(r.status, 200); assert.equal(cur().issueNumber, 777);
+  assert.ok(page(cur()).includes(label(777))); assert.ok(!page(cur()).includes(label(seed)));
+  assert.equal((await call("GET", "/api/issue-numbers")).body.byId[id], 777);
+  // cleared: no number anywhere; the map does not bring it back (also after another save without the field)
+  r = await call("PUT", "/api/stories/" + id, Object.assign({}, cur(), { issueNumber: null }));
+  assert.equal(r.status, 200); assert.equal(cur().issueNumber, null); assert.equal(labels(page(cur())), 0);
+  const again = Object.assign({}, cur()); delete again.issueNumber;
+  await call("PUT", "/api/stories/" + id, again);
+  assert.equal(cur().issueNumber, null); assert.equal(labels(page(cur())), 0);
+  assert.equal((await call("GET", "/api/issue-numbers")).body.byId[id], undefined);
+  // restored to the approved mapped number
+  r = await call("PUT", "/api/stories/" + id, Object.assign({}, cur(), { issueNumber: seed }));
+  assert.ok(page(cur()).includes(label(seed))); assert.equal(labels(page(cur())), 1);
+  // every other historical memory still resolves to its mapped number
+  const g = (await call("GET", "/api/issue-numbers")).body;
+  for (const s of before) if (s.id !== id && SEED[String(s.id)]) assert.equal(g.byId[s.id], SEED[String(s.id)], "record " + s.id);
+  assert.deepEqual(site.buildErrors, []);
 });

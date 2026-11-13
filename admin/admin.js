@@ -137,12 +137,18 @@
   function storyNoText(s) { var n = issueOf(s); return n != null ? "Issue #" + n : "No issue number"; }
   function storyRef(id) { var s = (state.stories || []).filter(function (x) { return x.id === id; })[0]; var n = issueOf(s); return n != null ? "Issue #" + n : "No issue number"; }
   function eyebrowFor(s) { var n = issueOf(s); return n != null ? "Editing Issue #" + n : "Editing memory (no issue number)"; }
+  // What a save sends: nothing when the numbers did not load or an existing memory's number is unchanged (the server
+  // keeps it as it is), otherwise the entered value (null = no issue number).
+  function issueForSave() { if (!state.issues) return undefined; var v = issueValue(); return !state.isNew && v === state.issueLoaded ? undefined : v; }
   function issueValue() { var v = String($("f-issue").value || "").trim(); if (!v) return null; var n = Number(v); return Number.isInteger(n) && n > 0 ? n : v; }
   // New Post: the suggested next number (latest published issue + 1), editable. Edit: the memory's own number.
   function fillIssue(s, isNew) {
     var I = state.issues || {};
     var n = isNew ? (I.next != null ? I.next : null) : issueOf(s);
     $("f-issue").value = n != null ? n : "";
+    state.issueLoaded = isNew ? undefined : n;            // what the memory has now; an unchanged number is not re-sent
+    $("f-issue").disabled = !state.issues;               // the numbers did not load: never risk clearing a memory's number
+    if (!state.issues) { $("issue-hint").textContent = "Issue numbers could not be loaded. Reload the page before changing this field; saving leaves the number as it is."; checkIssue(); return; }
     $("issue-hint").textContent = isNew
       ? (I.next != null && I.latest ? "Suggested from the latest published issue, #" + I.latest.issue + " (“" + I.latest.title + "”). Change it if Hal used a different number." : "Enter the issue number Hal gave this post, or leave it empty.")
       : "Shown on the story page as “Issue #N”. Leave empty for no issue number.";
@@ -309,7 +315,7 @@
     var reading = $("f-reading").value.trim();
     return {
       id: parseInt($("f-id").value, 10),
-      issueNumber: issueValue(),
+      issueNumber: issueForSave(),
       title: $("f-title").value.trim(),
       slug: $("f-slug").value.trim(),
       status: state.status,

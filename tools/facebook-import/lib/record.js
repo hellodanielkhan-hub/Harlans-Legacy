@@ -7,6 +7,7 @@
 
 const path = require("path");
 const records = require(path.join(__dirname, "..", "..", "..", "lib", "records.js"));
+const numbering = require(path.join(__dirname, "..", "..", "..", "lib", "numbering.js"));   // legacy Story Numbers (frozen)
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -27,7 +28,7 @@ function buildRecord(entry, paragraphs, id, registry) {
     id,
     // The Story Number the private registry reserves for this source post; null without a registry or
     // when the post is not in it. Never derived from the record id.
-    storyNumber: registry ? registry.numberFor(entry.postId) : null,
+    storyNumber: registry && !numbering.LEGACY_FROZEN ? registry.numberFor(entry.postId) : null,   // frozen: never a Story Number
     title: String(entry.title || "").trim(),
     slug: "",
     status: "draft",

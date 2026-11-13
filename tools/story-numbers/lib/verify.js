@@ -210,7 +210,7 @@ function batchContentProblems(stories, payload, targets) {
   for (const t of targets) {
     const s = stories.find(x => x.id === t.id), it = payload.items.find(x => x.postId === t.postId);
     const expected = records.normalize(Object.assign({}, it.record, { id: t.id }));
-    const bad = RECORD_FIELDS.filter(k => k !== "id" && k !== "status" && canonical(s[k]) !== canonical(expected[k]));
+    const bad = RECORD_FIELDS.filter(k => k !== "id" && k !== "status" && canonical(records.fieldValue(s, k)) !== canonical(records.fieldValue(expected, k)));
     if (bad.length) problems.push("record " + t.id + " (" + t.postId + "): " + bad.join(", ") + " differ from the approved payload");
   }
   return problems;

@@ -31,6 +31,7 @@ const { brandLogo, BRAND_CSS } = require("./lib/brand.js");   // primary brand m
 
 const { ROOT } = require("./lib/paths.js");   // app dir locally; a writable dir on read-only hosts
 const numbering = require("./lib/numbering.js");   // Story Numbers: storyNumber is the only number shown to readers
+const issueNumbers = require("./lib/issue-numbers.js");   // "Issue #N" in the date row (data/issue-numbers.json)
 const narrText = require("./lib/narration/text.js");   // narrated-text revision hash (for narration freshness)
 
 // Public Listening Mode is exposed for a story ONLY when its narration record is
@@ -294,6 +295,8 @@ function coverPicture(s, prefix) {
 function storyProvenance(s) {
   const no = numbering.displayNo(s);
   const parts = no == null ? [] : [`<span>No.&nbsp;<b>${no}</b></span>`];
+  const issue = issueNumbers.issueNo(s);   // the issue number in data/issue-numbers.json, when the story has one
+  if (issue != null) parts.push(`<span class="issue-no">Issue&nbsp;<b>#${issue}</b></span>`);
   const when = (s.memoryDate && s.memoryDate.length <= 46) ? s.memoryDate
     : (s.dateLong || "");
   if (when) parts.push(`<span>${text(when)}</span>`);
